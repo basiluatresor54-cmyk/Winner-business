@@ -1,0 +1,1966 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<title>Winner Business</title>
+<link rel="manifest" href="manifest.json">
+<script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore-compat.js"></script>
+<meta name="theme-color" content="#0F1B3D">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --navy:#0F1B3D; --navy-2:#182A5C;
+    --amber:#F4A825; --amber-2:#FFC85C;
+    --green:#1FA97A; --red:#E45858;
+    --paper:#F5F6FA; --card:#FFFFFF; --ink:#131A2E; --ink-soft:#6B7290; --line:#E7E9F2;
+    --radius:16px;
+  }
+  .app.dark{
+    --paper:#0B1220; --card:#141D30; --ink:#EDEFF7; --ink-soft:#9098B5; --line:#26304A;
+  }
+  .app.dark .stat-card, .app.dark .stock-pill, .app.dark .badge-ville{ filter:brightness(1.05); }
+  .app.dark .field input, .app.dark .field select{ background:#0F1830; border-color:var(--line); color:var(--ink); }
+  .app.dark .swatch.selected{ border-color:#fff; }
+  .app.dark .close-x{ background:#1C2740; color:var(--ink-soft); }
+  .app.dark .btn-ghost{ background:var(--card); border-color:var(--line); color:var(--ink); }
+  .app.dark .sheet{ background:var(--card); }
+  .app.dark .toast{ background:var(--navy-2); }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;background:transparent;}
+  body{font-family:'Inter',system-ui,sans-serif;color:var(--ink);-webkit-tap-highlight-color:transparent;}
+  .app{max-width:460px;margin:0 auto;background:var(--paper);min-height:100vh;display:flex;flex-direction:column;border-radius:20px;overflow:hidden;box-shadow:0 2px 24px rgba(15,27,61,0.10);position:relative;}
+  header{background:linear-gradient(135deg,var(--navy) 0%,var(--navy-2) 100%);color:#fff;padding:20px 20px 22px;position:relative;}
+  header .brand{display:flex;align-items:center;gap:10px;}
+  header .brand .mark{width:36px;height:36px;border-radius:10px;background:var(--amber);display:flex;align-items:center;justify-content:center;font-family:'Poppins',sans-serif;font-weight:800;color:var(--navy);font-size:16px;overflow:hidden;flex-shrink:0;}
+  header .brand .mark img{width:100%;height:100%;object-fit:cover;}
+  header h1{font-family:'Poppins',sans-serif;font-size:18px;font-weight:700;margin:0;letter-spacing:.2px;}
+  header .sub{font-size:12px;color:#B9C0E0;margin-top:2px;}
+  header .kpis{display:flex;gap:10px;margin-top:16px;}
+  header .kpi{flex:1;background:rgba(255,255,255,0.08);border-radius:12px;padding:10px 12px;}
+  header .kpi .lbl{font-size:10px;color:#B9C0E0;text-transform:uppercase;letter-spacing:.4px;}
+  header .kpi .val{font-family:'Poppins',sans-serif;font-size:16px;font-weight:700;margin-top:2px;}
+  header .kpi .val.pos{color:var(--amber-2);}
+  .settings-btn{position:absolute;top:16px;right:16px;width:34px;height:34px;border-radius:50%;background:rgba(255,255,255,0.12);border:none;color:#fff;font-size:15px;cursor:pointer;}
+
+  main{flex:1;padding:16px 16px 90px;overflow-y:auto;}
+  .page-title{font-family:'Poppins',sans-serif;font-weight:700;font-size:15px;margin:4px 2px 12px;display:flex;align-items:center;justify-content:space-between;}
+  .page-title .count{font-size:11px;color:var(--ink-soft);font-weight:500;}
+
+  .btn{border:none;cursor:pointer;font-family:'Inter',sans-serif;font-weight:600;border-radius:12px;padding:11px 16px;font-size:13px;display:inline-flex;align-items:center;justify-content:center;gap:6px;transition:transform .08s ease;}
+  .btn:active{transform:scale(0.96);}
+  .btn-primary{background:var(--navy);color:#fff;}
+  .btn-amber{background:var(--amber);color:var(--navy);}
+  .btn-green{background:var(--green);color:#fff;}
+  .btn-red{background:var(--red);color:#fff;}
+  .btn-ghost{background:#fff;color:var(--navy);border:1.5px solid var(--line);}
+  .btn-sm{padding:7px 10px;font-size:12px;border-radius:9px;}
+  .btn-block{width:100%;}
+  .btn-icon{width:38px;height:38px;padding:0;border-radius:10px;font-size:16px;}
+  .fab-row{display:flex;gap:8px;margin-bottom:14px;}
+
+  .card{background:var(--card);border-radius:var(--radius);padding:14px;margin-bottom:10px;box-shadow:0 1px 3px rgba(15,27,61,0.06);border:1px solid var(--line);}
+  .prod-card{display:flex;flex-direction:column;gap:10px;}
+  .prod-top{display:flex;justify-content:space-between;align-items:flex-start;gap:8px;}
+  .prod-name{font-weight:700;font-size:13.5px;line-height:1.3;}
+  .prod-cat{font-size:10.5px;color:var(--ink-soft);margin-top:2px;}
+  .prod-price{font-family:'Poppins',sans-serif;font-weight:700;color:var(--navy);font-size:14px;white-space:nowrap;}
+  .prod-price small{font-family:'Inter';font-weight:500;color:var(--ink-soft);font-size:10px;}
+  .stock-pill{font-size:11px;font-weight:700;padding:4px 10px;border-radius:20px;background:#EAF7F0;color:var(--green);align-self:flex-start;}
+  .stock-pill.low{background:#FDECEC;color:var(--red);}
+  .prod-actions{display:flex;gap:8px;}
+  .prod-actions .btn{flex:1;}
+
+  .order-card{padding:12px 14px;}
+  .order-top{display:flex;justify-content:space-between;align-items:center;}
+  .order-client{font-weight:700;font-size:13px;}
+  .order-date{font-size:10.5px;color:var(--ink-soft);}
+  .order-meta{font-size:12px;color:var(--ink-soft);margin-top:4px;}
+  .order-bottom{display:flex;justify-content:space-between;align-items:center;margin-top:8px;padding-top:8px;border-top:1px dashed var(--line);}
+  .order-profit{font-family:'Poppins',sans-serif;font-weight:700;color:var(--green);font-size:13px;}
+  .badge{font-size:10px;font-weight:700;padding:3px 8px;border-radius:20px;}
+  .badge-ville{background:#EEF1FB;color:var(--navy-2);}
+
+  .liv-card{display:flex;align-items:center;gap:12px;}
+  .liv-avatar{width:44px;height:44px;border-radius:50%;background:var(--navy);color:#fff;font-family:'Poppins';font-weight:700;font-size:16px;display:flex;align-items:center;justify-content:center;flex-shrink:0;}
+  .liv-info{flex:1;min-width:0;}
+  .liv-name{font-weight:700;font-size:13.5px;}
+  .liv-meta{font-size:11px;color:var(--ink-soft);margin-top:1px;}
+  .liv-edit{background:none;border:none;color:var(--ink-soft);font-size:15px;cursor:pointer;padding:6px;}
+  .liv-stats{display:flex;gap:14px;margin-top:6px;}
+  .liv-stat .n{font-family:'Poppins';font-weight:700;font-size:13px;color:var(--navy);}
+  .liv-stat .l{font-size:9.5px;color:var(--ink-soft);text-transform:uppercase;}
+
+  .count-card{display:flex;align-items:center;gap:12px;}
+  .count-btn{width:46px;height:46px;border-radius:50%;background:var(--navy);color:#fff;font-size:20px;font-weight:700;border:none;cursor:pointer;flex-shrink:0;}
+  .count-btn:active{transform:scale(0.92);}
+  .count-lbl{font-size:10.5px;color:var(--ink-soft);text-transform:uppercase;}
+
+  .pay-card{padding:14px;}
+  .pay-top{display:flex;justify-content:space-between;align-items:flex-start;gap:10px;}
+  .pay-name{font-weight:700;font-size:14px;}
+  .pay-mode{font-size:10.5px;color:var(--ink-soft);margin-top:2px;}
+  .pay-amount{font-family:'Poppins';font-weight:800;font-size:17px;color:var(--navy);white-space:nowrap;}
+  .pay-detail{font-size:11.5px;color:var(--ink-soft);margin-top:8px;padding-top:8px;border-top:1px dashed var(--line);line-height:1.6;}
+  .pay-status{display:inline-block;font-size:10px;font-weight:700;padding:3px 9px;border-radius:20px;margin-top:8px;}
+  .pay-status.due{background:#FDECEC;color:var(--red);}
+  .pay-status.paid{background:#EAF7F0;color:var(--green);}
+  .pay-actions{margin-top:10px;display:flex;gap:8px;}
+  .pay-actions .btn{flex:1;}
+
+  .hist-row,.mini-row{display:flex;justify-content:space-between;align-items:center;padding:9px 0;border-bottom:1px solid var(--line);font-size:12.5px;}
+  .hist-row:last-child,.mini-row:last-child{border-bottom:none;}
+  .hist-row .name,.mini-row .name{font-weight:600;}
+  .hist-row .num,.mini-row .num{color:var(--ink-soft);}
+
+  .month-bar{display:flex;align-items:center;gap:8px;margin-bottom:14px;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:8px 10px;}
+  .month-bar button{background:none;border:none;font-size:16px;cursor:pointer;color:var(--navy);width:32px;height:32px;border-radius:8px;}
+  .month-bar .m-label{flex:1;text-align:center;font-family:'Poppins';font-weight:700;font-size:13.5px;text-transform:capitalize;}
+
+  .period-bar{display:flex;gap:6px;margin-bottom:14px;}
+  .period-bar .btn{flex:1;}
+  .period-bar .btn-off{background:#fff;color:var(--ink-soft);border:1.5px solid var(--line);}
+
+  .summary-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px;}
+  .stat-card{background:var(--card);border-radius:14px;padding:14px;border:1px solid var(--line);}
+  .stat-card .l{font-size:10.5px;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.3px;}
+  .stat-card .v{font-family:'Poppins';font-weight:800;font-size:18px;margin-top:4px;color:var(--navy);}
+  .stat-card.profit{background:linear-gradient(135deg,var(--navy),var(--navy-2));border:none;}
+  .stat-card.profit .l{color:#B9C0E0;}
+  .stat-card.profit .v{color:var(--amber-2);}
+
+  .empty{text-align:center;padding:40px 20px;color:var(--ink-soft);}
+  .empty .em-icon{font-size:34px;margin-bottom:8px;}
+  .empty .em-txt{font-size:13px;}
+
+  nav.tabbar{position:sticky;bottom:0;left:0;right:0;background:#fff;border-top:1px solid var(--line);display:flex;padding:6px 4px calc(6px + env(safe-area-inset-bottom));overflow-x:auto;}
+  nav.tabbar button{flex:1;background:none;border:none;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:2px;padding:8px 2px;border-radius:10px;color:var(--ink-soft);font-family:'Inter';font-size:9.5px;font-weight:600;min-width:56px;}
+  nav.tabbar button .ic{font-size:17px;}
+  nav.tabbar button.active{color:var(--navy);}
+
+  .overlay{position:fixed;inset:0;background:rgba(15,27,61,0.45);display:flex;align-items:flex-end;justify-content:center;z-index:50;opacity:0;pointer-events:none;transition:opacity .18s ease;}
+  .overlay.show{opacity:1;pointer-events:auto;}
+  .sheet{background:#fff;width:100%;max-width:460px;border-radius:20px 20px 0 0;padding:18px 18px calc(18px + env(safe-area-inset-bottom));max-height:88vh;overflow-y:auto;transform:translateY(16px);transition:transform .18s ease;position:relative;}
+  .overlay.show .sheet{transform:translateY(0);}
+  .sheet h3{font-family:'Poppins';font-size:15px;margin:0 0 14px;padding-right:26px;}
+  .field{margin-bottom:12px;}
+  .field label{display:block;font-size:11.5px;font-weight:600;color:var(--ink-soft);margin-bottom:5px;}
+  .field input, .field select{width:100%;padding:11px 12px;border-radius:10px;border:1.5px solid var(--line);font-family:'Inter';font-size:13.5px;background:var(--paper);color:var(--ink);}
+  .field input:focus, .field select:focus{outline:2px solid var(--amber);border-color:var(--amber);}
+  .row2{display:flex;gap:10px;}
+  .row2 .field{flex:1;}
+  .sheet-actions{display:flex;gap:10px;margin-top:16px;}
+  .sheet-actions .btn{flex:1;}
+  .close-x{position:absolute;top:14px;right:14px;background:var(--paper);border:none;width:30px;height:30px;border-radius:50%;font-size:14px;cursor:pointer;color:var(--ink-soft);}
+  .toast{position:fixed;top:18px;left:50%;transform:translateX(-50%);background:var(--navy);color:#fff;padding:10px 18px;border-radius:30px;font-size:12.5px;font-weight:600;z-index:100;box-shadow:0 4px 16px rgba(0,0,0,0.2);opacity:0;transition:opacity .2s ease, top .2s ease;pointer-events:none;}
+  .toast.show{opacity:1;top:14px;}
+  .hint{font-size:10.5px;color:var(--ink-soft);margin-top:-6px;margin-bottom:12px;}
+
+  /* ---- Boutique publique ---- */
+  #boutiqueRoot{max-width:460px;margin:0 auto;background:var(--paper);min-height:100vh;position:relative;}
+  .bq-header{background:linear-gradient(135deg,var(--navy),var(--navy-2));color:#fff;padding:22px 18px 26px;position:relative;background-size:cover;background-position:center;}
+  .bq-header .bq-overlay{position:absolute;inset:0;background:linear-gradient(135deg,rgba(15,27,61,0.72),rgba(24,42,92,0.8));}
+  .bq-header-inner{position:relative;z-index:1;display:flex;align-items:center;gap:12px;}
+  .bq-logo{width:48px;height:48px;border-radius:12px;background:var(--amber);display:flex;align-items:center;justify-content:center;font-family:'Poppins';font-weight:800;font-size:20px;color:var(--navy);overflow:hidden;flex-shrink:0;}
+  .bq-logo img{width:100%;height:100%;object-fit:cover;}
+  .bq-title{font-family:'Poppins';font-weight:700;font-size:19px;}
+  .bq-sub{font-size:12px;color:#B9C0E0;margin-top:2px;}
+  .bq-grid{padding:16px;display:grid;grid-template-columns:1fr 1fr;gap:12px;padding-bottom:90px;}
+  .bq-pcard{background:var(--card);border-radius:14px;overflow:hidden;border:1px solid var(--line);display:flex;flex-direction:column;}
+  .bq-pimg{width:100%;aspect-ratio:1;background:var(--paper);display:flex;align-items:center;justify-content:center;font-size:30px;overflow:hidden;}
+  .bq-pimg img{width:100%;height:100%;object-fit:cover;}
+  .bq-pbody{padding:10px;display:flex;flex-direction:column;gap:4px;flex:1;}
+  .bq-pname{font-weight:700;font-size:12.5px;line-height:1.3;}
+  .bq-pdesc{font-size:10.5px;color:var(--ink-soft);line-height:1.4;max-height:44px;overflow:hidden;}
+  .bq-pprice{font-family:'Poppins';font-weight:800;color:var(--navy);font-size:13.5px;margin-top:auto;}
+  .bq-pstock{font-size:9.5px;color:var(--red);font-weight:700;}
+  .bq-addrow{display:flex;align-items:center;gap:6px;margin-top:6px;}
+  .bq-qtybtn{width:26px;height:26px;border-radius:8px;border:1.5px solid var(--line);background:#fff;font-weight:700;cursor:pointer;font-size:13px;}
+  .bq-qtynum{flex:1;text-align:center;font-weight:700;font-size:12.5px;}
+  .bq-addbtn{width:100%;background:var(--navy);color:#fff;border:none;border-radius:9px;padding:7px;font-size:11.5px;font-weight:700;cursor:pointer;margin-top:6px;}
+  .bq-cartbar{position:fixed;bottom:0;left:50%;transform:translateX(-50%);width:100%;max-width:460px;background:var(--navy);color:#fff;padding:14px 18px;display:flex;justify-content:space-between;align-items:center;cursor:pointer;z-index:20;}
+  .bq-cartbar b{font-family:'Poppins';color:var(--amber-2);}
+  .bq-empty{padding:60px 24px;text-align:center;color:var(--ink-soft);}
+  .logo-picker{display:flex;align-items:center;gap:12px;margin-bottom:14px;}
+  .logo-picker .preview{width:56px;height:56px;border-radius:14px;background:var(--paper);border:1.5px dashed var(--line);display:flex;align-items:center;justify-content:center;overflow:hidden;font-size:22px;color:var(--ink-soft);flex-shrink:0;}
+  .logo-picker .preview img{width:100%;height:100%;object-fit:cover;}
+  .color-swatches{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:6px;}
+  .swatch{width:32px;height:32px;border-radius:50%;cursor:pointer;border:2px solid transparent;}
+  .swatch.selected{border-color:var(--ink);}
+</style>
+</head>
+<body>
+<div class="app">
+  <header>
+    <button class="settings-btn" id="settingsBtn" onclick="openSettings()">⚙️</button>
+    <div class="brand">
+      <div class="mark" id="brandMark">W</div>
+      <div>
+        <h1 id="brandName">Winner Business</h1>
+        <div class="sub" id="brandSub">Ventes · Stock · Livreurs · Paie</div>
+      </div>
+    </div>
+    <div class="kpis">
+      <div class="kpi"><div class="lbl">Ventes (7j)</div><div class="val" id="kpiSales">—</div></div>
+      <div class="kpi"><div class="lbl">Bénéfice (7j)</div><div class="val pos" id="kpiProfit">—</div></div>
+    </div>
+  </header>
+
+  <main id="content"></main>
+
+  <nav class="tabbar">
+    <button data-tab="produits" class="tab-btn"><span class="ic">📦</span>Produits</button>
+    <button data-tab="livraisons" class="tab-btn"><span class="ic">🚚</span>Ventes</button>
+    <button data-tab="livreurs" class="tab-btn"><span class="ic">🧑‍💼</span>Livreurs</button>
+    <button data-tab="dotations" class="tab-btn"><span class="ic">🏬</span>Chez livreurs</button>
+    <button data-tab="paie" class="tab-btn"><span class="ic">💵</span>Paie</button>
+    <button data-tab="resume" class="tab-btn"><span class="ic">📊</span>Résumé</button>
+  </nav>
+</div>
+
+<div id="authScreen" style="position:fixed;inset:0;background:linear-gradient(135deg,#0F1B3D,#182A5C);z-index:200;display:flex;align-items:center;justify-content:center;padding:24px;">
+  <div style="text-align:center;max-width:340px;">
+    <div style="width:64px;height:64px;border-radius:16px;background:#F4A825;display:flex;align-items:center;justify-content:center;font-family:'Poppins',sans-serif;font-weight:800;font-size:26px;color:#0F1B3D;margin:0 auto 18px;">W</div>
+    <h2 style="color:#fff;font-family:'Poppins',sans-serif;margin-bottom:8px;">Winner Business</h2>
+    <p style="color:#B9C0E0;font-size:13px;margin-bottom:26px;">Connectez-vous avec Google pour accéder à vos données, synchronisées automatiquement.</p>
+    <button onclick="signInWithGoogle()" style="background:#fff;color:#131A2E;border:none;border-radius:12px;padding:13px 22px;font-weight:700;font-size:14px;cursor:pointer;display:inline-flex;align-items:center;gap:10px;">
+      <svg width="18" height="18" viewBox="0 0 18 18"><path fill="#4285F4" d="M17.64 9.2c0-.64-.06-1.25-.16-1.84H9v3.48h4.84a4.14 4.14 0 0 1-1.8 2.72v2.26h2.9c1.7-1.57 2.7-3.88 2.7-6.62z"/><path fill="#34A853" d="M9 18c2.43 0 4.47-.8 5.96-2.18l-2.9-2.26c-.8.54-1.84.86-3.06.86-2.35 0-4.34-1.59-5.05-3.72H.9v2.33A9 9 0 0 0 9 18z"/><path fill="#FBBC05" d="M3.95 10.7A5.4 5.4 0 0 1 3.67 9c0-.59.1-1.17.28-1.7V4.97H.9A9 9 0 0 0 0 9c0 1.45.35 2.83.9 4.03l3.05-2.33z"/><path fill="#EA4335" d="M9 3.58c1.32 0 2.5.45 3.44 1.35l2.58-2.58C13.46.89 11.43 0 9 0A9 9 0 0 0 .9 4.97l3.05 2.33C4.66 5.17 6.65 3.58 9 3.58z"/></svg>
+      Se connecter avec Google
+    </button>
+    <p id="authError" style="color:#FFC85C;font-size:11.5px;margin-top:16px;"></p>
+  </div>
+</div>
+<div id="lockScreen" style="position:fixed;inset:0;background:linear-gradient(135deg,#0F1B3D,#182A5C);z-index:210;display:none;align-items:center;justify-content:center;padding:24px;">
+  <div style="text-align:center;max-width:300px;">
+    <div style="font-size:40px;margin-bottom:14px;">🔒</div>
+    <h2 style="color:#fff;font-family:'Poppins',sans-serif;margin-bottom:6px;">Code verrouillé</h2>
+    <p style="color:#B9C0E0;font-size:12.5px;margin-bottom:22px;">Entrez votre code PIN pour ouvrir l'application.</p>
+    <input id="pinInput" type="password" inputmode="numeric" maxlength="4" pattern="[0-9]*" placeholder="••••"
+      style="width:140px;text-align:center;letter-spacing:10px;font-size:22px;padding:12px;border-radius:12px;border:none;margin-bottom:14px;">
+    <br>
+    <button onclick="checkPin()" style="background:#F4A825;color:#0F1B3D;border:none;border-radius:12px;padding:12px 28px;font-weight:700;font-size:14px;cursor:pointer;">Déverrouiller</button>
+    <p id="pinError" style="color:#FFC85C;font-size:12px;margin-top:14px;"></p>
+  </div>
+</div>
+<div id="licenseScreen" style="position:fixed;inset:0;background:linear-gradient(135deg,#0F1B3D,#182A5C);z-index:205;display:none;align-items:center;justify-content:center;padding:24px;">
+  <div style="text-align:center;max-width:320px;width:100%;">
+    <div style="font-size:40px;margin-bottom:14px;">🔑</div>
+    <h2 style="color:#fff;font-family:'Poppins',sans-serif;margin-bottom:6px;">Activation requise</h2>
+    <p style="color:#B9C0E0;font-size:12.5px;margin-bottom:6px;" id="licenseSubEmail"></p>
+    <p style="color:#B9C0E0;font-size:12.5px;margin-bottom:20px;">Entrez la clé de licence reçue après votre achat.</p>
+    <input id="licenseKeyInput" type="text" placeholder="Ex : WB-2026-XXXXX" autocapitalize="characters"
+      style="width:100%;text-align:center;letter-spacing:2px;font-size:15px;padding:13px;border-radius:12px;border:none;margin-bottom:14px;font-family:'Inter';">
+    <br>
+    <button onclick="validateLicenseKey()" style="background:#F4A825;color:#0F1B3D;border:none;border-radius:12px;padding:13px 28px;font-weight:700;font-size:14px;cursor:pointer;width:100%;">✅ Activer</button>
+    <p id="licenseError" style="color:#FFC85C;font-size:12px;margin-top:14px;"></p>
+    <button onclick="signOutUser()" style="background:none;border:none;color:#8A90AC;font-size:11.5px;margin-top:18px;cursor:pointer;text-decoration:underline;">Se déconnecter</button>
+  </div>
+</div>
+<div class="overlay" id="overlay"><div class="sheet" id="sheet"></div></div>
+<div id="onboardRoot"></div>
+<div class="toast" id="toast"></div>
+<div id="boutiqueRoot" style="display:none;"></div>
+<input type="file" id="importFile" accept="application/json" style="display:none" onchange="handleImportFile(this)">
+
+<script>
+const STORAGE_KEY = 'winnerBusinessDataV2';
+let state = null;
+let currentTab = 'produits';
+let currentMonth = new Date().toISOString().slice(0,7);
+let _resumePeriod = '7j';
+let currentUser = null;
+
+/* ---------- FIREBASE ---------- */
+const firebaseConfig = {
+  apiKey: "AIzaSyBdSvtRwSEEIJhPX9hASwjxYqmBSALqZ6I",
+  authDomain: "winner-business-299e2.firebaseapp.com",
+  projectId: "winner-business-299e2",
+  storageBucket: "winner-business-299e2.firebasestorage.app",
+  messagingSenderId: "780880836579",
+  appId: "1:780880836579:web:20352a7227ebc9654b92d6",
+  measurementId: "G-8MEDQ5FKH9"
+};
+firebase.initializeApp(firebaseConfig);
+const auth = firebase.auth();
+const db = firebase.firestore();
+
+/* ===================== BOUTIQUE PUBLIQUE ===================== */
+const BOUTIQUE_UID = new URLSearchParams(location.search).get('boutique');
+let boutiqueData = null;
+let cart = {}; // { productId: qty }
+
+function bWaNumber(phone){
+  let n = (phone||'').replace(/[^\d]/g,'');
+  if(!n) return '';
+  if(n.startsWith('0')) n = '243' + n.slice(1);
+  else if(!n.startsWith('243')) n = '243' + n;
+  return n;
+}
+function bFmt(n){
+  return (boutiqueData.settings.currencySymbol||'$') + (Math.round((n||0)*100)/100).toLocaleString('fr-FR',{minimumFractionDigits:2,maximumFractionDigits:2});
+}
+function bFmtSecondary(n){
+  const s = boutiqueData.settings;
+  if(!s.showSecondary || !s.rate) return '';
+  return ` (${Math.round(n*s.rate).toLocaleString('fr-FR')} ${s.secondarySymbol||'FC'})`;
+}
+function bDeliveryFee(ville){
+  const s = boutiqueData.settings;
+  const norm = (ville||'').trim().toLowerCase();
+  const match = (s.deliveryFees||[]).find(c=>c.ville.trim().toLowerCase()===norm);
+  if(match) return {montant:match.montant, currency:match.currency||'primary'};
+  return {montant:s.deliveryFeeDefault||0, currency:s.deliveryFeeDefaultCurrency||'primary'};
+}
+function bDeliveryFeeText(fee){
+  if(fee.montant<=0) return 'Gratuite';
+  const s = boutiqueData.settings;
+  return fee.currency==='secondary' ? `${Math.round(fee.montant).toLocaleString('fr-FR')} ${s.secondarySymbol||'FC'}` : bFmt(fee.montant);
+}
+function bEsc(s){ return (s||'').toString().replace(/[<>&"]/g, c=>({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;'}[c])); }
+
+async function initBoutique(){
+  document.querySelector('.app').style.display = 'none';
+  document.getElementById('authScreen').style.display = 'none';
+  const lic = document.getElementById('licenseScreen'); if(lic) lic.style.display = 'none';
+  const lock = document.getElementById('lockScreen'); if(lock) lock.style.display = 'none';
+  const root = document.getElementById('boutiqueRoot');
+  root.style.display = 'block';
+  root.innerHTML = `<div class="bq-empty">Chargement de la boutique...</div>`;
+  try{
+    const doc = await db.collection('shops').doc(BOUTIQUE_UID).get();
+    if(!doc.exists){ root.innerHTML = `<div class="bq-empty">🚫 Boutique introuvable.</div>`; return; }
+    boutiqueData = doc.data();
+    if(boutiqueData.branding && boutiqueData.branding.color){
+      document.documentElement.style.setProperty('--amber', boutiqueData.branding.color);
+    }
+    renderBoutique();
+  }catch(e){
+    console.error(e);
+    root.innerHTML = `<div class="bq-empty">⚠️ Erreur de chargement. Vérifiez votre connexion et réessayez.</div>`;
+  }
+}
+
+function renderBoutique(){
+  const root = document.getElementById('boutiqueRoot');
+  const b = boutiqueData.branding || {};
+  const products = (boutiqueData.products||[]).filter(p=>p.stock>0 || p.stock===undefined);
+  const bannerStyle = b.banner ? `background-image:linear-gradient(135deg,rgba(15,27,61,0.72),rgba(24,42,92,0.8)),url('${b.banner}');` : '';
+
+  let html = `
+    <div class="bq-header" style="${bannerStyle}">
+      <div class="bq-header-inner">
+        <div class="bq-logo">${b.logo?`<img src="${bEsc(b.logo)}">`:bEsc((b.name||'B')[0].toUpperCase())}</div>
+        <div>
+          <div class="bq-title">${bEsc(b.name||'Boutique')}</div>
+          <div class="bq-sub">Commandez en ligne · Paiement à la livraison</div>
+        </div>
+      </div>
+    </div>
+    <div class="bq-grid">`;
+
+  if(products.length===0){ html += `<div class="bq-empty" style="grid-column:1/-1;">Aucun produit disponible pour le moment.</div>`; }
+
+  products.forEach(p=>{
+    const qty = cart[p.id]||0;
+    html += `<div class="bq-pcard">
+      <div class="bq-pimg">${p.photo?`<img src="${bEsc(p.photo)}">`:'📦'}</div>
+      <div class="bq-pbody">
+        <div class="bq-pname">${bEsc(p.name)}</div>
+        ${p.description?`<div class="bq-pdesc">${bEsc(p.description)}</div>`:''}
+        <div class="bq-pprice">${bFmt(p.sell)}</div>
+        <div class="bq-addrow">
+          <button class="bq-qtybtn" onclick="bChangeQty('${p.id}',-1)">−</button>
+          <div class="bq-qtynum" id="bqty_${p.id}">${qty}</div>
+          <button class="bq-qtybtn" onclick="bChangeQty('${p.id}',1)">+</button>
+        </div>
+      </div>
+    </div>`;
+  });
+
+  html += `</div>`;
+  root.innerHTML = html;
+  renderCartBar();
+}
+
+function bChangeQty(pid, delta){
+  const newQty = Math.max(0, (cart[pid]||0) + delta);
+  if(newQty===0){ delete cart[pid]; } else { cart[pid] = newQty; }
+  document.getElementById('bqty_'+pid).textContent = cart[pid]||0;
+  renderCartBar();
+}
+
+function cartTotal(){
+  let total = 0, count = 0;
+  Object.entries(cart).forEach(([pid,qty])=>{
+    const p = (boutiqueData.products||[]).find(x=>x.id===pid);
+    if(p){ total += p.sell*qty; count += qty; }
+  });
+  return {total, count};
+}
+
+function renderCartBar(){
+  const existing = document.getElementById('bqCartBar');
+  if(existing) existing.remove();
+  const {total, count} = cartTotal();
+  if(count===0) return;
+  const bar = document.createElement('div');
+  bar.id = 'bqCartBar';
+  bar.className = 'bq-cartbar';
+  bar.onclick = openCheckout;
+  bar.innerHTML = `<span>🛒 ${count} article${count>1?'s':''}</span><b>${bFmt(total)} →</b>`;
+  document.getElementById('boutiqueRoot').appendChild(bar);
+}
+
+function openCheckout(){
+  const {total} = cartTotal();
+  const villeOpts = (boutiqueData.settings.deliveryFees||[]).map(d=>`<option value="${bEsc(d.ville)}">`).join('');
+  let itemsHtml = '';
+  Object.entries(cart).forEach(([pid,qty])=>{
+    const p = (boutiqueData.products||[]).find(x=>x.id===pid);
+    if(p) itemsHtml += `<div class="mini-row"><span class="name">${bEsc(p.name)} ×${qty}</span><span class="num">${bFmt(p.sell*qty)}</span></div>`;
+  });
+  openSheet(`
+    <button class="close-x" onclick="closeSheet()">✕</button>
+    <h3>🛒 Finaliser la commande</h3>
+    <div class="card" style="padding:12px 14px;margin-bottom:14px;">${itemsHtml}
+      <div class="mini-row" style="border-top:1px solid var(--line);margin-top:4px;padding-top:8px;"><span class="name">Sous-total</span><span class="num" style="font-weight:700;">${bFmt(total)}</span></div>
+    </div>
+    <div class="field"><label>Votre nom</label><input id="bq_name" placeholder="Nom complet"></div>
+    <div class="field"><label>Téléphone (WhatsApp)</label><input id="bq_phone" placeholder="Ex : 0899000000"></div>
+    <div class="field"><label>Adresse complète</label><input id="bq_address" placeholder="Avenue, quartier, référence..."></div>
+    <div class="row2">
+      <div class="field"><label>Ville</label><input id="bq_ville" list="bqVilles" placeholder="Ex : Kinshasa" oninput="updateCheckoutFee()"></div>
+      <div class="field"><label>Heure souhaitée</label><input id="bq_time" type="time"></div>
+    </div>
+    <datalist id="bqVilles">${villeOpts}</datalist>
+    <div class="field"><label>Note (optionnel)</label><input id="bq_note" placeholder="Ex : appartement au 2ème étage"></div>
+    <div class="hint" id="bq_feeHint">Indiquez votre ville pour voir le frais de livraison.</div>
+    <div class="sheet-actions"><button class="btn btn-green btn-block" onclick="sendBoutiqueOrder()">💬 Commander via WhatsApp</button></div>
+  `);
+}
+function updateCheckoutFee(){
+  const ville = document.getElementById('bq_ville').value;
+  const fee = bDeliveryFee(ville);
+  document.getElementById('bq_feeHint').textContent = ville ? `Frais de livraison à ${ville} : ${bDeliveryFeeText(fee)}` : 'Indiquez votre ville pour voir le frais de livraison.';
+}
+function sendBoutiqueOrder(){
+  const name = document.getElementById('bq_name').value.trim();
+  const phone = document.getElementById('bq_phone').value.trim();
+  const address = document.getElementById('bq_address').value.trim();
+  const ville = document.getElementById('bq_ville').value.trim();
+  const time = document.getElementById('bq_time').value;
+  const note = document.getElementById('bq_note').value.trim();
+  if(!name || !phone || !address || !ville){ showToast('⚠️ Remplissez au moins nom, téléphone, adresse et ville'); return; }
+  const shopPhone = boutiqueData.settings.phone;
+  if(!shopPhone){ showToast('⚠️ Cette boutique n\'a pas encore de numéro WhatsApp configuré'); return; }
+
+  const fee = bDeliveryFee(ville);
+  const {total} = cartTotal();
+  let msg = `🛍️ *Nouvelle commande* — ${boutiqueData.branding.name||'Boutique'}\n\n`;
+  Object.entries(cart).forEach(([pid,qty])=>{
+    const p = (boutiqueData.products||[]).find(x=>x.id===pid);
+    if(p) msg += `• ${p.name} × ${qty} = ${bFmt(p.sell*qty)}\n`;
+  });
+  msg += `\nSous-total : ${bFmt(total)}\n`;
+  msg += `Livraison (${ville}) : ${bDeliveryFeeText(fee)}\n`;
+  msg += `\n👤 Client : ${name}\n📞 Téléphone : ${phone}\n📍 Adresse : ${address}\n🏙️ Ville : ${ville}\n`;
+  if(time) msg += `🕐 Heure souhaitée : ${time}\n`;
+  if(note) msg += `📝 Note : ${note}\n`;
+  msg += `\n💵 Paiement à la livraison`;
+
+  window.open(`https://wa.me/${bWaNumber(shopPhone)}?text=${encodeURIComponent(msg)}`, '_blank');
+  closeSheet();
+}
+
+if(BOUTIQUE_UID){
+  document.addEventListener('DOMContentLoaded', initBoutique);
+}
+/* ================= FIN BOUTIQUE PUBLIQUE ================= */
+
+
+const OWNER_EMAIL = 'basiluatresor54@gmail.com';
+
+function signInWithGoogle(){
+  const provider = new firebase.auth.GoogleAuthProvider();
+  document.getElementById('authError').textContent = '';
+  auth.signInWithPopup(provider).catch((err)=>{
+    document.getElementById('authError').textContent = "Connexion impossible : " + (err.message || err.code || 'erreur inconnue');
+  });
+}
+async function signOutUser(){
+  await auth.signOut();
+}
+auth.onAuthStateChanged((user)=>{
+  currentUser = user;
+  const screen = document.getElementById('authScreen');
+  document.getElementById('licenseScreen').style.display = 'none';
+  if(user){
+    screen.style.display = 'none';
+    loadState(); // système de clé de licence désactivé pour l'instant
+  } else {
+    screen.style.display = 'flex';
+  }
+});
+
+async function checkLicense(){
+  const email = (auth.currentUser && auth.currentUser.email) || currentUser.email;
+  try{
+    // Une seule condition "where" pour éviter d'avoir besoin d'un index composé Firestore
+    const snap = await db.collection('licences').where('email','==',email).limit(5).get();
+    const hasActive = snap.docs.some(d=>d.data().active===true);
+    if(hasActive){ loadState(); return; }
+  }catch(e){ console.error('Erreur vérification licence :', e); }
+  document.getElementById('licenseSubEmail').textContent = `Compte connecté : ${email}`;
+  document.getElementById('licenseError').textContent = '';
+  document.getElementById('licenseKeyInput').value = '';
+  document.getElementById('licenseScreen').style.display = 'flex';
+}
+async function validateLicenseKey(){
+  const key = document.getElementById('licenseKeyInput').value.trim().toUpperCase();
+  const errEl = document.getElementById('licenseError');
+  errEl.textContent = '';
+  if(!key){ errEl.textContent = 'Entrez une clé.'; return; }
+  const email = (auth.currentUser && auth.currentUser.email) || currentUser.email;
+  const uid = (auth.currentUser && auth.currentUser.uid) || currentUser.uid;
+  try{
+    const ref = db.collection('licences').doc(key);
+    const doc = await ref.get();
+    if(!doc.exists || !doc.data().active){ errEl.textContent = '⚠️ Clé invalide.'; return; }
+    const d = doc.data();
+    if(d.utilisee && d.email && d.email !== email){ errEl.textContent = '⚠️ Cette clé est déjà utilisée par un autre compte.'; return; }
+    await ref.set({ email, uid, utilisee: true, dateActivation: firebase.firestore.FieldValue.serverTimestamp() }, {merge:true});
+    document.getElementById('licenseScreen').style.display = 'none';
+    loadState();
+  }catch(e){ console.error('Erreur activation licence :', e); errEl.textContent = "⚠️ Erreur de vérification, réessayez."; }
+}
+async function generateLicenseKey(){
+  const key = 'WB-' + new Date().getFullYear() + '-' + Math.random().toString(36).slice(2,7).toUpperCase();
+  await db.collection('licences').doc(key).set({ active:true, utilisee:false, email:null, uid:null, dateCreation: firebase.firestore.FieldValue.serverTimestamp() });
+  return key;
+}
+
+const fmtUSD = n => (state.settings && state.settings.currencySymbol || '$') + (Math.round((n||0)*100)/100).toLocaleString('fr-FR',{minimumFractionDigits:2,maximumFractionDigits:2});
+const fmtFC = n => Math.round(n||0).toLocaleString('fr-FR') + ' ' + (state.settings && state.settings.secondarySymbol || 'FC');
+const showSecondary = () => !!(state.settings && state.settings.showSecondary && state.settings.rate);
+const secondaryPart = n => showSecondary() ? ` (${fmtFC(n*state.settings.rate)})` : '';
+const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2,7);
+const nowISO = () => new Date().toISOString();
+const COLOR_PRESETS = ['#F4A825','#1FA97A','#3B82F6','#E45858','#8B5CF6','#0EA5A5'];
+
+function defaultState(){
+  return {
+    branding:null,
+    settings:{ rate:2300, currencySymbol:'$', showSecondary:true, secondaryName:'Franc congolais', secondarySymbol:'FC', deliveryFees:[], deliveryFeeDefault:0 },
+    products:[
+      {id:'p1', name:'Sac de poitrine (antivol)', cat:'Bagagerie', buy:5, sell:10, commissions:[{ville:'Kinshasa', montant:1.5}], commDefault:2, stock:0},
+      {id:'p2', name:'Huile Adeline Golden Hair', cat:'Capillaire', buy:0, sell:10, commissions:[], commDefault:2, stock:0},
+      {id:'p3', name:'Pommade Adeline Golden Hair', cat:'Capillaire', buy:0, sell:10, commissions:[], commDefault:2, stock:0},
+      {id:'p4', name:'Pack Huile+Pommade', cat:'Capillaire', buy:0, sell:15, commissions:[], commDefault:0, stock:0},
+      {id:'p5', name:'Produit éjaculation précoce', cat:'Santé', buy:0, sell:13.04, commissions:[], commDefault:0, stock:0},
+      {id:'p6', name:'Produit hémorroïdes', cat:'Santé', buy:0, sell:13.04, commissions:[], commDefault:0, stock:0},
+      {id:'p7', name:'Concombre Munene 150g', cat:'Santé/Beauté', buy:2.87, sell:21.74, commissions:[], commDefault:0, stock:0},
+      {id:'p8', name:'Savon noir (100g)', cat:'Hygiène', buy:0.75, sell:5.22, commissions:[], commDefault:0, stock:0},
+    ],
+    livreurs:[
+      {id:'l1', name:'Marla', ville:'Kinshasa', phone:'', payMode:'commission', montantFixe:0, tauxCourse:0},
+      {id:'l2', name:'James', ville:'Kinshasa', phone:'', payMode:'commission', montantFixe:0, tauxCourse:0},
+      {id:'l3', name:'Enisse', ville:'Lubumbashi', phone:'', payMode:'commission', montantFixe:0, tauxCourse:0},
+    ],
+    orders:[],
+    movements:[],
+    avances:[],
+    paiements:[],
+    dotations:[]
+  };
+}
+
+async function loadState(){
+  try{
+    const docSnap = await db.collection('users').doc(currentUser.uid).get();
+    if(docSnap.exists && docSnap.data().state){ state = JSON.parse(docSnap.data().state); }
+    else{ state = defaultState(); }
+  }catch(e){ state = defaultState(); showToast('⚠️ Chargement impossible, vérifiez votre connexion'); }
+  if(!state.movements) state.movements = [];
+  if(!state.avances) state.avances = [];
+  if(!state.paiements) state.paiements = [];
+  if(!state.dotations) state.dotations = [];
+  if(!state.settings) state.settings = {rate:2300};
+  if(state.settings.currencySymbol===undefined) state.settings.currencySymbol = '$';
+  if(state.settings.showSecondary===undefined) state.settings.showSecondary = true;
+  if(state.settings.secondarySymbol===undefined) state.settings.secondarySymbol = 'FC';
+  if(state.settings.secondaryName===undefined) state.settings.secondaryName = 'Franc congolais';
+  if(state.settings.deliveryFees===undefined) state.settings.deliveryFees = [];
+  if(state.settings.deliveryFeeDefault===undefined) state.settings.deliveryFeeDefault = 0;
+  // Migration : anciennes commissions Kinshasa/autres villes -> liste libre par ville
+  (state.products||[]).forEach(p=>{
+    if(p.commissions === undefined){
+      p.commissions = (p.commKin!==undefined && p.commKin>0) ? [{ville:'Kinshasa', montant:p.commKin}] : [];
+      if(p.commDefault === undefined) p.commDefault = p.commLub || 0;
+    }
+  });
+  applyTheme();
+  applyBranding();
+  if(state.settings.pin){
+    document.getElementById('lockScreen').style.display = 'flex';
+    document.getElementById('pinInput').focus();
+  } else if(!state.branding){ render(); openOnboarding(); }
+  else{ render(); }
+}
+function checkPin(){
+  const entered = document.getElementById('pinInput').value.trim();
+  if(entered === state.settings.pin){
+    document.getElementById('lockScreen').style.display = 'none';
+    document.getElementById('pinInput').value = '';
+    document.getElementById('pinError').textContent = '';
+    if(!state.branding){ render(); openOnboarding(); }
+    else{ render(); }
+  } else {
+    document.getElementById('pinError').textContent = '⚠️ Code incorrect, réessayez.';
+    document.getElementById('pinInput').value = '';
+  }
+}
+document.addEventListener('DOMContentLoaded', ()=>{
+  const pinEl = document.getElementById('pinInput');
+  if(pinEl) pinEl.addEventListener('keydown', (e)=>{ if(e.key==='Enter') checkPin(); });
+});
+async function saveState(){
+  try{
+    await db.collection('users').doc(currentUser.uid).set({
+      state: JSON.stringify(state),
+      updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+    }, {merge:true});
+    syncPublicShop();
+  }
+  catch(e){ showToast('⚠️ Sauvegarde impossible, vérifiez votre connexion'); }
+}
+function boutiqueLink(){
+  return `${location.origin}${location.pathname}?boutique=${currentUser.uid}`;
+}
+async function syncPublicShop(){
+  // Copie UNIQUEMENT les données sûres à rendre publiques (catalogue, branding, tarifs de livraison).
+  // Les ventes, clients, livreurs, bénéfices restent privés dans users/{uid}.
+  try{
+    const publicProducts = (state.products||[]).map(p=>({
+      id:p.id, name:p.name, cat:p.cat, description:p.description||'', photo:p.photo||null,
+      sell:p.sell, stock:p.stock
+    }));
+    await db.collection('shops').doc(currentUser.uid).set({
+      products: publicProducts,
+      branding: state.branding || null,
+      settings: {
+        currencySymbol: state.settings.currencySymbol||'$',
+        showSecondary: state.settings.showSecondary||false,
+        secondarySymbol: state.settings.secondarySymbol||'FC',
+        rate: state.settings.rate||2300,
+        phone: state.settings.phone||'',
+        deliveryFeeDefault: state.settings.deliveryFeeDefault||0,
+        deliveryFeeDefaultCurrency: state.settings.deliveryFeeDefaultCurrency||'primary',
+        deliveryFees: state.settings.deliveryFees||[]
+      },
+      updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+    });
+  }catch(e){ console.error('Erreur synchro boutique publique :', e); }
+}
+function applyTheme(){
+  document.querySelector('.app').classList.toggle('dark', !!(state.settings && state.settings.darkMode));
+}
+async function setDarkMode(on){
+  state.settings.darkMode = on;
+  await saveState();
+  applyTheme();
+  openSettings();
+}
+
+function applyBranding(){
+  const b = state.branding;
+  const name = b && b.name ? b.name : 'Winner Business';
+  const color = b && b.color ? b.color : '#F4A825';
+  document.getElementById('brandName').textContent = name;
+  document.getElementById('brandSub').textContent = 'Ventes · Stock · Livreurs · Paie';
+  const mark = document.getElementById('brandMark');
+  if(b && b.logo){ mark.innerHTML = `<img src="${b.logo}">`; }
+  else{ mark.innerHTML = esc((name[0]||'W').toUpperCase()); }
+  document.documentElement.style.setProperty('--amber', color);
+  document.documentElement.style.setProperty('--amber-2', lighten(color, 22));
+  const header = document.querySelector('header');
+  if(b && b.banner){
+    header.style.backgroundImage = `linear-gradient(135deg, rgba(15,27,61,0.72), rgba(24,42,92,0.80)), url('${b.banner}')`;
+    header.style.backgroundSize = 'cover';
+    header.style.backgroundPosition = 'center';
+  } else {
+    header.style.backgroundImage = 'linear-gradient(135deg, var(--navy) 0%, var(--navy-2) 100%)';
+  }
+}
+function lighten(hex, pct){
+  try{
+    const n = hex.replace('#','');
+    const r = Math.min(255, parseInt(n.substr(0,2),16) + Math.round(255*pct/100));
+    const g = Math.min(255, parseInt(n.substr(2,2),16) + Math.round(255*pct/100));
+    const bl = Math.min(255, parseInt(n.substr(4,2),16) + Math.round(255*pct/100));
+    return '#' + [r,g,bl].map(x=>x.toString(16).padStart(2,'0')).join('');
+  }catch(e){ return hex; }
+}
+function showToast(msg){
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.classList.add('show');
+  clearTimeout(window._toastTimer);
+  window._toastTimer = setTimeout(()=>t.classList.remove('show'), 1800);
+}
+function openSheet(html){ document.getElementById('sheet').innerHTML = html; document.getElementById('overlay').classList.add('show'); }
+function closeSheet(){ document.getElementById('overlay').classList.remove('show'); }
+document.getElementById('overlay').addEventListener('click', (e)=>{ if(e.target.id==='overlay') closeSheet(); });
+function esc(s){ return (s||'').toString().replace(/[<>&"]/g, c=>({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;'}[c])); }
+function buildVilleOptions(){
+  const set = new Set(['Kinshasa','Lubumbashi']);
+  state.livreurs.forEach(l=>{ if(l.ville) set.add(l.ville); });
+  state.orders.forEach(o=>{ if(o.ville) set.add(o.ville); });
+  return [...set].map(v=>`<option value="${esc(v)}">`).join('');
+}
+function fmtDate(d){ return new Date(d).toLocaleDateString('fr-FR',{day:'2-digit',month:'2-digit',year:'2-digit'}); }
+function fmtDateLong(d){ if(!d) return ''; const dt = new Date(d+'T00:00:00'); return dt.toLocaleDateString('fr-FR',{day:'numeric',month:'long',year:'numeric'}); }
+function deliveryWhenText(o){
+  if(o.deliveryDate && o.deliveryTime) return `${fmtDateLong(o.deliveryDate)} à ${o.deliveryTime}`;
+  if(o.deliveryDate) return fmtDateLong(o.deliveryDate);
+  if(o.deliveryTime) return o.deliveryTime;
+  return '';
+}
+function emptyBlock(icon,txt){ return `<div class="empty"><div class="em-icon">${icon}</div><div class="em-txt">${txt}</div></div>`; }
+
+/* ---------- ONBOARDING / RÉGLAGES / SAUVEGARDE ---------- */
+function openOnboarding(){
+  document.getElementById('onboardRoot').innerHTML = `
+    <div class="overlay show" style="z-index:60;">
+      <div class="sheet">
+        <h3>👋 Bienvenue — configurez votre appli</h3>
+        <div class="logo-picker">
+          <div class="preview" id="ob_preview">🏢</div>
+          <div>
+            <input type="file" accept="image/*" id="ob_logo_file" style="display:none" onchange="handleLogoFile(this,'ob_preview')">
+            <button class="btn btn-ghost btn-sm" onclick="document.getElementById('ob_logo_file').click()">📷 Choisir un logo</button>
+          </div>
+        </div>
+        <div class="field">
+          <label>Bannière d'ouverture (optionnel)</label>
+          <div id="ob_banner_preview" style="width:100%;height:70px;border-radius:12px;background:var(--paper);border:1.5px dashed var(--line);display:flex;align-items:center;justify-content:center;overflow:hidden;font-size:12px;color:var(--ink-soft);margin-bottom:8px;">Aucune bannière</div>
+          <input type="file" accept="image/*" id="ob_banner_file" style="display:none" onchange="handleBannerFile(this,'ob_banner_preview')">
+          <button class="btn btn-ghost btn-sm btn-block" onclick="document.getElementById('ob_banner_file').click()">🖼️ Choisir une bannière</button>
+        </div>
+        <div class="field"><label>Nom de l'entreprise</label><input id="ob_name" placeholder="Ex : Winner Business"></div>
+        <div class="field"><label>Couleur principale</label><div class="color-swatches" id="ob_swatches"></div></div>
+        <div class="sheet-actions"><button class="btn btn-primary btn-block" onclick="saveOnboarding()">Commencer</button></div>
+      </div>
+    </div>`;
+  buildSwatches('ob_swatches', COLOR_PRESETS[0]);
+}
+function buildSwatches(containerId, selected){
+  const c = document.getElementById(containerId);
+  const isCustom = !COLOR_PRESETS.includes(selected);
+  c.innerHTML = COLOR_PRESETS.map(col=>`<div class="swatch ${col===selected?'selected':''}" style="background:${col}" data-color="${col}" onclick="selectSwatch(this,'${containerId}')"></div>`).join('')
+    + `<label class="swatch" style="background:${isCustom?selected:'conic-gradient(red,yellow,lime,cyan,blue,magenta,red)'};display:flex;align-items:center;justify-content:center;cursor:pointer;border:2px solid ${isCustom?'var(--ink)':'transparent'};">
+         <input type="color" value="${isCustom?selected:'#F4A825'}" style="opacity:0;width:100%;height:100%;cursor:pointer;" onchange="selectCustomColor(this,'${containerId}')">
+       </label>`;
+  c.dataset.selected = selected;
+}
+function selectCustomColor(input, containerId){
+  document.querySelectorAll('#'+containerId+' .swatch').forEach(s=>s.classList.remove('selected'));
+  document.getElementById(containerId).dataset.selected = input.value;
+  buildSwatches(containerId, input.value);
+}
+function selectSwatch(el, containerId){
+  document.querySelectorAll('#'+containerId+' .swatch').forEach(s=>s.classList.remove('selected'));
+  el.classList.add('selected');
+  document.getElementById(containerId).dataset.selected = el.dataset.color;
+}
+let _pendingLogo = null;
+let _pendingBanner = null;
+function handleLogoFile(input, previewId){
+  const file = input.files[0]; if(!file) return;
+  const reader = new FileReader();
+  reader.onload = (e)=>{ _pendingLogo = e.target.result; document.getElementById(previewId).innerHTML = `<img src="${e.target.result}">`; };
+  reader.readAsDataURL(file);
+}
+function handleBannerFile(input, previewId){
+  const file = input.files[0]; if(!file) return;
+  const reader = new FileReader();
+  reader.onload = (e)=>{ _pendingBanner = e.target.result; document.getElementById(previewId).innerHTML = `<img src="${e.target.result}" style="width:100%;height:100%;object-fit:cover;">`; };
+  reader.readAsDataURL(file);
+}
+async function saveOnboarding(){
+  const name = document.getElementById('ob_name').value.trim() || 'Winner Business';
+  const color = document.getElementById('ob_swatches').dataset.selected || COLOR_PRESETS[0];
+  state.branding = {name, color, logo:_pendingLogo, banner:_pendingBanner};
+  await saveState();
+  document.getElementById('onboardRoot').innerHTML = '';
+  applyBranding(); render();
+  showToast('✅ Configuration enregistrée');
+}
+function openSettings(){
+  const b = state.branding || {name:'', color:COLOR_PRESETS[0], logo:null, banner:null};
+  _pendingLogo = b.logo || null;
+  _pendingBanner = b.banner || null;
+  document.getElementById('onboardRoot').innerHTML = `
+    <div class="overlay show" style="z-index:60;">
+      <div class="sheet">
+        <button class="close-x" onclick="document.getElementById('onboardRoot').innerHTML=''">✕</button>
+        <h3>⚙️ Réglages</h3>
+        <div class="logo-picker">
+          <div class="preview" id="st_preview">${b.logo?`<img src="${b.logo}">`:'🏢'}</div>
+          <div>
+            <input type="file" accept="image/*" id="st_logo_file" style="display:none" onchange="handleLogoFile(this,'st_preview')">
+            <button class="btn btn-ghost btn-sm" onclick="document.getElementById('st_logo_file').click()">📷 Changer le logo</button>
+          </div>
+        </div>
+        <div class="field">
+          <label>Bannière d'ouverture</label>
+          <div id="st_banner_preview" style="width:100%;height:70px;border-radius:12px;background:var(--paper);border:1.5px dashed var(--line);display:flex;align-items:center;justify-content:center;overflow:hidden;font-size:12px;color:var(--ink-soft);margin-bottom:8px;">${b.banner?`<img src="${b.banner}" style="width:100%;height:100%;object-fit:cover;">`:'Aucune bannière'}</div>
+          <input type="file" accept="image/*" id="st_banner_file" style="display:none" onchange="handleBannerFile(this,'st_banner_preview')">
+          <div class="sheet-actions" style="margin-top:0;">
+            <button class="btn btn-ghost btn-block" onclick="document.getElementById('st_banner_file').click()">🖼️ Changer</button>
+            <button class="btn btn-ghost btn-block" onclick="_pendingBanner=null;document.getElementById('st_banner_preview').innerHTML='Aucune bannière';">🗑️ Retirer</button>
+          </div>
+        </div>
+        <div class="field"><label>Nom de l'entreprise</label><input id="st_name" value="${esc(b.name||'')}"></div>
+        <div class="field"><label>Couleur principale</label><div class="color-swatches" id="st_swatches"></div></div>
+        <div class="row2">
+          <div class="field"><label>Symbole devise principale</label><input id="st_curSymbol" placeholder="Ex : $, €, FCFA" value="${esc(state.settings.currencySymbol||'$')}"></div>
+        </div>
+        <div class="hint">C'est la devise utilisée pour tous vos prix, achats et commissions.</div>
+        <div class="field" style="display:flex;align-items:center;gap:8px;margin-top:10px;">
+          <input type="checkbox" id="st_showSecondary" ${state.settings.showSecondary?'checked':''} style="width:auto;" onchange="document.getElementById('secondaryFields').style.display=this.checked?'block':'none'">
+          <label style="margin:0;font-size:12.5px;">Afficher aussi une 2ᵉ devise (ex : taux du jour local)</label>
+        </div>
+        <div id="secondaryFields" style="display:${state.settings.showSecondary?'block':'none'};margin-top:8px;">
+          <div class="row2">
+            <div class="field"><label>Nom (ex : Franc congolais)</label><input id="st_secName" placeholder="Ex : Franc congolais" value="${esc(state.settings.secondaryName||'')}"></div>
+            <div class="field"><label>Symbole</label><input id="st_secSymbol" placeholder="Ex : FC" value="${esc(state.settings.secondarySymbol||'FC')}"></div>
+          </div>
+          <div class="field"><label>Taux du jour (combien de 2ᵉ devise pour 1 ${esc(state.settings.currencySymbol||'$')})</label><input id="st_rate" type="number" value="${state.settings.rate}"></div>
+        </div>
+        <div class="field"><label>Numéro de l'entreprise (WhatsApp)</label><input id="st_phone" placeholder="Ex : 0899000000" value="${esc(state.settings.phone||'')}"></div>
+        <div class="hint">Ce numéro apparaît sur les reçus envoyés aux clients.</div>
+
+        <div style="margin-top:14px;padding-top:14px;border-top:1px solid var(--line);">
+          <label>🚚 Frais de livraison par défaut</label>
+          <div class="row2" style="align-items:flex-end;">
+            <div class="field" style="margin-bottom:0;"><input id="st_delivDefault" type="number" step="0.01" value="${state.settings.deliveryFeeDefault||0}"></div>
+            <div class="field" style="margin-bottom:0;">${currencyPicker('st_delivDefaultCurrency', state.settings.deliveryFeeDefaultCurrency||'primary')}</div>
+          </div>
+          <div class="hint" style="margin-top:4px;">Appliqué pour toute ville non listée ci-dessous.</div>
+          <label style="margin-top:8px;display:block;">Frais spécifiques par ville (optionnel)</label>
+          <div id="delivRows">${(state.settings.deliveryFees||[]).map(d=>delivRowHtml(d.ville, d.montant, d.currency)).join('')}</div>
+          <button type="button" class="btn btn-ghost btn-sm" onclick="addDelivRow()">➕ Ajouter une ville</button>
+          <div class="hint" style="margin-top:6px;">Le prix des produits et les frais de livraison peuvent être dans deux devises différentes (ex : produits en $, livraison en FC).</div>
+        </div>
+
+        <div class="field">
+          <label>Apparence</label>
+          <div class="period-bar" style="margin-bottom:0;">
+            <button type="button" class="btn ${!state.settings.darkMode?'btn-primary':'btn-off'}" onclick="setDarkMode(false)">☀️ Clair</button>
+            <button type="button" class="btn ${state.settings.darkMode?'btn-primary':'btn-off'}" onclick="setDarkMode(true)">🌙 Sombre</button>
+          </div>
+        </div>
+        <div class="sheet-actions"><button class="btn btn-primary btn-block" onclick="saveSettings()">Enregistrer</button></div>
+
+        <div style="margin-top:18px;padding-top:14px;border-top:1px solid var(--line);">
+          <div style="font-weight:700;font-size:12.5px;margin-bottom:8px;">💾 Sauvegarde (fichier technique)</div>
+          <div class="hint" style="margin-bottom:10px;">Pour restaurer vos données sur un autre téléphone en cas de perte. Pas lisible directement — sert uniquement à réimporter dans l'appli.</div>
+          <div class="sheet-actions" style="margin-top:0;">
+            <button class="btn btn-ghost btn-block" onclick="exportBackup()">📤 Exporter</button>
+            <button class="btn btn-ghost btn-block" onclick="document.getElementById('importFile').click()">📥 Importer</button>
+          </div>
+        </div>
+
+        <div style="margin-top:18px;padding-top:14px;border-top:1px solid var(--line);">
+          <div style="font-weight:700;font-size:12.5px;margin-bottom:8px;">📊 Exporter en tableau (Excel / Google Sheets)</div>
+          <div class="hint" style="margin-bottom:10px;">Fichiers .csv lisibles, à ouvrir ou importer directement dans Google Sheets ou Excel.</div>
+          <div class="sheet-actions" style="margin-top:0;flex-direction:column;">
+            <button class="btn btn-ghost btn-block" onclick="exportProduitsCSV()">📦 Tableau des produits</button>
+            <button class="btn btn-ghost btn-block" onclick="exportVentesCSV()">🚚 Tableau des ventes</button>
+            <button class="btn btn-ghost btn-block" onclick="exportPaieCSV()">💵 Tableau des paiements livreurs</button>
+          </div>
+        </div>
+
+        <div style="margin-top:18px;padding-top:14px;border-top:1px solid var(--line);">
+          <div style="font-weight:700;font-size:12.5px;margin-bottom:8px;">🔒 Code PIN à l'ouverture</div>
+          <div class="hint" style="margin-bottom:10px;">${state.settings.pin ? 'Un code est actuellement activé.' : "Aucun code activé — l'appli s'ouvre directement."}</div>
+          <div class="field"><label>Code à 4 chiffres</label><input id="st_pin" type="password" inputmode="numeric" maxlength="4" placeholder="Ex : 1234" value=""></div>
+          <div class="sheet-actions" style="margin-top:0;">
+            <button class="btn btn-primary btn-block" onclick="setPin()">${state.settings.pin ? 'Changer le code' : 'Activer le code'}</button>
+            ${state.settings.pin ? `<button class="btn btn-ghost btn-block" onclick="removePin()">🗑️ Retirer</button>` : ''}
+          </div>
+        </div>
+
+        <div style="margin-top:18px;padding-top:14px;border-top:1px solid var(--line);">
+          <div style="font-weight:700;font-size:12.5px;margin-bottom:8px;">🛍️ Votre boutique publique</div>
+          <div class="hint" style="margin-bottom:10px;">Vos clients peuvent voir vos produits et commander directement, sans compte Google. Partagez ce lien :</div>
+          <input readonly value="${boutiqueLink()}" style="font-size:11.5px;margin-bottom:8px;" onclick="this.select()">
+          <div class="sheet-actions" style="margin-top:0;">
+            <button class="btn btn-primary btn-block" onclick="navigator.clipboard.writeText('${boutiqueLink()}');showToast('✅ Lien copié')">📋 Copier le lien</button>
+          </div>
+        </div>
+
+        <div style="margin-top:18px;padding-top:14px;border-top:1px solid var(--line);">
+          <div style="font-size:11.5px;color:var(--ink-soft);margin-bottom:8px;">Connecté avec : ${esc(currentUser && currentUser.email || '')}</div>
+          <button class="btn btn-ghost btn-block" onclick="signOutUser()">🚪 Se déconnecter</button>
+        </div>
+
+        ${currentUser && currentUser.email===OWNER_EMAIL ? `
+        <div style="margin-top:18px;padding-top:14px;border-top:1px solid var(--line);">
+          <div style="font-weight:700;font-size:12.5px;margin-bottom:8px;">🔑 Générateur de clés (vous seul)</div>
+          <button class="btn btn-amber btn-block" onclick="openGenerateKey()">➕ Générer une nouvelle clé</button>
+          <div class="hint" style="margin-top:8px;">Créez une clé pour chaque vente, puis envoyez-la au client avec le lien de l'appli.</div>
+        </div>` : ''}
+
+        <div style="margin-top:18px;padding-top:14px;border-top:1px solid var(--line);">
+          <button class="btn btn-red btn-block" onclick="confirmResetClient()">🗑️ Réinitialiser pour un nouveau client</button>
+          <div class="hint" style="margin-top:8px;">Efface produits, ventes, stock, livreurs et paie. Le nom/logo/couleur sont conservés.</div>
+        </div>
+      </div>
+    </div>`;
+  buildSwatches('st_swatches', b.color || COLOR_PRESETS[0]);
+}
+async function openGenerateKey(){
+  showToast('⏳ Génération en cours...');
+  try{
+    const key = await generateLicenseKey();
+    openSheet(`
+      <button class="close-x" onclick="closeSheet()">✕</button>
+      <h3>🔑 Nouvelle clé générée</h3>
+      <div class="hint" style="margin-bottom:12px;">Copiez cette clé et envoyez-la au client avec le lien de l'application. Elle se rattachera automatiquement au premier compte Google qui l'utilisera.</div>
+      <div class="field"><input value="${key}" readonly style="font-weight:700;text-align:center;font-size:16px;letter-spacing:1px;" onclick="this.select()"></div>
+      <div class="sheet-actions"><button class="btn btn-primary btn-block" onclick="navigator.clipboard.writeText('${key}');showToast('✅ Clé copiée')">📋 Copier la clé</button></div>
+    `);
+  }catch(e){ showToast('⚠️ Erreur, réessayez'); }
+}
+async function saveSettings(){
+  const name = document.getElementById('st_name').value.trim() || 'Winner Business';
+  const color = document.getElementById('st_swatches').dataset.selected || COLOR_PRESETS[0];
+  state.branding = {name, color, logo:_pendingLogo, banner:_pendingBanner};
+  state.settings.currencySymbol = document.getElementById('st_curSymbol').value.trim() || '$';
+  state.settings.showSecondary = document.getElementById('st_showSecondary').checked;
+  state.settings.secondaryName = document.getElementById('st_secName').value.trim();
+  state.settings.secondarySymbol = document.getElementById('st_secSymbol').value.trim() || 'FC';
+  state.settings.rate = parseFloat(document.getElementById('st_rate').value)||2300;
+  state.settings.deliveryFeeDefault = parseFloat(document.getElementById('st_delivDefault').value)||0;
+  state.settings.deliveryFeeDefaultCurrency = document.getElementById('st_delivDefaultCurrency').value;
+  state.settings.deliveryFees = readDelivRows();
+  state.settings.phone = document.getElementById('st_phone').value.trim();
+  await saveState();
+  document.getElementById('onboardRoot').innerHTML = '';
+  applyBranding(); render();
+  showToast('✅ Réglages enregistrés');
+}
+async function setPin(){
+  const pin = document.getElementById('st_pin').value.trim();
+  if(!/^\d{4}$/.test(pin)){ showToast('⚠️ Le code doit faire exactement 4 chiffres'); return; }
+  state.settings.pin = pin;
+  await saveState();
+  showToast('✅ Code PIN activé');
+  openSettings();
+}
+async function removePin(){
+  state.settings.pin = '';
+  await saveState();
+  showToast('✅ Code PIN retiré');
+  openSettings();
+}
+function confirmResetClient(){
+  document.getElementById('onboardRoot').innerHTML = `
+    <div class="overlay show" style="z-index:60;">
+      <div class="sheet">
+        <h3>⚠️ Tout effacer ?</h3>
+        <div class="hint" style="margin-bottom:14px;">Cette action supprime définitivement produits, ventes, stock, livreurs, avances et paiements. Le nom/logo/couleur sont conservés.</div>
+        <div class="sheet-actions">
+          <button class="btn btn-ghost btn-block" onclick="openSettings()">Annuler</button>
+          <button class="btn btn-red btn-block" onclick="resetForNewClient()">Oui, tout effacer</button>
+        </div>
+      </div>
+    </div>`;
+}
+async function resetForNewClient(){
+  const b = state.branding; const rate = state.settings.rate;
+  state = defaultState();
+  state.products = []; state.livreurs = [];
+  state.branding = b; state.settings.rate = rate;
+  await saveState();
+  document.getElementById('onboardRoot').innerHTML = '';
+  render();
+  showToast('✅ Prêt pour un nouveau client');
+}
+function csvEscape(v){
+  const s = (v===null||v===undefined) ? '' : String(v);
+  if(/[",;\n]/.test(s)) return '"' + s.replace(/"/g,'""') + '"';
+  return s;
+}
+function downloadCSV(filename, headers, rows){
+  const lines = [headers.join(';'), ...rows.map(r=>r.map(csvEscape).join(';'))];
+  const csv = '\uFEFF' + lines.join('\r\n'); // BOM pour accents dans Excel
+  const blob = new Blob([csv], {type:'text/csv;charset=utf-8;'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = filename;
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+  showToast('📊 Tableau téléchargé');
+}
+function exportProduitsCSV(){
+  const cs = state.settings.currencySymbol||'$';
+  const headers = ['Produit','Catégorie',`Prix achat (${cs})`,`Prix vente (${cs})`,`Commission par défaut (${cs})`,'Commissions par ville','Stock actuel'];
+  const rows = state.products.map(p=>[p.name,p.cat,p.buy,p.sell,p.commDefault||0,(p.commissions||[]).map(c=>`${c.ville}:${c.montant}`).join(' | '),p.stock]);
+  downloadCSV('produits.csv', headers, rows);
+}
+function exportVentesCSV(){
+  const cs = state.settings.currencySymbol||'$';
+  const headers = ['Date','Client','Téléphone','Adresse','Date livraison','Heure livraison','Produit','Quantité','Ville','Livreur',`Prix vente total (${cs})`,'Frais de livraison','Devise du frais',`Commission (${cs})`,`Coût achat (${cs})`,`Bénéfice net (${cs})`];
+  const rows = [...state.orders].sort((a,b)=>new Date(a.date)-new Date(b.date)).map(o=>{
+    const p = productById(o.productId), l = livreurById(o.livreurId), c = orderCalc(o);
+    return [fmtDate(o.date), o.client||'', o.phone||'', o.address||'', o.deliveryDate||'', o.deliveryTime||'', p?p.name:'', o.qty, o.ville, l?l.name:'', c.sale.toFixed(2), (o.deliveryFee||0).toFixed(2), curLabel(o.deliveryFeeCurrency||'primary'), c.comm.toFixed(2), c.cost.toFixed(2), c.profit.toFixed(2)];
+  });
+  downloadCSV('ventes.csv', headers, rows);
+}
+function exportPaieCSV(){
+  const cs = state.settings.currencySymbol||'$';
+  const headers = ['Mois','Livreur','Ville',`Montant payé (${cs})`,'Date de paiement'];
+  const rows = [...state.paiements].sort((a,b)=>new Date(a.date)-new Date(b.date)).map(p=>{
+    const l = livreurById(p.livreurId);
+    return [monthLabel(p.mois), l?l.name:'', l?l.ville:'', p.montant.toFixed(2), fmtDate(p.date)];
+  });
+  downloadCSV('paiements-livreurs.csv', headers, rows);
+}
+function exportBackup(){
+  const blob = new Blob([JSON.stringify(state, null, 2)], {type:'application/json'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  const name = (state.branding && state.branding.name) ? state.branding.name.replace(/[^a-z0-9]+/gi,'-') : 'winner-business';
+  a.href = url;
+  a.download = `sauvegarde-${name}-${new Date().toISOString().slice(0,10)}.json`;
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+  showToast('📤 Fichier de sauvegarde téléchargé');
+}
+function handleImportFile(input){
+  const file = input.files[0]; if(!file) return;
+  const reader = new FileReader();
+  reader.onload = async (e)=>{
+    try{
+      const imported = JSON.parse(e.target.result);
+      if(!imported.products || !imported.livreurs){ showToast('⚠️ Fichier invalide'); return; }
+      state = imported;
+      if(!state.movements) state.movements=[]; if(!state.avances) state.avances=[]; if(!state.paiements) state.paiements=[];
+      await saveState();
+      applyBranding(); document.getElementById('onboardRoot').innerHTML=''; render();
+      showToast('✅ Sauvegarde importée');
+    }catch(err){ showToast('⚠️ Impossible de lire ce fichier'); }
+  };
+  reader.readAsText(file);
+  input.value = '';
+}
+
+/* ---------- CALCULS ---------- */
+function productById(id){ return state.products.find(p=>p.id===id); }
+function livreurById(id){ return state.livreurs.find(l=>l.id===id); }
+function commissionForVille(p, ville){
+  const list = p.commissions || [];
+  const norm = (ville||'').trim().toLowerCase();
+  const match = list.find(c=>c.ville.trim().toLowerCase()===norm);
+  return match ? match.montant : (p.commDefault||0);
+}
+
+function orderCalc(o){
+  const p = productById(o.productId);
+  const l = livreurById(o.livreurId);
+  if(!p) return {sale:0, cost:0, comm:0, profit:0, catalogSale:0, discount:0};
+  const catalogSale = p.sell * o.qty;
+  const sale = (o.saleOverride!=null && o.saleOverride>=0) ? o.saleOverride : catalogSale;
+  const discount = Math.max(0, catalogSale - sale);
+  const cost = p.buy * o.qty;
+  let comm = 0;
+  if(l){
+    if(l.payMode==='course') comm = l.tauxCourse||0;
+    else if(l.payMode==='commission') comm = commissionForVille(p, o.ville);
+    // payMode 'fixe' -> comm = 0 ici (le salaire est géré séparément, onglet Paie)
+  }
+  const profit = sale - cost - comm;
+  return {sale, cost, comm, profit, catalogSale, discount};
+}
+function filterOrdersByPeriod(period){
+  const now = new Date();
+  return state.orders.filter(o=>{
+    const d = new Date(o.date);
+    if(period==='7j'){ const diff=(now-d)/86400000; return diff<=7 && diff>=0; }
+    if(period==='30j'){ const diff=(now-d)/86400000; return diff<=30 && diff>=0; }
+    return true;
+  });
+}
+function monthLabel(m){ const [y,mo]=m.split('-').map(Number); return new Date(y,mo-1,1).toLocaleDateString('fr-FR',{month:'long',year:'numeric'}); }
+function nbLivraisonsMois(livreurId, mois){ return state.orders.filter(o=>o.livreurId===livreurId && o.date.slice(0,7)===mois).length; }
+function totalAvancesMois(livreurId, mois){ return state.avances.filter(a=>a.livreurId===livreurId && a.date.slice(0,7)===mois).reduce((s,a)=>s+a.montant,0); }
+function totalPaiementsMois(livreurId, mois){ return state.paiements.filter(p=>p.livreurId===livreurId && p.mois===mois).reduce((s,p)=>s+p.montant,0); }
+function totalCommissionGagneeTout(livreurId){
+  return state.orders.filter(o=>o.livreurId===livreurId).reduce((s,o)=>s+orderCalc(o).comm, 0);
+}
+function totalPaiementsTout(livreurId){
+  return state.paiements.filter(p=>p.livreurId===livreurId).reduce((s,p)=>s+p.montant,0);
+}
+function resteAPayerCommission(livreurId){
+  return Math.max(0, totalCommissionGagneeTout(livreurId) - totalPaiementsTout(livreurId));
+}
+function montantDuMois(l, mois){
+  if(l.payMode==='commission') return 0; // déjà réglé par vente
+  const base = l.payMode==='fixe' ? (l.montantFixe||0) : nbLivraisonsMois(l.id, mois) * (l.tauxCourse||0);
+  return Math.max(0, base - totalAvancesMois(l.id, mois));
+}
+function updateHeaderKpis(){
+  const orders = filterOrdersByPeriod('7j');
+  let sales=0, profit=0;
+  orders.forEach(o=>{ const c=orderCalc(o); sales+=c.sale; profit+=c.profit; });
+  document.getElementById('kpiSales').textContent = fmtUSD(sales);
+  document.getElementById('kpiProfit').textContent = fmtUSD(profit);
+}
+
+/* ---------- RENDER ---------- */
+function render(){
+  updateHeaderKpis();
+  document.querySelectorAll('.tab-btn').forEach(b=>b.classList.toggle('active', b.dataset.tab===currentTab));
+  const main = document.getElementById('content');
+  if(currentTab==='produits') main.innerHTML = renderProduits();
+  if(currentTab==='livraisons') main.innerHTML = renderLivraisons();
+  if(currentTab==='livreurs') main.innerHTML = renderLivreurs();
+  if(currentTab==='dotations') main.innerHTML = renderDotations();
+  if(currentTab==='paie') main.innerHTML = renderPaie();
+  if(currentTab==='resume') main.innerHTML = renderResume(_resumePeriod);
+}
+
+function renderProduits(){
+  let html = `<div class="fab-row"><button class="btn btn-amber btn-block" onclick="openNewProduct()">➕ Nouveau produit</button></div>`;
+  html += `<div class="fab-row"><button class="btn btn-ghost btn-block" onclick="shareCatalogue()">📤 Partager le catalogue</button></div>`;
+  const lowStock = state.products.filter(p=>p.stock<=5);
+  if(lowStock.length>0){
+    html += `<div class="card" style="border-color:var(--red);background:#FFF6F6;">
+      <div style="font-weight:700;font-size:12.5px;color:var(--red);margin-bottom:6px;">⚠️ Alertes stock bas (${lowStock.length})</div>
+      ${lowStock.map(p=>`<div class="mini-row"><span class="name">${esc(p.name)}</span><span class="num" style="color:var(--red);font-weight:700;">${p.stock} restant(s)</span></div>`).join('')}
+    </div>`;
+  }
+  html += `<div class="page-title">Catalogue<span class="count">${state.products.length} produits</span></div>`;
+  if(state.products.length===0) html += emptyBlock('📦','Aucun produit. Ajoutez votre premier produit.');
+  state.products.forEach(p=>{
+    const low = p.stock<=5;
+    const marge = p.sell>0 ? Math.round(((p.sell-p.buy)/p.sell)*100) : 0;
+    const photo = p.photo ? `<img src="${p.photo}" style="width:44px;height:44px;border-radius:10px;object-fit:cover;flex-shrink:0;">` : `<div style="width:44px;height:44px;border-radius:10px;background:var(--paper);display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0;">📦</div>`;
+    html += `<div class="card prod-card">
+      <div class="prod-top">
+        <div style="display:flex;gap:10px;align-items:center;flex:1;min-width:0;">
+          ${photo}
+          <div style="min-width:0;"><div class="prod-name">${esc(p.name)}</div><div class="prod-cat">${esc(p.cat)}</div></div>
+        </div>
+        <div class="prod-price">${fmtUSD(p.sell)}<br><small>achat ${fmtUSD(p.buy)} · marge ${marge}%</small></div>
+      </div>
+      <div class="stock-pill ${low?'low':''}">${low?'⚠️ ':''}Stock : ${p.stock}</div>
+      <div class="prod-actions">
+        <button class="btn btn-green btn-sm" onclick="openStockMove('${p.id}','entree')">➕ Entrée</button>
+        <button class="btn btn-red btn-sm" onclick="openStockMove('${p.id}','sortie')">➖ Sortie</button>
+        <button class="btn btn-ghost btn-sm btn-icon" onclick="openEditProduct('${p.id}')">✏️</button>
+      </div>
+    </div>`;
+  });
+  return html;
+}
+function shareCatalogue(){
+  const bname = (state.branding && state.branding.name) ? state.branding.name : 'Notre boutique';
+  let text = `🛍️ *${bname}* — Catalogue produits\n\n`;
+  state.products.forEach(p=>{ text += `• ${p.name} — ${fmtUSD(p.sell)}${secondaryPart(p.sell)}\n`; });
+  text += `\nÉcrivez-nous pour commander ! 📲`;
+  window.open('https://wa.me/?text=' + encodeURIComponent(text), '_blank');
+}
+
+function openNewProduct(){
+  openSheet(`
+    <button class="close-x" onclick="closeSheet()">✕</button>
+    <h3>➕ Nouveau produit</h3>
+    <div class="logo-picker">
+      <div class="preview" id="pf_preview">📦</div>
+      <div>
+        <input type="file" accept="image/*" id="pf_photo_file" style="display:none" onchange="handleLogoFile(this,'pf_preview')">
+        <button class="btn btn-ghost btn-sm" onclick="document.getElementById('pf_photo_file').click()">📷 Photo du produit</button>
+      </div>
+    </div>
+    <div class="field"><label>Nom du produit</label><input id="f_name" placeholder="Ex : Crème visage"></div>
+    <div class="field"><label>Catégorie</label><input id="f_cat" placeholder="Ex : Cosmétique"></div>
+    <div class="field"><label>Description / avantages (visible sur la boutique publique)</label><textarea id="f_desc" rows="3" placeholder="Ex : Hydrate en profondeur, convient à tous les types de peau..." style="width:100%;padding:11px 12px;border-radius:10px;border:1.5px solid var(--line);font-family:'Inter';font-size:13.5px;background:var(--paper);color:var(--ink);resize:vertical;"></textarea></div>
+    <div class="row2"><div class="field"><label>Prix d'achat (${state.settings.currencySymbol||'$'})</label><input id="f_buy" type="number" step="0.01" value="0"></div>
+    <div class="field"><label>Prix de vente (${state.settings.currencySymbol||'$'})</label><input id="f_sell" type="number" step="0.01" value="0"></div></div>
+    <div class="field"><label>Commission par défaut (${state.settings.currencySymbol||'$'})</label><input id="f_commDefault" type="number" step="0.01" value="0"></div>
+    <div class="hint">Appliquée pour toute ville non listée ci-dessous.</div>
+    <div class="field">
+      <label>Commissions spécifiques par ville (optionnel)</label>
+      <div id="commRows"></div>
+      <button type="button" class="btn btn-ghost btn-sm" onclick="addCommRow()">➕ Ajouter une ville</button>
+    </div>
+    <div class="field"><label>Stock de départ</label><input id="f_stock" type="number" value="0"></div>
+    <div class="sheet-actions"><button class="btn btn-ghost" onclick="closeSheet()">Annuler</button><button class="btn btn-primary" onclick="saveNewProduct()">Enregistrer</button></div>
+  `);
+  _pendingLogo = null;
+}
+function commRowHtml(ville, montant){
+  return `<div class="comm-row row2" style="margin-bottom:8px;align-items:flex-end;">
+    <div class="field" style="margin-bottom:0;"><input placeholder="Nom de la ville" class="comm-ville" list="villesDatalist" value="${esc(ville||'')}"></div>
+    <div class="field" style="margin-bottom:0;display:flex;gap:6px;">
+      <input type="number" step="0.01" placeholder="0" class="comm-montant" value="${montant!=null?montant:''}">
+      <button type="button" class="btn btn-red btn-icon btn-sm" onclick="this.closest('.comm-row').remove()">✕</button>
+    </div>
+  </div><datalist id="villesDatalist">${buildVilleOptions()}</datalist>`;
+}
+function addCommRow(){
+  document.getElementById('commRows').insertAdjacentHTML('beforeend', commRowHtml('', ''));
+}
+function readCommRows(){
+  const rows = document.querySelectorAll('#commRows .comm-row');
+  const list = [];
+  rows.forEach(r=>{
+    const ville = r.querySelector('.comm-ville').value.trim();
+    const montant = parseFloat(r.querySelector('.comm-montant').value)||0;
+    if(ville) list.push({ville, montant});
+  });
+  return list;
+}
+function findByVille(list, ville, fallback){
+  const norm = (ville||'').trim().toLowerCase();
+  const match = (list||[]).find(c=>c.ville.trim().toLowerCase()===norm);
+  return match ? {montant:match.montant, currency:match.currency||'primary'} : {montant:fallback, currency:state.settings.deliveryFeeDefaultCurrency||'primary'};
+}
+function deliveryFeeText(o){
+  const fee = o.deliveryFee||0;
+  if(fee<=0) return '';
+  return (o.deliveryFeeCurrency==='secondary') ? fmtFC(fee) : fmtUSD(fee);
+}
+function deliveryFeeForVille(ville){
+  return findByVille(state.settings.deliveryFees, ville, state.settings.deliveryFeeDefault||0);
+}
+function curLabel(currency){
+  return currency==='secondary' ? (state.settings.secondarySymbol||'FC') : (state.settings.currencySymbol||'$');
+}
+function currencyPicker(id, selected){
+  const opts = [['primary', state.settings.currencySymbol||'$']];
+  if(showSecondary()) opts.push(['secondary', state.settings.secondarySymbol||'FC']);
+  return `<select id="${id}" style="max-width:80px;">${opts.map(([v,l])=>`<option value="${v}" ${selected===v?'selected':''}>${esc(l)}</option>`).join('')}</select>`;
+}
+function delivRowHtml(ville, montant, currency){
+  return `<div class="deliv-row row2" style="margin-bottom:8px;align-items:flex-end;">
+    <div class="field" style="margin-bottom:0;"><input placeholder="Nom de la ville" class="deliv-ville" list="villesDatalist" value="${esc(ville||'')}"></div>
+    <div class="field" style="margin-bottom:0;display:flex;gap:6px;">
+      <input type="number" step="0.01" placeholder="0" class="deliv-montant" value="${montant!=null?montant:''}">
+      <span class="deliv-currency">${currencyPicker('_tmp', currency||'primary')}</span>
+      <button type="button" class="btn btn-red btn-icon btn-sm" onclick="this.closest('.deliv-row').remove()">✕</button>
+    </div>
+  </div>`;
+}
+function addDelivRow(){
+  document.getElementById('delivRows').insertAdjacentHTML('beforeend', delivRowHtml('', '', 'primary'));
+}
+function readDelivRows(){
+  const rows = document.querySelectorAll('#delivRows .deliv-row');
+  const list = [];
+  rows.forEach(r=>{
+    const ville = r.querySelector('.deliv-ville').value.trim();
+    const montant = parseFloat(r.querySelector('.deliv-montant').value)||0;
+    const currency = r.querySelector('.deliv-currency select').value;
+    if(ville) list.push({ville, montant, currency});
+  });
+  return list;
+}
+async function saveNewProduct(){
+  const name = document.getElementById('f_name').value.trim();
+  if(!name){ showToast('⚠️ Donnez un nom au produit'); return; }
+  state.products.push({id:uid(), name, cat: document.getElementById('f_cat').value.trim()||'Divers',
+    description: document.getElementById('f_desc').value.trim(),
+    buy: parseFloat(document.getElementById('f_buy').value)||0, sell: parseFloat(document.getElementById('f_sell').value)||0,
+    commissions: readCommRows(), commDefault: parseFloat(document.getElementById('f_commDefault').value)||0,
+    stock: parseInt(document.getElementById('f_stock').value)||0, photo:_pendingLogo});
+  await saveState(); closeSheet(); render(); showToast('✅ Produit ajouté');
+}
+function openEditProduct(id){
+  const p = productById(id);
+  _pendingLogo = p.photo || null;
+  const rowsHtml = (p.commissions||[]).map(c=>commRowHtml(c.ville, c.montant)).join('');
+  openSheet(`
+    <button class="close-x" onclick="closeSheet()">✕</button>
+    <h3>✏️ Modifier — ${esc(p.name)}</h3>
+    <div class="logo-picker">
+      <div class="preview" id="pf_preview">${p.photo?`<img src="${p.photo}">`:'📦'}</div>
+      <div>
+        <input type="file" accept="image/*" id="pf_photo_file" style="display:none" onchange="handleLogoFile(this,'pf_preview')">
+        <button class="btn btn-ghost btn-sm" onclick="document.getElementById('pf_photo_file').click()">📷 Changer la photo</button>
+      </div>
+    </div>
+    <div class="field"><label>Nom du produit</label><input id="f_name" value="${esc(p.name)}"></div>
+    <div class="field"><label>Catégorie</label><input id="f_cat" value="${esc(p.cat)}"></div>
+    <div class="field"><label>Description / avantages (visible sur la boutique publique)</label><textarea id="f_desc" rows="3" style="width:100%;padding:11px 12px;border-radius:10px;border:1.5px solid var(--line);font-family:'Inter';font-size:13.5px;background:var(--paper);color:var(--ink);resize:vertical;">${esc(p.description||'')}</textarea></div>
+    <div class="row2"><div class="field"><label>Prix d'achat (${state.settings.currencySymbol||'$'})</label><input id="f_buy" type="number" step="0.01" value="${p.buy}"></div>
+    <div class="field"><label>Prix de vente (${state.settings.currencySymbol||'$'})</label><input id="f_sell" type="number" step="0.01" value="${p.sell}"></div></div>
+    <div class="field"><label>Commission par défaut (${state.settings.currencySymbol||'$'})</label><input id="f_commDefault" type="number" step="0.01" value="${p.commDefault||0}"></div>
+    <div class="hint">Appliquée pour toute ville non listée ci-dessous.</div>
+    <div class="field">
+      <label>Commissions spécifiques par ville (optionnel)</label>
+      <div id="commRows">${rowsHtml}</div>
+      <button type="button" class="btn btn-ghost btn-sm" onclick="addCommRow()">➕ Ajouter une ville</button>
+    </div>
+    <div class="sheet-actions"><button class="btn btn-red" onclick="deleteProduct('${p.id}')">🗑️ Supprimer</button><button class="btn btn-primary" onclick="saveEditProduct('${p.id}')">Enregistrer</button></div>
+  `);
+}
+async function saveEditProduct(id){
+  const p = productById(id);
+  p.name = document.getElementById('f_name').value.trim()||p.name;
+  p.cat = document.getElementById('f_cat').value.trim()||p.cat;
+  p.description = document.getElementById('f_desc').value.trim();
+  p.buy = parseFloat(document.getElementById('f_buy').value)||0;
+  p.sell = parseFloat(document.getElementById('f_sell').value)||0;
+  p.commissions = readCommRows();
+  p.commDefault = parseFloat(document.getElementById('f_commDefault').value)||0;
+  p.photo = _pendingLogo;
+  await saveState(); closeSheet(); render(); showToast('✅ Produit modifié');
+}
+async function deleteProduct(id){
+  state.products = state.products.filter(p=>p.id!==id);
+  await saveState(); closeSheet(); render(); showToast('🗑️ Produit supprimé');
+}
+function openStockMove(pid, type){
+  const p = productById(pid); const isIn = type==='entree';
+  openSheet(`
+    <button class="close-x" onclick="closeSheet()">✕</button>
+    <h3>${isIn?'➕ Entrée de stock':'➖ Sortie de stock'} — ${esc(p.name)}</h3>
+    <div class="hint">Stock actuel : ${p.stock}</div>
+    <div class="field"><label>Quantité</label><input id="f_qty" type="number" min="1" value="1"></div>
+    <div class="field"><label>Note (optionnel)</label><input id="f_note" placeholder="${isIn?'Ex : réapprovisionnement':'Ex : produit abîmé'}"></div>
+    <div class="sheet-actions"><button class="btn btn-ghost" onclick="closeSheet()">Annuler</button><button class="btn ${isIn?'btn-green':'btn-red'}" onclick="confirmStockMove('${pid}','${type}')">Confirmer</button></div>
+  `);
+}
+async function confirmStockMove(pid, type){
+  const p = productById(pid);
+  const qty = parseInt(document.getElementById('f_qty').value)||0;
+  if(qty<=0){ showToast('⚠️ Quantité invalide'); return; }
+  if(type==='sortie' && qty>p.stock){ showToast('⚠️ Stock insuffisant'); return; }
+  p.stock += (type==='entree'? qty : -qty);
+  state.movements.push({id:uid(), date:nowISO().slice(0,10), productId:pid, qty, type, note:document.getElementById('f_note').value.trim()});
+  await saveState(); closeSheet(); render(); showToast(type==='entree' ? '✅ Stock ajouté' : '✅ Stock retiré');
+}
+
+function waNumber(phone){
+  let n = (phone||'').replace(/[^\d]/g,'');
+  if(!n) return '';
+  if(n.startsWith('0')) n = '243' + n.slice(1);
+  else if(!n.startsWith('243')) n = '243' + n;
+  return n;
+}
+function receiptText(o){
+  const p = productById(o.productId), l = livreurById(o.livreurId), c = orderCalc(o);
+  const bname = (state.branding && state.branding.name) ? state.branding.name : 'Winner Business';
+  const contact = state.settings.phone ? `Contact ${bname} : ${state.settings.phone}\n` : '';
+  const fee = o.deliveryFee||0;
+  const grandTotal = c.sale + fee;
+  return `🧾 *${bname}* — Reçu de commande N° ${o.id.slice(-6).toUpperCase()}\n\n`+
+    `Client : ${o.client||'—'}\n`+
+    `Produit : ${p?p.name:'?'} × ${o.qty}\n`+
+    (c.discount>0 ? `Prix catalogue : ${fmtUSD(c.catalogSale)}\nRemise accordée : -${fmtUSD(c.discount)}\n` : '')+
+    `Prix produit : ${fmtUSD(c.sale)}\n`+
+    (fee>0 ? `Frais de livraison : ${deliveryFeeText(o)}\n` : '')+
+    `*Total à payer : ${fmtUSD(grandTotal)}*${secondaryPart(grandTotal)}\n`+
+    `Adresse : ${o.address||'—'}\n`+
+    `Ville : ${o.ville}\n`+
+    (deliveryWhenText(o) ? `Livraison prévue : ${deliveryWhenText(o)}\n` : '')+
+    `Livré par : ${l?l.name:'?'}\n`+
+    `Date : ${fmtDate(o.date)}\n\n`+
+    contact+
+    `Merci pour votre confiance ! 🙏`;
+}
+function shareReceipt(orderId){
+  const o = state.orders.find(x=>x.id===orderId); if(!o) return;
+  const text = receiptText(o);
+  const num = waNumber(o.phone);
+  const url = num ? `https://wa.me/${num}?text=${encodeURIComponent(text)}` : `https://wa.me/?text=${encodeURIComponent(text)}`;
+  window.open(url, '_blank');
+}
+function livreurDispatchText(o){
+  const p = productById(o.productId), c = orderCalc(o);
+  const bname = (state.branding && state.branding.name) ? state.branding.name : 'Winner Business';
+  const fee = o.deliveryFee||0;
+  const grandTotal = c.sale + fee;
+  return `🚚 *Nouvelle livraison à faire* — ${bname}\n\n`+
+    `Client : ${o.client||'—'}\n`+
+    `Téléphone client : ${o.phone||'—'}\n`+
+    `Adresse : ${o.address||'—'}\n`+
+    `Ville : ${o.ville}\n`+
+    (deliveryWhenText(o) ? `Livraison prévue : ${deliveryWhenText(o)}\n` : '')+
+    `Produit : ${p?p.name:'?'} × ${o.qty}\n`+
+    `Prix produit : ${fmtUSD(c.sale)}\n`+
+    (fee>0 ? `Frais de livraison : ${deliveryFeeText(o)}\n` : '')+
+    `*À encaisser chez le client : ${fmtUSD(grandTotal)}*\n\n`+
+    `Merci de confirmer avec le client avant de partir 🙏`;
+}
+function sendToLivreur(orderId){
+  const o = state.orders.find(x=>x.id===orderId); if(!o) return;
+  const l = livreurById(o.livreurId);
+  if(!l || !l.phone){ showToast('⚠️ Ajoutez un numéro pour ce livreur (onglet Livreurs)'); return; }
+  const num = waNumber(l.phone);
+  const text = livreurDispatchText(o);
+  window.open(`https://wa.me/${num}?text=${encodeURIComponent(text)}`, '_blank');
+}
+function openWhatsApp(phone){
+  const num = waNumber(phone);
+  if(!num){ showToast('⚠️ Pas de numéro pour ce client'); return; }
+  window.open(`https://wa.me/${num}`, '_blank');
+}
+
+function renderLivraisons(){
+  let html = `<div class="fab-row">
+    <button class="btn btn-amber btn-block" onclick="openNewOrder()">🚚 Nouvelle vente</button>
+    <button class="btn btn-ghost btn-block btn-icon" onclick="openClientsHistory()" title="Historique clients">👥</button>
+  </div>`;
+  html += `<div class="field" style="margin-bottom:14px;"><input id="ordersSearch" placeholder="🔎 Rechercher un client ou un produit..." value="${esc(window._ordersSearch||'')}" oninput="onOrdersSearch(this.value)"></div>`;
+  let orders = [...state.orders].sort((a,b)=> new Date(b.date)-new Date(a.date));
+  const q = (window._ordersSearch||'').toLowerCase().trim();
+  if(q){
+    orders = orders.filter(o=>{
+      const p = productById(o.productId);
+      return (o.client||'').toLowerCase().includes(q) || (p && p.name.toLowerCase().includes(q));
+    });
+  }
+  html += `<div class="page-title">Ventes livrées<span class="count">${orders.length}</span></div>`;
+  if(orders.length===0) html += emptyBlock('🚚', q ? 'Aucun résultat pour cette recherche.' : 'Aucune vente enregistrée.');
+  orders.forEach(o=>{
+    const p = productById(o.productId); const l = livreurById(o.livreurId); const c = orderCalc(o);
+    html += `<div class="card order-card">
+      <div class="order-top"><div class="order-client">${esc(o.client||'Client')}</div><div class="order-date">${fmtDate(o.date)}</div></div>
+      <div class="order-meta">${esc(p?p.name:'?')} × ${o.qty} · <span class="badge badge-ville">${esc(o.ville)}</span> · livré par ${esc(l?l.name:'?')}</div>
+      ${deliveryWhenText(o) ? `<div class="order-meta" style="margin-top:2px;">📅 ${esc(deliveryWhenText(o))}</div>` : ''}
+      ${o.address ? `<div class="order-meta" style="margin-top:2px;">📍 ${esc(o.address)}</div>` : ''}
+      <div class="order-bottom"><div style="font-size:11.5px;color:var(--ink-soft);">Vente ${fmtUSD(c.sale)}${c.discount>0?` <span style="color:var(--red);">(remise -${fmtUSD(c.discount)})</span>`:''}${o.deliveryFee>0?` + livraison ${deliveryFeeText(o)}`:''}${c.comm>0?` · Comm. ${fmtUSD(c.comm)}`:''}</div><div class="order-profit">+${fmtUSD(c.profit)}</div></div>
+      <div style="display:flex;gap:8px;margin-top:8px;">
+        ${o.phone ? `<button class="btn btn-green btn-sm" style="flex:1;" onclick="openWhatsApp('${esc(o.phone)}')">💬 Client</button>` : ''}
+        <button class="btn btn-amber btn-sm" style="flex:1;" onclick="sendToLivreur('${o.id}')">📨 Livreur</button>
+        <button class="btn btn-ghost btn-sm" style="flex:1;" onclick="shareReceipt('${o.id}')">📤 Reçu</button>
+        <button class="btn btn-ghost btn-sm btn-icon" onclick="deleteOrder('${o.id}')">🗑️</button>
+      </div>
+    </div>`;
+  });
+  return html;
+}
+function onOrdersSearch(v){ window._ordersSearch = v; const main=document.getElementById('content'); main.innerHTML = renderLivraisons();
+  const el=document.getElementById('ordersSearch'); if(el){ el.focus(); el.setSelectionRange(el.value.length, el.value.length); } }
+
+function openClientsHistory(){
+  const map = {};
+  state.orders.forEach(o=>{
+    const key = (o.client||'Client inconnu') + '|' + (o.phone||'');
+    if(!map[key]) map[key] = {client:o.client||'Client inconnu', phone:o.phone||'', nb:0, total:0, last:o.date};
+    const c = orderCalc(o);
+    map[key].nb += 1; map[key].total += c.sale;
+    if(new Date(o.date) > new Date(map[key].last)) map[key].last = o.date;
+  });
+  const rows = Object.values(map).sort((a,b)=>b.total-a.total);
+  let html = `<button class="close-x" onclick="closeSheet()">✕</button><h3>👥 Historique clients</h3>`;
+  if(rows.length===0){ html += `<div class="hint">Aucune vente enregistrée pour l'instant.</div>`; }
+  rows.forEach(r=>{
+    html += `<div class="card" style="padding:12px 14px;">
+      <div style="display:flex;justify-content:space-between;align-items:center;">
+        <div><div style="font-weight:700;font-size:13px;">${esc(r.client)}</div><div style="font-size:11px;color:var(--ink-soft);">${r.nb} achat(s) · dernier le ${fmtDate(r.last)}</div></div>
+        <div style="text-align:right;"><div style="font-family:'Poppins';font-weight:800;color:var(--navy);">${fmtUSD(r.total)}</div>
+        ${r.phone?`<button class="btn btn-green btn-sm" style="margin-top:4px;" onclick="openWhatsApp('${esc(r.phone)}')">💬</button>`:''}</div>
+      </div>
+    </div>`;
+  });
+  openSheet(html);
+}
+
+function openNewOrder(){
+  if(state.products.length===0){ showToast("⚠️ Ajoutez d'abord un produit"); return; }
+  if(state.livreurs.length===0){ showToast("⚠️ Ajoutez d'abord un livreur"); return; }
+  const prodOpts = state.products.map(p=>`<option value="${p.id}">${esc(p.name)} (stock ${p.stock})</option>`).join('');
+  const livOpts = state.livreurs.map(l=>`<option value="${l.id}">${esc(l.name)} — ${esc(l.ville)}</option>`).join('');
+  openSheet(`
+    <button class="close-x" onclick="closeSheet()">✕</button>
+    <h3>🚚 Nouvelle vente livrée</h3>
+    <div class="row2">
+      <div class="field"><label>Client</label><input id="f_client" placeholder="Nom du client"></div>
+      <div class="field"><label>Téléphone (WhatsApp)</label><input id="f_phone" placeholder="Ex : 0899000000"></div>
+    </div>
+    <div class="field"><label>Adresse complète de livraison</label><input id="f_address" placeholder="Ex : Av. Kasa-Vubu n°12, Q. Matonge, Kinshasa"></div>
+    <div class="field"><label>Produit</label><select id="f_prod">${prodOpts}</select></div>
+    <div class="row2"><div class="field"><label>Quantité</label><input id="f_qty" type="number" min="1" value="1"></div>
+    <div class="field"><label>Ville</label><input id="f_ville" list="villesDatalist" placeholder="Ex : Kinshasa" value="Kinshasa"></div></div>
+    <datalist id="villesDatalist">${buildVilleOptions()}</datalist>
+    <div class="row2">
+      <div class="field"><label>Livreur</label><select id="f_liv">${livOpts}</select></div>
+      <div class="field"><label>Date de livraison</label><input id="f_date" type="date"></div>
+    </div>
+    <div class="field"><label>Heure de livraison</label><input id="f_time" type="time"></div>
+    <div class="field"><label>Prix de vente total (${state.settings.currencySymbol||'$'}) — modifiable si négocié avec le client</label><input id="f_saleOverride" type="number" step="0.01"></div>
+    <div class="field"><label>Frais de livraison</label>
+      <div class="row2" style="margin-bottom:0;">
+        <div class="field" style="margin-bottom:0;"><input id="f_delivFee" type="number" step="0.01"></div>
+        <div class="field" style="margin-bottom:0;">${currencyPicker('f_delivFeeCur', 'primary')}</div>
+      </div>
+    </div>
+    <div class="hint" id="discountPreview"></div>
+    <div class="hint" id="calcPreview">Sélectionnez un produit pour voir le calcul.</div>
+    <div class="sheet-actions"><button class="btn btn-ghost" onclick="closeSheet()">Annuler</button><button class="btn btn-green" onclick="confirmOrder()">✅ Livraison faite</button></div>
+  `);
+  const update = (touchedPrice, touchedFee)=>{
+    const pid = document.getElementById('f_prod').value, qty = parseInt(document.getElementById('f_qty').value)||0, ville = document.getElementById('f_ville').value, livId = document.getElementById('f_liv').value;
+    const priceInput = document.getElementById('f_saleOverride');
+    const feeInput = document.getElementById('f_delivFee');
+    const feeCurInput = document.getElementById('f_delivFeeCur');
+    if(!touchedPrice){
+      const p = productById(pid);
+      priceInput.value = p ? (p.sell*qty).toFixed(2) : '';
+    }
+    if(!touchedFee){
+      const def = deliveryFeeForVille(ville);
+      feeInput.value = def.montant.toFixed(2);
+      feeCurInput.value = def.currency;
+    }
+    const saleOverride = parseFloat(priceInput.value);
+    const c = orderCalc({productId:pid, qty, ville, livreurId:livId, saleOverride: isNaN(saleOverride)?null:saleOverride});
+    const fee = parseFloat(feeInput.value)||0;
+    document.getElementById('calcPreview').textContent = `Vente ${fmtUSD(c.sale)}${fee>0?` + livraison ${fee}${curLabel(feeCurInput.value)}`:''} · Commission ${fmtUSD(c.comm)} · Bénéfice ${fmtUSD(c.profit)}`;
+    document.getElementById('discountPreview').textContent = c.discount>0 ? `Remise accordée : -${fmtUSD(c.discount)} (prix catalogue ${fmtUSD(c.catalogSale)})` : '';
+  };
+  ['f_prod','f_qty','f_ville','f_liv'].forEach(id=>document.getElementById(id).addEventListener('input', ()=>update(false,false)));
+  document.getElementById('f_saleOverride').addEventListener('input', ()=>update(true,false));
+  document.getElementById('f_delivFee').addEventListener('input', ()=>update(false,true));
+  document.getElementById('f_delivFeeCur').addEventListener('change', ()=>update(false,true));
+  document.getElementById('f_date').value = nowISO().slice(0,10);
+  update(false,false);
+}
+async function confirmOrder(){
+  const productId = document.getElementById('f_prod').value, qty = parseInt(document.getElementById('f_qty').value)||0;
+  const ville = document.getElementById('f_ville').value, livreurId = document.getElementById('f_liv').value, client = document.getElementById('f_client').value.trim();
+  const phone = document.getElementById('f_phone').value.trim();
+  const address = document.getElementById('f_address').value.trim();
+  const deliveryDate = document.getElementById('f_date').value;
+  const deliveryTime = document.getElementById('f_time').value;
+  const deliveryFee = parseFloat(document.getElementById('f_delivFee').value)||0;
+  const deliveryFeeCurrency = document.getElementById('f_delivFeeCur').value;
+  const saleOverrideRaw = parseFloat(document.getElementById('f_saleOverride').value);
+  const saleOverride = isNaN(saleOverrideRaw) ? null : saleOverrideRaw;
+  const p = productById(productId);
+  if(qty<=0){ showToast('⚠️ Quantité invalide'); return; }
+  if(qty>p.stock){ showToast('⚠️ Stock insuffisant ('+p.stock+' dispo)'); return; }
+  p.stock -= qty;
+  state.orders.push({id:uid(), date:nowISO(), client, phone, address, deliveryDate, deliveryTime, deliveryFee, deliveryFeeCurrency, productId, qty, ville, livreurId, saleOverride});
+  await saveState(); closeSheet(); currentTab='livraisons'; render(); showToast('✅ Vente enregistrée, stock mis à jour');
+}
+async function deleteOrder(id){
+  const o = state.orders.find(x=>x.id===id); if(!o) return;
+  const p = productById(o.productId); if(p) p.stock += o.qty;
+  state.orders = state.orders.filter(x=>x.id!==id);
+  await saveState(); render(); showToast('↩️ Vente annulée, stock restauré');
+}
+
+function renderLivreurs(){
+  let html = `<div class="fab-row"><button class="btn btn-amber btn-block" onclick="openNewLivreur()">➕ Nouveau livreur</button></div>`;
+  html += `<div class="page-title">Équipe<span class="count">${state.livreurs.length}</span></div>`;
+  if(state.livreurs.length===0) html += emptyBlock('🧑‍💼','Aucun livreur.');
+  state.livreurs.forEach(l=>{
+    let modeTxt;
+    if(l.payMode==='commission') modeTxt = 'Payé à la commission, par vente';
+    else if(l.payMode==='fixe') modeTxt = `Salaire fixe : ${fmtUSD(l.montantFixe)}/mois`;
+    else modeTxt = `${fmtUSD(l.tauxCourse)} par livraison, payé fin de mois`;
+    const orders = state.orders.filter(o=>o.livreurId===l.id);
+    let comm=0; orders.forEach(o=>{ comm+=orderCalc(o).comm; });
+    html += `<div class="card">
+      <div class="liv-card"><div class="liv-avatar">${esc((l.name[0]||'?').toUpperCase())}</div>
+        <div class="liv-info"><div class="liv-name">${esc(l.name)}</div><div class="liv-meta">${esc(l.ville)} · ${modeTxt}</div></div>
+        <button class="liv-edit" onclick="openEditLivreur('${l.id}')">✏️</button>
+      </div>
+      <div class="liv-stats"><div class="liv-stat"><div class="n">${orders.length}</div><div class="l">Livraisons</div></div>
+      <div class="liv-stat"><div class="n">${fmtUSD(comm)}</div><div class="l">Comm. totale</div></div></div>
+      <button class="btn btn-ghost btn-sm btn-block" style="margin-top:10px;" onclick="openBilanLivreur('${l.id}')">📊 Envoyer un bilan WhatsApp</button>
+    </div>`;
+  });
+  return html;
+}
+function isInPeriod(dateStr, period){
+  const d = new Date(dateStr);
+  const now = new Date();
+  if(period==='jour') return d.toDateString() === now.toDateString();
+  if(period==='semaine'){ const diff=(now-d)/86400000; return diff>=0 && diff<=7; }
+  return true;
+}
+function livreurBilanText(livreurId, period){
+  const l = livreurById(livreurId);
+  const bname = (state.branding && state.branding.name) ? state.branding.name : 'Winner Business';
+  const orders = state.orders.filter(o=>o.livreurId===livreurId && isInPeriod(o.date, period));
+  const label = period==='jour' ? "aujourd'hui" : 'cette semaine';
+
+  const byProduct = {};
+  let totalComm = 0, totalVentes = 0;
+  orders.forEach(o=>{
+    const p = productById(o.productId); const c = orderCalc(o);
+    if(!byProduct[o.productId]) byProduct[o.productId] = {name:p?p.name:'?', qty:0};
+    byProduct[o.productId].qty += o.qty;
+    totalComm += c.comm; totalVentes += c.sale;
+  });
+
+  let text = `📊 *Bilan ${label}* — ${esc(l.name)}\n\n`;
+  const rows = Object.values(byProduct);
+  if(rows.length===0){ text += `Aucune vente enregistrée ${label}.\n\n`; }
+  else{
+    text += `*Vendu ${label} :*\n`;
+    rows.forEach(r=>{ text += `• ${r.name} × ${r.qty}\n`; });
+    text += `\nTotal ventes : ${fmtUSD(totalVentes)}\n`;
+    if(totalComm>0) text += `Votre commission (${label}) : ${fmtUSD(totalComm)}\n`;
+  }
+
+  // Stock restant chez le livreur (solde global, toutes dates)
+  const stockRows = state.products
+    .map(p=>({name:p.name, reste: enPossession(livreurId, p.id)}))
+    .filter(r=>r.reste !== 0);
+  if(stockRows.length>0){
+    text += `\n*Stock encore chez vous :*\n`;
+    stockRows.forEach(r=>{ text += `• ${r.name} : ${r.reste}\n`; });
+  }
+
+  text += `\n— ${bname}`;
+  return text;
+}
+function openBilanLivreur(livreurId){
+  const l = livreurById(livreurId);
+  openSheet(`
+    <button class="close-x" onclick="closeSheet()">✕</button>
+    <h3>📊 Bilan WhatsApp — ${esc(l.name)}</h3>
+    <div class="hint">Résumé des ventes, de la commission et du stock restant chez ce livreur.</div>
+    <div class="sheet-actions">
+      <button class="btn btn-ghost btn-block" onclick="sendBilanLivreur('${l.id}','jour')">📅 Aujourd'hui</button>
+      <button class="btn btn-primary btn-block" onclick="sendBilanLivreur('${l.id}','semaine')">🗓️ Cette semaine</button>
+    </div>
+  `);
+}
+function sendBilanLivreur(livreurId, period){
+  const l = livreurById(livreurId);
+  if(!l.phone){ showToast('⚠️ Ajoutez un numéro pour ce livreur (bouton ✏️)'); return; }
+  const num = waNumber(l.phone);
+  const text = livreurBilanText(livreurId, period);
+  window.open(`https://wa.me/${num}?text=${encodeURIComponent(text)}`, '_blank');
+  closeSheet();
+}
+function openNewLivreur(){
+  openSheet(`
+    <button class="close-x" onclick="closeSheet()">✕</button>
+    <h3>➕ Nouveau livreur</h3>
+    <div class="field"><label>Nom</label><input id="f_name" placeholder="Nom du livreur"></div>
+    <div class="row2">
+      <div class="field"><label>Ville</label><input id="f_ville" list="villesDatalist" placeholder="Ex : Kinshasa"></div>
+      <div class="field"><label>Téléphone (WhatsApp)</label><input id="f_phone" placeholder="Ex : 0899000000"></div>
+    </div>
+    <datalist id="villesDatalist">${buildVilleOptions()}</datalist>
+    <div class="field"><label>Mode de paiement</label>
+      <select id="f_mode" onchange="toggleModeFields()">
+        <option value="commission">À la commission (par vente, réglé immédiatement)</option>
+        <option value="fixe">Salaire fixe mensuel</option>
+        <option value="course">Montant par livraison, payé fin de mois</option>
+      </select>
+    </div>
+    <div class="field" id="f_fixe_wrap" style="display:none;"><label>Salaire fixe ($/mois)</label><input id="f_fixe" type="number" step="0.01" value="0"></div>
+    <div class="field" id="f_course_wrap" style="display:none;"><label>Montant par livraison (${state.settings.currencySymbol||'$'})</label><input id="f_course" type="number" step="0.01" value="0"></div>
+    <div class="hint" id="f_comm_hint">La commission est définie par produit (voir Catalogue).</div>
+    <div class="sheet-actions"><button class="btn btn-ghost" onclick="closeSheet()">Annuler</button><button class="btn btn-primary" onclick="saveNewLivreur()">Enregistrer</button></div>
+  `);
+}
+function toggleModeFields(){
+  const mode = document.getElementById('f_mode').value;
+  document.getElementById('f_fixe_wrap').style.display = mode==='fixe' ? 'block':'none';
+  document.getElementById('f_course_wrap').style.display = mode==='course' ? 'block':'none';
+  document.getElementById('f_comm_hint').style.display = mode==='commission' ? 'block':'none';
+}
+async function saveNewLivreur(){
+  const name = document.getElementById('f_name').value.trim();
+  if(!name){ showToast('⚠️ Donnez un nom'); return; }
+  state.livreurs.push({id:uid(), name, ville: document.getElementById('f_ville').value, phone: document.getElementById('f_phone').value.trim(), payMode: document.getElementById('f_mode').value,
+    montantFixe: parseFloat(document.getElementById('f_fixe').value)||0, tauxCourse: parseFloat(document.getElementById('f_course').value)||0});
+  await saveState(); closeSheet(); render(); showToast('✅ Livreur ajouté');
+}
+function openEditLivreur(id){
+  const l = livreurById(id);
+  openSheet(`
+    <button class="close-x" onclick="closeSheet()">✕</button>
+    <h3>✏️ Modifier — ${esc(l.name)}</h3>
+    <div class="field"><label>Nom</label><input id="f_name" value="${esc(l.name)}"></div>
+    <div class="row2">
+      <div class="field"><label>Ville</label><input id="f_ville" list="villesDatalist" value="${esc(l.ville)}"></div>
+      <div class="field"><label>Téléphone (WhatsApp)</label><input id="f_phone" value="${esc(l.phone||'')}" placeholder="Ex : 0899000000"></div>
+    </div>
+    <datalist id="villesDatalist">${buildVilleOptions()}</datalist>
+    <div class="field"><label>Mode de paiement</label>
+      <select id="f_mode" onchange="toggleModeFields()">
+        <option value="commission" ${l.payMode==='commission'?'selected':''}>À la commission (par vente, réglé immédiatement)</option>
+        <option value="fixe" ${l.payMode==='fixe'?'selected':''}>Salaire fixe mensuel</option>
+        <option value="course" ${l.payMode==='course'?'selected':''}>Montant par livraison, payé fin de mois</option>
+      </select>
+    </div>
+    <div class="field" id="f_fixe_wrap" style="display:${l.payMode==='fixe'?'block':'none'}"><label>Salaire fixe ($/mois)</label><input id="f_fixe" type="number" step="0.01" value="${l.montantFixe}"></div>
+    <div class="field" id="f_course_wrap" style="display:${l.payMode==='course'?'block':'none'}"><label>Montant par livraison (${state.settings.currencySymbol||'$'})</label><input id="f_course" type="number" step="0.01" value="${l.tauxCourse}"></div>
+    <div class="hint" id="f_comm_hint" style="display:${l.payMode==='commission'?'block':'none'}">La commission est définie par produit (voir Catalogue).</div>
+    <div class="sheet-actions"><button class="btn btn-red" onclick="deleteLivreur('${l.id}')">🗑️ Supprimer</button><button class="btn btn-primary" onclick="saveEditLivreur('${l.id}')">Enregistrer</button></div>
+  `);
+}
+async function saveEditLivreur(id){
+  const l = livreurById(id);
+  l.name = document.getElementById('f_name').value.trim()||l.name;
+  l.ville = document.getElementById('f_ville').value;
+  l.phone = document.getElementById('f_phone').value.trim();
+  l.payMode = document.getElementById('f_mode').value;
+  l.montantFixe = parseFloat(document.getElementById('f_fixe').value)||0;
+  l.tauxCourse = parseFloat(document.getElementById('f_course').value)||0;
+  await saveState(); closeSheet(); render(); showToast('✅ Livreur modifié');
+}
+async function deleteLivreur(id){
+  state.livreurs = state.livreurs.filter(l=>l.id!==id);
+  await saveState(); closeSheet(); render(); showToast('🗑️ Livreur supprimé');
+}
+
+/* ---------- STOCK CHEZ LIVREURS (dotations hebdomadaires) ---------- */
+function totalDonne(livreurId, productId){ return state.dotations.filter(d=>d.livreurId===livreurId && d.productId===productId && d.type==='don').reduce((s,d)=>s+d.qty,0); }
+function totalRepris(livreurId, productId){ return state.dotations.filter(d=>d.livreurId===livreurId && d.productId===productId && d.type==='reprise').reduce((s,d)=>s+d.qty,0); }
+function totalVenduLivreurProduit(livreurId, productId){ return state.orders.filter(o=>o.livreurId===livreurId && o.productId===productId).reduce((s,o)=>s+o.qty,0); }
+function enPossession(livreurId, productId){ return totalDonne(livreurId,productId) - totalRepris(livreurId,productId) - totalVenduLivreurProduit(livreurId,productId); }
+
+function renderDotations(){
+  let html = `<div class="fab-row">
+    <button class="btn btn-amber btn-block" onclick="openDotation('don')">➕ Donner du stock</button>
+    <button class="btn btn-ghost btn-block" onclick="openDotation('reprise')">↩️ Reprise</button>
+  </div>`;
+  html += `<div class="page-title">Stock confié aux livreurs</div>`;
+  if(state.livreurs.length===0 || state.products.length===0){
+    html += emptyBlock('🏬', "Ajoutez d'abord des livreurs et des produits.");
+    return html;
+  }
+  let anyRow = false;
+  state.livreurs.forEach(l=>{
+    const rows = state.products
+      .map(p=>({p, don:totalDonne(l.id,p.id), rep:totalRepris(l.id,p.id), vendu:totalVenduLivreurProduit(l.id,p.id), reste:enPossession(l.id,p.id)}))
+      .filter(r=>r.don>0 || r.rep>0 || r.vendu>0);
+    if(rows.length===0) return;
+    anyRow = true;
+    html += `<div class="card">
+      <div class="liv-card" style="margin-bottom:8px;">
+        <div class="liv-avatar">${esc((l.name[0]||'?').toUpperCase())}</div>
+        <div class="liv-info"><div class="liv-name">${esc(l.name)}</div><div class="liv-meta">${esc(l.ville)}</div></div>
+      </div>`;
+    rows.forEach(r=>{
+      const alert = r.reste>0;
+      html += `<div class="mini-row">
+        <span class="name">${esc(r.p.name)}</span>
+        <span class="num">Donné ${r.don} · Vendu ${r.vendu}${r.rep>0?` · Repris ${r.rep}`:''} · <b style="color:${alert?'var(--red)':'var(--green)'}">Reste ${r.reste}</b></span>
+      </div>`;
+    });
+    html += `</div>`;
+  });
+  if(!anyRow) html += emptyBlock('🏬', "Aucun stock donné à un livreur pour l'instant. Appuyez sur \u00ab Donner du stock \u00bb.");
+  return html;
+}
+
+function openDotation(type){
+  if(state.livreurs.length===0){ showToast("⚠️ Ajoutez d'abord un livreur"); return; }
+  if(state.products.length===0){ showToast("⚠️ Ajoutez d'abord un produit"); return; }
+  const isDon = type==='don';
+  const livOpts = state.livreurs.map(l=>`<option value="${l.id}">${esc(l.name)} — ${esc(l.ville)}</option>`).join('');
+  const prodOpts = state.products.map(p=>`<option value="${p.id}">${esc(p.name)} (stock boutique ${p.stock})</option>`).join('');
+  openSheet(`
+    <button class="close-x" onclick="closeSheet()">✕</button>
+    <h3>${isDon?'➕ Donner du stock à un livreur':'↩️ Reprise de stock invendu'}</h3>
+    <div class="field"><label>Livreur</label><select id="f_liv">${livOpts}</select></div>
+    <div class="field"><label>Produit</label><select id="f_prod">${prodOpts}</select></div>
+    <div class="field"><label>Quantité</label><input id="f_qty" type="number" min="1" value="1"></div>
+    <div class="hint" id="dot_hint"></div>
+    <div class="hint">Ce carnet suit uniquement ce qui a été remis à chaque livreur — il ne modifie pas le stock de la boutique (géré dans l'onglet Produits).</div>
+    <div class="sheet-actions">
+      <button class="btn btn-ghost" onclick="closeSheet()">Annuler</button>
+      <button class="btn ${isDon?'btn-green':'btn-primary'}" onclick="confirmDotation('${type}')">${isDon?'✅ Confirmer le don':'✅ Confirmer la reprise'}</button>
+    </div>
+  `);
+  const update = ()=>{
+    const l = document.getElementById('f_liv').value, p = document.getElementById('f_prod').value;
+    document.getElementById('dot_hint').textContent = `Actuellement chez ce livreur pour ce produit : ${enPossession(l,p)} unité(s).`;
+  };
+  document.getElementById('f_liv').addEventListener('change', update);
+  document.getElementById('f_prod').addEventListener('change', update);
+  update();
+}
+async function confirmDotation(type){
+  const livreurId = document.getElementById('f_liv').value;
+  const productId = document.getElementById('f_prod').value;
+  const qty = parseInt(document.getElementById('f_qty').value)||0;
+  if(qty<=0){ showToast('⚠️ Quantité invalide'); return; }
+  state.dotations.push({id:uid(), date:nowISO().slice(0,10), livreurId, productId, qty, type});
+  await saveState(); closeSheet(); render();
+  showToast(type==='don' ? '✅ Stock donné au livreur' : '✅ Reprise enregistrée');
+}
+
+function renderPaie(){
+  const payLivreurs = state.livreurs.filter(l=>l.payMode==='fixe' || l.payMode==='course');
+  const commLivreurs = state.livreurs.filter(l=>l.payMode==='commission');
+
+  let html = '';
+  if(commLivreurs.length>0){
+    html += `<div class="page-title">Commissions à régler <span class="count">(cumul total, toutes dates)</span></div>`;
+    commLivreurs.forEach(l=>{
+      const gagne = totalCommissionGagneeTout(l.id), paye = totalPaiementsTout(l.id), reste = resteAPayerCommission(l.id);
+      const isPaid = reste<=0 && gagne>0;
+      html += `<div class="card pay-card">
+        <div class="pay-top"><div><div class="pay-name">${esc(l.name)}</div><div class="pay-mode">${esc(l.ville)} · Payé à la commission par vente</div></div><div class="pay-amount">${fmtUSD(reste)}</div></div>
+        <div class="pay-detail">Total gagné : ${fmtUSD(gagne)}${paye>0?` &nbsp;·&nbsp; Déjà versé : ${fmtUSD(paye)}`:''}</div>
+        <span class="pay-status ${isPaid?'paid':'due'}">${isPaid?'✅ À jour':'⏳ Reste à verser'}</span>
+        ${reste>0 ? `<div class="pay-actions"><button class="btn btn-green btn-block" onclick="openConfirmPay('${l.id}', ${reste})">💵 Marquer payé (${fmtUSD(reste)})</button></div>` : ''}
+      </div>`;
+    });
+  }
+
+  html += `<div class="month-bar"><button onclick="shiftMonth(-1)">‹</button><div class="m-label">${monthLabel(currentMonth)}</div><button onclick="shiftMonth(1)">›</button></div>`;
+  html += `<div class="page-title">Paie fixe / à la course</div>`;
+  if(payLivreurs.length===0){
+    html += emptyBlock('💵','Aucun livreur payé au fixe ou à la course.');
+  }
+  payLivreurs.forEach(l=>{
+    const du = montantDuMois(l, currentMonth), paye = totalPaiementsMois(l.id, currentMonth), reste = Math.max(0, du-paye), isPaid = reste<=0 && du>0;
+    const av = totalAvancesMois(l.id, currentMonth);
+    const modeTxt = l.payMode==='fixe' ? `Fixe : ${fmtUSD(l.montantFixe)}` : `${nbLivraisonsMois(l.id,currentMonth)} livraison(s) × ${fmtUSD(l.tauxCourse)}`;
+    html += `<div class="card pay-card">
+      <div class="pay-top"><div><div class="pay-name">${esc(l.name)}</div><div class="pay-mode">${esc(l.ville)} · ${modeTxt}</div></div><div class="pay-amount">${fmtUSD(reste)}</div></div>
+      <div class="pay-detail">Montant dû : ${fmtUSD(du+av)}${av>0?` &nbsp;·&nbsp; Avances : -${fmtUSD(av)}`:''}${paye>0?` &nbsp;·&nbsp; Déjà payé : ${fmtUSD(paye)}`:''}</div>
+      <span class="pay-status ${isPaid?'paid':'due'}">${isPaid?'✅ Payé':'⏳ Reste à payer'}</span>
+      ${reste>0 ? `<div class="pay-actions"><button class="btn btn-green btn-block" onclick="openConfirmPay('${l.id}', ${reste})">💵 Marquer payé (${fmtUSD(reste)})</button></div>` : ''}
+    </div>`;
+  });
+  html += `<div class="page-title" style="margin-top:16px;">Avances (${monthLabel(currentMonth)})</div>`;
+  html += `<div class="fab-row"><button class="btn btn-ghost btn-block" onclick="openNewAvance()">➕ Enregistrer une avance</button></div>`;
+  const avances = state.avances.filter(a=>a.date.slice(0,7)===currentMonth).sort((a,b)=>new Date(b.date)-new Date(a.date));
+  if(avances.length===0){ html += `<div class="hint">Aucune avance ce mois.</div>`; }
+  else{
+    html += `<div class="card">`;
+    avances.forEach(a=>{ const l=livreurById(a.livreurId); html += `<div class="mini-row"><span class="name">${esc(l?l.name:'?')}${a.note?` — ${esc(a.note)}`:''}</span><span class="num">${fmtUSD(a.montant)} · ${fmtDate(a.date)}</span></div>`; });
+    html += `</div>`;
+  }
+  html += `<div class="page-title" style="margin-top:16px;">Historique des paiements</div>`;
+  const hist = [...state.paiements].sort((a,b)=>new Date(b.date)-new Date(a.date)).slice(0,15);
+  if(hist.length===0) html += `<div class="hint">Aucun paiement enregistré.</div>`;
+  else{
+    html += `<div class="card">`;
+    hist.forEach(p=>{ const l=livreurById(p.livreurId); html += `<div class="mini-row"><span class="name">${esc(l?l.name:'?')} — ${monthLabel(p.mois)}</span><span class="num">${fmtUSD(p.montant)} · ${fmtDate(p.date)}</span></div>`; });
+    html += `</div>`;
+  }
+  return html;
+}
+function shiftMonth(delta){
+  const [y,m] = currentMonth.split('-').map(Number);
+  const d = new Date(y, m-1+delta, 1);
+  currentMonth = d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0');
+  render();
+}
+function openNewAvance(){
+  const eligible = state.livreurs.filter(l=>l.payMode==='fixe'||l.payMode==='course');
+  if(eligible.length===0){ showToast('⚠️ Aucun livreur payé au fixe/à la course'); return; }
+  const opts = eligible.map(l=>`<option value="${l.id}">${esc(l.name)}</option>`).join('');
+  openSheet(`
+    <button class="close-x" onclick="closeSheet()">✕</button>
+    <h3>➕ Nouvelle avance</h3>
+    <div class="field"><label>Livreur</label><select id="f_liv">${opts}</select></div>
+    <div class="field"><label>Montant (${state.settings.currencySymbol||'$'})</label><input id="f_montant" type="number" step="0.01" value="0"></div>
+    <div class="field"><label>Note (optionnel)</label><input id="f_note" placeholder="Ex : avance pour transport"></div>
+    <div class="sheet-actions"><button class="btn btn-ghost" onclick="closeSheet()">Annuler</button><button class="btn btn-primary" onclick="saveNewAvance()">Enregistrer</button></div>
+  `);
+}
+async function saveNewAvance(){
+  const montant = parseFloat(document.getElementById('f_montant').value)||0;
+  if(montant<=0){ showToast('⚠️ Montant invalide'); return; }
+  state.avances.push({id:uid(), date: nowISO().slice(0,10), livreurId: document.getElementById('f_liv').value, montant, note: document.getElementById('f_note').value.trim()});
+  await saveState(); closeSheet(); render(); showToast('✅ Avance enregistrée');
+}
+function openConfirmPay(livreurId, montantSuggere){
+  const l = livreurById(livreurId);
+  openSheet(`
+    <button class="close-x" onclick="closeSheet()">✕</button>
+    <h3>💵 Paiement — ${esc(l.name)}</h3>
+    <div class="hint">Mois : ${monthLabel(currentMonth)}</div>
+    <div class="field"><label>Montant payé (${state.settings.currencySymbol||'$'})</label><input id="f_pay_montant" type="number" step="0.01" value="${montantSuggere.toFixed(2)}"></div>
+    <div class="sheet-actions"><button class="btn btn-ghost" onclick="closeSheet()">Annuler</button><button class="btn btn-green" onclick="confirmPay('${livreurId}')">✅ Confirmer</button></div>
+  `);
+}
+async function confirmPay(livreurId){
+  const montant = parseFloat(document.getElementById('f_pay_montant').value)||0;
+  if(montant<=0){ showToast('⚠️ Montant invalide'); return; }
+  state.paiements.push({id:uid(), mois:currentMonth, livreurId, montant, date: nowISO().slice(0,10)});
+  await saveState(); closeSheet(); render(); showToast('✅ Paiement enregistré');
+}
+
+function renderResume(period){
+  _resumePeriod = period;
+  const orders = filterOrdersByPeriod(period);
+  let sales=0, cost=0, comm=0, profit=0;
+  orders.forEach(o=>{ const c=orderCalc(o); sales+=c.sale; cost+=c.cost; comm+=c.comm; profit+=c.profit; });
+
+  const thisMonth = new Date().toISOString().slice(0,7);
+  const salLivreurs = state.livreurs.filter(l=>l.payMode==='fixe'||l.payMode==='course');
+  let salDue=0, salPaye=0;
+  salLivreurs.forEach(l=>{ salDue += montantDuMois(l, thisMonth); salPaye += totalPaiementsMois(l.id, thisMonth); });
+
+  let html = `<div class="period-bar">
+    <button class="btn ${period==='7j'?'btn-primary':'btn-off'}" onclick="setResumePeriod('7j')">7 jours</button>
+    <button class="btn ${period==='30j'?'btn-primary':'btn-off'}" onclick="setResumePeriod('30j')">30 jours</button>
+    <button class="btn ${period==='tout'?'btn-primary':'btn-off'}" onclick="setResumePeriod('tout')">Tout</button>
+  </div>`;
+  html += `<div class="summary-grid">
+    <div class="stat-card"><div class="l">Ventes</div><div class="v">${fmtUSD(sales)}</div></div>
+    <div class="stat-card"><div class="l">Commissions</div><div class="v">${fmtUSD(comm)}</div></div>
+    <div class="stat-card"><div class="l">Coût d'achat</div><div class="v">${fmtUSD(cost)}</div></div>
+    <div class="stat-card profit"><div class="l">Bénéfice net</div><div class="v">${fmtUSD(profit)}</div></div>
+  </div>`;
+  if(showSecondary()){
+    html += `<div class="card"><div style="font-weight:700;font-size:12.5px;margin-bottom:6px;">Bénéfice en ${esc(state.settings.secondaryName||state.settings.secondarySymbol||'devise secondaire')}</div>
+      <div style="font-family:'Poppins';font-weight:800;font-size:18px;color:var(--navy);">${fmtFC(profit*state.settings.rate)}</div></div>`;
+  }
+
+  if(salLivreurs.length>0){
+    html += `<div class="card"><div style="font-weight:700;font-size:12.5px;margin-bottom:8px;">Salaires fixes / à la course — ${monthLabel(thisMonth)}</div>
+      <div class="mini-row"><span class="name">Total dû ce mois</span><span class="num">${fmtUSD(salDue)}</span></div>
+      <div class="mini-row"><span class="name">Déjà payé</span><span class="num">${fmtUSD(salPaye)}</span></div>
+      <div class="mini-row"><span class="name">Reste à payer</span><span class="num" style="font-weight:700;color:var(--red);">${fmtUSD(Math.max(0,salDue-salPaye))}</span></div>
+    </div>`;
+  }
+
+  const byProduct = {};
+  orders.forEach(o=>{ const c=orderCalc(o); if(!byProduct[o.productId]) byProduct[o.productId]={qty:0,sales:0,profit:0}; byProduct[o.productId].qty+=o.qty; byProduct[o.productId].sales+=c.sale; byProduct[o.productId].profit+=c.profit; });
+  const prodRows = Object.entries(byProduct).sort((a,b)=>b[1].sales-a[1].sales);
+  html += `<div class="page-title">Détail par produit</div><div class="card">`;
+  if(prodRows.length===0) html += `<div class="hint" style="margin:6px 0;">Aucune vente sur la période.</div>`;
+  prodRows.forEach(([pid,d])=>{ const p=productById(pid); html += `<div class="mini-row"><span class="name">${esc(p?p.name:'?')} ×${d.qty}</span><span class="num">${fmtUSD(d.sales)} · +${fmtUSD(d.profit)}</span></div>`; });
+  html += `</div>`;
+
+  html += `<div class="page-title">Détail par livreur</div><div class="card">`;
+  state.livreurs.forEach(l=>{
+    const lorders = orders.filter(o=>o.livreurId===l.id);
+    let lcomm=0; lorders.forEach(o=>{ lcomm += orderCalc(o).comm; });
+    html += `<div class="mini-row"><span class="name">${esc(l.name)} (${esc(l.ville)})</span><span class="num">${lorders.length} livr. · ${fmtUSD(lcomm)}</span></div>`;
+  });
+  html += `</div>`;
+  return html;
+}
+function setResumePeriod(p){ currentTab='resume'; _resumePeriod=p; render(); }
+
+/* ---------- NAV ---------- */
+document.querySelectorAll('.tab-btn').forEach(btn=>{ btn.addEventListener('click', ()=>{ currentTab = btn.dataset.tab; render(); }); });
+
+// loadState() est déclenché automatiquement après connexion (voir auth.onAuthStateChanged plus haut)
+
+if('serviceWorker' in navigator){
+  window.addEventListener('load', ()=>{
+    navigator.serviceWorker.register('sw.js').catch(()=>{});
+  });
+}
+</script>
+</body>
+</html>

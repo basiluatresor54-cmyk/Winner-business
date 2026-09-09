@@ -1,0 +1,78 @@
+WINNER BUSINESS — VERSION AUTONOME + CONNEXION GOOGLE
+==================================================
+
+Cette version se connecte avec Google et synchronise les données
+sur Firebase (projet winner-business-299e2). Chaque personne qui
+se connecte avec son propre compte Google ne voit que ses propres
+données.
+
+⚠️ AVANT DE METTRE EN LIGNE : Réglez les règles de sécurité Firestore
+------------------------------------------------------------------
+Dans la console Firebase → Firestore Database → onglet "Règles",
+remplacez tout par ceci puis cliquez "Publier" :
+
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /users/{userId} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+    match /licences/{key} {
+      allow read: if request.auth != null;
+      allow create, update: if request.auth != null
+        && request.auth.token.email == 'basiluatresor54@gmail.com';
+      allow update: if request.auth != null
+        && resource.data.utilisee == false
+        && resource.data.active == true
+        && request.resource.data.utilisee == true
+        && request.resource.data.email == request.auth.token.email
+        && request.resource.data.active == resource.data.active;
+    }
+    match /shops/{userId} {
+      allow read: if true;
+      allow write: if request.auth != null && request.auth.uid == userId;
+    }
+  }
+}
+
+Sans ça, n'importe qui pourrait lire ou écrire les données de
+n'importe quel client, ou débloquer l'appli sans clé valide.
+La règle "shops" est volontairement publique en lecture — c'est
+elle qui permet à vos clients de voir votre boutique sans compte.
+
+COMMENT PARTAGER VOTRE BOUTIQUE PUBLIQUE
+------------------------------------------
+Dans l'appli → ⚙️ Réglages → "🛍️ Votre boutique publique" → copiez
+le lien et partagez-le (Facebook, WhatsApp, Statut...). Vos clients
+l'ouvrent sans se connecter, choisissent leurs produits, et la
+commande part directement sur VOTRE WhatsApp (numéro configuré dans
+Réglages) avec tous les détails — paiement à la livraison.
+Le catalogue affiché (produits, prix, description) se met à jour
+automatiquement à chaque fois que vous modifiez un produit dans
+l'appli — rien à refaire.
+
+
+COMMENT VENDRE UNE LICENCE
+---------------------------
+1. Dans l'appli, connecté avec VOTRE compte Google (basiluatresor54@gmail.com),
+   allez dans ⚙️ Réglages → "🔑 Générateur de clés" → "Générer une nouvelle clé".
+2. Copiez la clé générée (ex : WB-2026-AB3K9).
+3. Envoyez au client : le lien de l'appli + cette clé.
+4. Le client ouvre le lien, se connecte avec SON compte Google,
+   entre la clé une seule fois → son compte est activé pour toujours.
+   S'il se reconnecte plus tard sur un autre téléphone avec le même
+   compte Google, l'appli le reconnaît automatiquement, sans reclé.
+
+
+CONTENU DU DOSSIER
+-------------------
+- index.html      -> l'application elle-même
+- manifest.json    -> fait reconnaître l'appli comme "installable"
+- sw.js            -> permet de fonctionner même hors connexion
+- icon-192.png / icon-512.png -> icônes de l'application
+
+PROCHAINE ÉTAPE : LA REMETTRE EN LIGNE
+--------------------------------------
+Redéposez ce dossier sur Netlify (même site que précédemment,
+un simple glisser-déposer remplace l'ancienne version) — le lien
+reste le même.
