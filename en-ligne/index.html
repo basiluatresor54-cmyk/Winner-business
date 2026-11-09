@@ -1673,6 +1673,10 @@ render = function(){
   document.body.classList.remove('livmode');
   rawRender();
   if(!ONLINE.shop) return;
+  const pend = declsOf().filter(d => d.status === 'attente');
+  if(pend.length && (view === 'home' || view === 'livreurs') && ONLINE.role !== 'livreur'){
+    $('#main').insertAdjacentHTML('afterbegin', `<button class="subban warn" style="display:block;width:100%;text-align:left" data-a="decllist">💸 ${pend.length} versement(s) déclaré(s) par vos livreurs, à confirmer (${money(pend.reduce((t,d) => t + declUSD(d), 0))}) — touchez pour vérifier</button>`);
+  }
   if(view === 'plus'){
     const extra = (ONLINE.role === 'proprietaire' ? `<button class="it" data-a="nav:equipe"><div class="ic c-send">${ico('user')}</div><div class="m"><div class="t">Équipe</div><div class="d" style="white-space:normal">Inviter un gérant ou vos livreurs sur l'application</div></div>${ico('chev')}</button>` : '')
       + (ONLINE.admin ? `<button class="it" data-a="nav:admin"><div class="ic" style="background:#111827;color:#fff">${ico('set')}</div><div class="m"><div class="t">Espace BASILUA TECH</div><div class="d" style="white-space:normal">Clients, abonnements, mots de passe, sauvegarde globale</div></div>${ico('chev')}</button>` : '');
@@ -1820,7 +1824,7 @@ setInterval(() => { if(document.visibilityState !== 'hidden') syncNow(); }, 4500
 // Lecture seule quand l'abonnement est inactif (ou pour un rôle sans droit d'écriture)
 const WRITE_ACTIONS = ['new','money','status','delmove','delprod','editprod','editsale','editliv','newliv','delliv','color','rmlogo','demo','reset','restore','importwb','preset'];
 document.addEventListener('click', e => {
-  if(!ONLINE.shop || shopWritable() || e.target.closest('#auth') || view === 'admin' || view === 'equipe') return;
+  if(!ONLINE.shop || shopWritable() || e.target.closest('#auth') || e.target.closest('#declf') || view === 'admin' || view === 'equipe') return;
   const t = e.target.closest('[data-a], #fab, form button:not([type=button])'); if(!t) return;
   const a = t.id === 'fab' ? 'new' : (t.dataset.a || 'submit').split(':')[0];
   if(a !== 'submit' && !WRITE_ACTIONS.includes(a)) return;
@@ -1948,12 +1952,14 @@ CUSTOM.moi = () => {
   <div class="kpis">
     <div class="kpi"><div class="l">À livrer</div><div class="v num">${todo.length}</div><div class="s">commande(s)</div></div>
     <div class="kpi"><div class="l">Commission semaine</div><div class="v num">${money(s.week)}</div><div class="s">${s.weekN} livraison(s)</div></div>
-    <div class="kpi"><div class="l">Argent à verser</div><div class="v num ${s.toRemit > 0.009 ? 'neg' : ''}">${money(s.toRemit)}</div><div class="s">à la boutique</div></div>
+    <div class="kpi"><div class="l">Argent à verser</div><div class="v num ${s.toRemit > 0.009 ? 'neg' : ''}">${money(s.toRemit)}</div><div class="s">${declPendingUSD(lid) > 0.009 ? money(declPendingUSD(lid)) + ' en attente de confirmation' : 'à la boutique'}</div></div>
     <div class="kpi"><div class="l">Stock en main</div><div class="v num">${s.hand}</div><div class="s">pièces disponibles</div></div>
   </div>
+  <button class="btn primary block" style="margin-top:12px" data-a="decl">💸 J'ai envoyé l'argent</button>
   <div class="sec"><h2>À livrer</h2></div>
   ${todo.length ? todo.map(card).join('') : '<div class="card empty">Aucune livraison en attente 👍</div>'}
   ${stock.length ? `<div class="sec"><h2>Mon stock</h2></div><div class="card"><table class="tb"><tr><th>Produit</th><th class="rt">Disponible</th><th class="rt">Réservé</th></tr>${stock.map(([pid,q,p]) => `<tr><td>${esc(pname(pid))}</td><td class="rt num"><b>${q}</b></td><td class="rt num">${p}</td></tr>`).join('')}</table></div>` : ''}
+  ${declsOf(lid).length ? `<div class="sec"><h2>Mes versements</h2></div><div class="list">${declsOf(lid).slice(0, 8).map(d => declRow(d, false)).join('')}</div>` : ''}
   <div class="sec"><h2>Livrées récemment</h2></div>
   <div class="list">${done.length ? done.map(m => `<div class="it"><div class="ic c-in">${ico('cart')}</div><div class="m"><div class="t">${esc(pname(m.pid))} × ${m.qty}</div><div class="d">${esc(m.client || '')} · ${fmtDate(m.ddate || m.date)}</div></div><div class="r num">${amt(m.qty*m.price, m.cur)}</div></div>`).join('') : '<div class="empty">Rien pour le moment</div>'}</div>
   <div class="btns" style="margin-top:16px"><button class="btn" data-a="syncnow">↻ Actualiser</button><button class="btn ghost-bad" data-a="logout">Se déconnecter</button></div>`;
@@ -2070,6 +2076,75 @@ A.admexport = async () => {
   download(`sauvegarde-globale-stock-livreurs-${today()}.json`, txt, 'application/json');
   sheet('Sauvegarde globale', `<p class="note" style="margin-bottom:10px">${(data.shops||[]).length} boutique(s), ${(data.items||[]).length} élément(s). Le téléchargement a démarré. Sinon, copiez le texte.</p><button class="btn block" id="admcp">Copier</button><textarea class="code" readonly style="margin-top:10px">${esc(txt.slice(0, 20000))}${txt.length > 20000 ? '…' : ''}</textarea>`);
   $('#admcp').onclick = () => copyText(txt);
+};
+
+/* ---------- Versements déclarés par le livreur, confirmés par le propriétaire ---------- */
+const METHODS = ['M-Pesa','Airtel Money','Orange Money','Afrimoney','MTN MoMo','Wave','Espèces','Autre'];
+const declUSD = d => toUSD(num(d.amount), d.cur, d.rate);
+function declsOf(lid){ return sortMoves(S.moves.filter(m => m.type === 'decl' && (!lid || m.liv === lid))); }
+function declPendingUSD(lid){ return declsOf(lid).filter(d => d.status === 'attente').reduce((t,d) => t + declUSD(d), 0); }
+const DSTAT = {attente:['En attente','p-attente'], confirme:['Confirmé','p-livre'], refuse:['Refusé','p-annule']};
+function declRow(d, owner){
+  const st = DSTAT[d.status] || DSTAT.attente;
+  return `<div class="it"><div class="ic c-money">${ico('cash')}</div><div class="m"><div class="t">${amt(num(d.amount), d.cur)}${owner ? ' · ' + esc(lname(d.liv)) : ''}</div><div class="d">${esc(d.method || '')}${d.ref ? ' · réf ' + esc(d.ref) : ''} · ${fmtDate(d.date)}</div>${d.note ? `<div class="d">📝 ${esc(d.note)}</div>` : ''}${d.status === 'refuse' && d.reason ? `<div class="d red">Motif : ${esc(d.reason)}</div>` : ''}</div>
+    <div class="r">${owner && d.status === 'attente' ? `<button class="btn sm primary" data-a="declok:${d.id}">Confirmer</button><br><button class="btn sm ghost-bad" style="margin-top:4px" data-a="declko:${d.id}">Refuser</button>` : `<span class="pill ${st[1]}" style="${d.status === 'refuse' ? 'background:var(--bad-soft);color:var(--bad)' : ''}">${st[0]}</span>`}</div></div>`;
+}
+// Livreur : « J'ai envoyé l'argent »
+A.decl = () => {
+  const lid = ONLINE.shop && ONLINE.shop.livreur_id; if(!lid) return;
+  const due = Math.max(0, livStats(lid).toRemit - declPendingUSD(lid));
+  sheet("J'ai envoyé l'argent", `<form id="declf">
+    <div class="tot"><span>Reste à verser</span><b class="num">${money(due)}</b><small>≈ ${fcOf(due)} · après les versements déjà déclarés</small></div>
+    <div class="row2">${field('Montant envoyé *', `<input name="amount" type="number" step="any" min="0" required value="${due ? r2(due) : ''}">`)}${field('Devise', `<select name="cur"><option value="$">$</option><option value="FC">${esc(LC())}</option></select>`)}</div>
+    ${field('Moyen', `<select name="method">${METHODS.map(m => `<option>${m}</option>`).join('')}</select>`)}
+    ${field('Référence de la transaction', `<input name="ref" maxlength="80" placeholder="Ex : numéro du message M-Pesa">`, 'Le patron vérifiera avec ce numéro')}
+    ${field('Note', `<input name="note" maxlength="200" placeholder="Optionnel">`)}
+    <p class="auth-msg" id="declMsg"></p>
+    <button class="btn primary block">Déclarer ce versement</button></form>`);
+  const f = $('#declf'), E = f.elements;
+  E.cur.onchange = () => { if(E.cur.value === 'FC' && due) E.amount.value = Math.round(due * rate()); if(E.cur.value === '$' && due) E.amount.value = r2(due); };
+  f.onsubmit = async e => {
+    e.preventDefault();
+    const a = num(E.amount.value); if(!(a > 0)){ $('#declMsg').textContent = 'Montant invalide.'; return; }
+    const id = 'decl_' + uid();
+    const {error} = await sb.rpc('livreur_declare_versement', {p_shop:ONLINE.shop.id, p_id:id, p_amount:a, p_cur:E.cur.value, p_method:E.method.value, p_ref:E.ref.value.trim(), p_note:E.note.value.trim()});
+    if(error){ $('#declMsg').textContent = rpcErr(error); return; }
+    S.moves.push({id, type:'decl', liv:ONLINE.shop.livreur_id, amount:a, cur:E.cur.value, rate:rate(), method:E.method.value, ref:E.ref.value.trim(), note:E.note.value.trim(), status:'attente', date:today(), ts:Date.now()});
+    rawSave(); closeSheet(); render(); toast('Versement déclaré ✅ Votre patron va le confirmer'); syncNow();
+  };
+};
+// Propriétaire / gérant : confirmer ou refuser
+A.decllist = () => {
+  const list = declsOf();
+  sheet('Versements déclarés', `<p class="note" style="margin-bottom:10px">Vérifiez sur votre téléphone (message Mobile Money) que l'argent est bien arrivé, puis confirmez.</p>
+    <div class="list">${list.length ? list.slice(0, 40).map(d => declRow(d, true)).join('') : '<div class="empty">Aucun versement déclaré</div>'}</div>`);
+};
+A.declok = async (id) => {
+  const d = S.moves.find(m => m.id === id); if(!d || d.status !== 'attente') return;
+  if(!await ask(`Confirmer que vous avez reçu ${amt(num(d.amount), d.cur)} de ${esc(lname(d.liv))} (${esc(d.method || '')}${d.ref ? ', réf ' + esc(d.ref) : ''}) ?`, 'Oui, reçu', false)) return;
+  S.moves.push({id:uid(), ts:Date.now(), type:'versement', liv:d.liv, amount:num(d.amount), cur:d.cur, rate:num(d.rate) || rate(), date:today(), note:[d.method, d.ref ? 'réf ' + d.ref : ''].filter(Boolean).join(' · ') + ' (déclaré par le livreur)', decl:d.id});
+  d.status = 'confirme'; d.confirmed = today();
+  save(); toast('Versement confirmé ✅ Le reste à verser est mis à jour');
+  if(!$('#ov').hidden && $('#sht').textContent === 'Versements déclarés') A.decllist(); render();
+};
+A.declko = async (id) => {
+  const d = S.moves.find(m => m.id === id); if(!d || d.status !== 'attente') return;
+  sheet('Refuser le versement', `<form id="declkof"><p class="note" style="margin-bottom:10px">${amt(num(d.amount), d.cur)} · ${esc(lname(d.liv))} · ${esc(d.method || '')}${d.ref ? ' · réf ' + esc(d.ref) : ''}</p>
+    ${field('Motif (visible par le livreur)', `<input name="reason" maxlength="120" placeholder="Ex : argent pas reçu, montant différent…">`)}
+    <button class="btn danger block">Refuser</button></form>`);
+  $('#declkof').onsubmit = e => { e.preventDefault(); d.status = 'refuse'; d.reason = e.target.elements.reason.value.trim(); save(); closeSheet(); render(); toast('Versement refusé'); };
+};
+// Affichage dans « Le Livre » et dans la fiche du livreur
+const rawRowMove = rowMove;
+rowMove = function(m){
+  if(m && m.type === 'decl') return `<button class="it" data-a="decllist"><div class="ic c-money">${ico('cash')}</div><div class="m"><div class="t">Versement déclaré par ${esc(lname(m.liv))}</div><div class="d">${esc(m.method || '')}${m.ref ? ' · réf ' + esc(m.ref) : ''} · <span class="pill ${(DSTAT[m.status] || DSTAT.attente)[1]}">${(DSTAT[m.status] || DSTAT.attente)[0]}</span></div></div><div class="r"><div class="num" style="font-weight:700">${amt(num(m.amount), m.cur)}</div></div></button>`;
+  return rawRowMove(m);
+};
+const rawLivSheet2 = livSheet;
+livSheet = function(id){
+  rawLivSheet2(id);
+  const pend = declsOf(id).filter(d => d.status === 'attente');
+  if(pend.length && ONLINE.role !== 'livreur') $('#shb').insertAdjacentHTML('afterbegin', `<div class="card" style="margin-bottom:12px;border:2px solid var(--warn)"><b>💸 Versement(s) à confirmer</b><div class="list" style="box-shadow:none;margin-top:6px">${pend.map(d => declRow(d, true)).join('')}</div></div>`);
 };
 
 /* ---------- Démarrage ---------- */
