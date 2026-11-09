@@ -192,6 +192,11 @@ pre.msg{white-space:pre-wrap;font:13px/1.45 -apple-system,Roboto,sans-serif;back
 details summary{cursor:pointer}
 textarea.code{width:100%;min-height:90px;font:12px/1.4 ui-monospace,Menlo,monospace;padding:10px;border:1.5px solid var(--line);border-radius:11px}
 
+/* vente rapide / rapport du jour */
+.quickbtn{font-size:18px;padding:16px;margin:4px 0 10px}
+.daycard{display:flex;justify-content:space-between;align-items:center;width:100%;text-align:left;margin-bottom:10px;gap:8px}
+.qty{display:flex;gap:6px;align-items:center}.qty input{text-align:center;min-width:0}
+.okbox{background:#ecfdf5;border:1px solid #a7f3d0}
 /* relevé */
 .relh .logo{background:var(--brand);color:var(--brand-ink);width:48px;height:48px}
 .sign{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:22px}.sign div{border-top:1px solid #999;padding-top:6px;font-size:12px;color:var(--muted,#666);text-align:center;margin-top:34px}
@@ -479,8 +484,8 @@ function stats(p){
 let view = 'home', period = 'mois', saleTab = 'attente', saleCity = '', bookType = 'all', bookPeriod = 'mois', depPeriod = 'mois';
 let stockQ = '', saleQ = '', bookQ = '';
 const NAV = [['home','Accueil','home'],['stock','Stock','box'],['ventes','Ventes','truck'],['livreurs','Livreurs','user'],['plus','Plus','more']];
-const SUB = {home:'Tableau de bord', stock:'Stock par produit', ventes:'Ventes & livraisons', livreurs:'Livreurs par ville', plus:'Plus', depenses:'Dépenses', livre:'Le Livre — toutes les opérations', reglages:'Réglages', clients:'Clients', rapport:'Rapport de la semaine', releve:'Relevé du livreur'};
-const PARENT = {depenses:'plus', livre:'plus', reglages:'plus', clients:'plus', rapport:'plus', releve:'livreurs'};
+const SUB = {home:'Tableau de bord', stock:'Stock par produit', ventes:'Ventes & livraisons', livreurs:'Livreurs par ville', plus:'Plus', depenses:'Dépenses', livre:'Le Livre — toutes les opérations', reglages:'Réglages', clients:'Clients', rapport:'Rapport de la semaine', releve:'Relevé du livreur', jour:'Rapport du jour'};
+const PARENT = {depenses:'plus', livre:'plus', reglages:'plus', clients:'plus', rapport:'plus', releve:'livreurs', jour:'plus'};
 
 function applyBrand(){
   const c = S.settings.color || '#0F766E';
@@ -500,7 +505,7 @@ function render(){
     <div class="grow"><h1>${esc(st.shop || 'Ma Boutique')}</h1><p>${SUB[view]}</p></div>`;
   $('#nav').innerHTML = NAV.map(([k,l,i]) => `<button data-a="nav:${k}" class="${nv===k?'on':''}">${ico(i)}<span>${l}</span></button>`).join('');
   $('#fab').style.display = (view === 'reglages' || view === 'plus') ? 'none' : '';
-  const V = {home:vHome, stock:vStock, ventes:vVentes, livreurs:vLivreurs, plus:vPlus, depenses:vDepenses, livre:vLivre, reglages:vReglages, clients:vClients, rapport:vRapport, releve:vReleve};
+  const V = {home:vHome, stock:vStock, ventes:vVentes, livreurs:vLivreurs, plus:vPlus, depenses:vDepenses, livre:vLivre, reglages:vReglages, clients:vClients, rapport:vRapport, releve:vReleve, jour:vJour};
   $('#main').innerHTML = (PARENT[view] ? `<button class="back noprint" data-a="nav:${PARENT[view]}">‹ Retour</button>` : '') + V[view]();
 }
 function periodChips(cur, act){
@@ -528,7 +533,10 @@ function vHome(){
   for(let k=13; k>=0; k--){ const d = addDays(t,-k); const v = r.days[d]||0; mx = Math.max(mx, v); days.push([d,v]); }
   const top = Object.entries(r.byProd).sort((a,b) => b[1].a - a[1].a).slice(0,6), tmax = top[0]?.[1].a || 1;
   const cityRows = Object.entries(r.byCity).sort((a,b) => b[1].a - a[1].a);
-  return `${alertsCard(st, low)}${periodChips(period,'per')}
+  const td = dayReport(today());
+  const quick = modeOf() !== 'livraison' ? `<button class="btn primary block quickbtn" data-a="quick">⚡ Vente rapide</button>
+  <button class="card daycard" data-a="jourset:${today()}"><span>Aujourd'hui : <b>${td.n}</b> vente(s) · <b class="num">${money(td.ca)}</b></span><span class="note">Rapport du jour ›</span></button>` : '';
+  return `${quick}${alertsCard(st, low)}${periodChips(period,'per')}
   ${noBuy.length ? `<button class="warnbox" style="margin-top:10px" data-a="nav:stock">⚠️ ${noBuy.length} produit${noBuy.length>1?'s':''} sans prix d'achat : le bénéfice affiché est trop élevé. Touchez ici pour les compléter.</button>` : ''}
   <div class="kpis" style="margin-top:10px">
     <div class="kpi hero"><div class="l">Bénéfice net ${per}</div><div class="v num ${r.net<0?'neg':''}">${money(r.net)}</div><div class="s">sur ${money(r.ca)} de ventes livrées (${r.nv})</div></div>
@@ -547,7 +555,7 @@ function vHome(){
     ${Object.keys(r.depCat).length ? `<p class="note" style="margin-top:8px">Dépenses : ${Object.entries(r.depCat).sort((a,b)=>b[1]-a[1]).map(([c,v]) => esc(c)+' '+money(v)).join(' · ')}</p>` : ''}
   </div>
   <div class="sec"><h2>Ventes livrées — 14 derniers jours</h2></div>
-  <div class="card"><div class="bars">${days.map(([d,v]) => `<div title="${fmtDate(d)} : ${money(v)}"><i class="${v?'':'z'}" style="height:${mx ? Math.max(3, v/mx*82) : 3}%"></i><span>${+d.slice(8)}</span></div>`).join('')}</div></div>
+  <div class="card"><div class="bars">${days.map(([d,v]) => `<div title="${fmtDate(d)} : ${money(v)}" data-a="jourset:${d}" style="cursor:pointer"><i class="${v?'':'z'}" style="height:${mx ? Math.max(3, v/mx*82) : 3}%"></i><span>${+d.slice(8)}</span></div>`).join('')}</div></div>
   </div><div>
   ${cityRows.length ? `<div class="sec"><h2>Ventes par ville ${per}</h2></div><div class="card"><table class="tb"><tr><th>Ville</th><th class="rt">Ventes</th><th class="rt">Montant</th></tr>${cityRows.map(([c,v]) => `<tr><td>${esc(c)}</td><td class="rt num">${v.n}</td><td class="rt num">${money(v.a)}</td></tr>`).join('')}</table></div>` : ''}
   <div class="sec"><h2>Meilleurs produits ${per}</h2></div>
@@ -718,6 +726,7 @@ function vPlus(){
   const r = stats('mois');
   const items = [
     ['clients','c-out','user','Clients',"Historique d'achat de chaque client et relance par WhatsApp"],
+    ['jour','c-in','receipt','Rapport du jour',"Les ventes d'un jour au choix (ex. mercredi), cash / Mobile Money, bénéfice"],
     ['rapport','c-in','receipt','Rapport de la semaine',"Résumé lundi → samedi à envoyer par WhatsApp ou imprimer en PDF"],
     ['depenses','c-loss','receipt','Dépenses',`Transport, expédition, Facebook… · ce mois ${money(r.dep)}`],
     ['livre','c-brand','book','Le Livre',"Toutes les entrées, envois, ventes et sorties, jour par jour"],
@@ -771,7 +780,7 @@ function rowMove(m){
   if(!m) return '';
   const R = (act, ic, icn, t, d, big, col, sm, strike) => `<button class="it" data-a="${act}:${m.id}"><div class="ic ${ic}">${ico(icn)}</div><div class="m"><div class="t">${t}</div><div class="d">${d}</div></div><div class="r"><div class="big num ${strike?'strike':''}" style="color:${col}">${big}</div><div class="sm num">${sm||''}</div></div></button>`;
   switch(m.type){
-    case 'vente': return R('sale', m.status==='annule'?'c-x':'c-out', 'cart', esc(pname(m.pid)), `Vente · ${esc(m.client||'Client')} · ${m.liv ? esc(lname(m.liv)) : 'dépôt'} · <span class="pill p-${m.status}">${STATUS[m.status]}</span>`, '−'+m.qty, 'var(--info)', amt(m.qty*m.price, m.cur), m.status==='annule');
+    case 'vente': return R('sale', m.status==='annule'?'c-x':'c-out', 'cart', esc(pname(m.pid)), `Vente${m.quick ? ' rapide' : ''} · ${esc(m.client||'Client')} · ${m.liv ? esc(lname(m.liv)) : 'dépôt'}${m.pay ? ' · ' + esc(m.pay) : ''} · <span class="pill p-${m.status}">${STATUS[m.status]}</span>`, '−'+m.qty, 'var(--info)', amt(m.qty*m.price, m.cur), m.status==='annule');
     case 'entree': return R('move', 'c-in', 'in', esc(pname(m.pid)), `Entrée au dépôt${m.note ? ' · ' + esc(m.note) : ''}`, '+'+m.qty, 'var(--ok)', num(m.cost) ? amt(m.qty*num(m.cost), prod(m.pid)?.cur) : '');
     case 'envoi': return R('move', 'c-send', 'send', esc(pname(m.pid)), `Envoyé à ${esc(lname(m.liv))}${m.note ? ' · ' + esc(m.note) : ''}`, '→'+m.qty, 'var(--vio)', '');
     case 'retour': return R('move', 'c-in', 'back', esc(pname(m.pid)), `Retour de ${esc(lname(m.liv))} au dépôt`, '←'+m.qty, 'var(--ok)', '');
@@ -791,6 +800,9 @@ function refreshList(v){
 }
 
 /* ---------- Réglages ---------- */
+const MODES = {livraison:'Livraison (avec livreurs)', boutique:'Boutique / vente sur place', mixte:'Les deux : boutique + livraison'};
+const modeOf = () => S.settings.mode || 'livraison';
+const modeField = st => field('Comment vendez-vous ?', `<select name="mode">${Object.entries(MODES).map(([k,l]) => `<option value="${k}" ${(st.mode||'livraison')===k?'selected':''}>${l}</option>`).join('')}</select>`, 'Boutique : bouton « Vente rapide » sur l\'accueil. Tout le reste reste disponible.');
 function vReglages(){
   const st = S.settings;
   return `<div class="sec" style="margin-top:4px"><h2>Ma boutique</h2></div>
@@ -802,6 +814,7 @@ function vReglages(){
       ${st.logo ? `<button type="button" class="btn sm" data-a="rmlogo">Retirer</button>` : ''}</div></div>
     <div class="f"><span>Couleur</span><div class="colors">${COLORS.map(c => `<button type="button" style="background:${c}" class="${c.toLowerCase()===String(st.color).toLowerCase()?'on':''}" data-a="color:${c}" aria-label="${c}"></button>`).join('')}</div>
       <input type="color" name="color" value="${esc(st.color)}" style="width:100%"></div>
+    ${modeField(st)}
     ${countryFields(st)}
     <div class="row2">
       ${field('Frais de livraison client', `<input name="fee" type="number" step="any" min="0" value="${esc(st.fee)}">`)}
@@ -1010,6 +1023,106 @@ function vRapport(){
   </div>`;
 }
 
+/* ---------- Vente rapide (boutique / sur place) ---------- */
+const PAYS = ['', 'Cash', 'Mobile Money', 'Carte / autre'];
+let lastQuick = null;
+function quickSale(){
+  if(!S.products.length){ toast("Ajoutez d'abord un produit"); productForm(); return; }
+  const st = stockAt(), prods = S.products.slice().sort(byName), td = dayReport(today());
+  const L = lastQuick && S.moves.find(x => x.id === lastQuick);
+  sheet('⚡ Vente rapide', `${L ? `<div class="card okbox" style="margin-bottom:12px">✅ <b>${esc(pname(L.pid))} × ${L.qty}</b> · ${amt(L.qty*L.price, L.cur)}${L.pay ? ' · ' + esc(L.pay) : ''}
+      ${L.phone ? `<a class="btn wa block" style="margin-top:8px" href="${waLink(L.phone, receiptClient(L))}" target="_blank" rel="noopener">${ico('wa')} Envoyer le reçu</a>` : ''}</div>` : ''}
+    <p class="note" style="margin-bottom:10px">Aujourd'hui : <b>${td.n}</b> vente(s) · <b>${money(td.ca)}</b> — <a href="#" data-a="jourset:${today()}">voir le rapport du jour</a></p>
+    <form id="qf">
+    ${field('Produit *', `<select name="pid" required><option value="">Choisir un produit…</option>${prods.map(p => `<option value="${p.id}">${esc(p.name)} — ${avail(st,'',p.id)} dispo</option>`).join('')}</select>`)}
+    <div class="row2">${field('Quantité *', `<div class="qty"><button type="button" class="btn sm" id="qm">−</button><input name="qty" type="number" min="1" step="1" required value="1"><button type="button" class="btn sm" id="qp">+</button></div>`)}
+      ${field('Prix unitaire', `<input name="price" type="number" step="any" min="0">`, '<span id="qcur"></span>')}</div>
+    <div class="tot" id="qtot"></div>
+    <div class="f"><span>Payé en</span><div class="seg" id="segP">${PAYS.slice(1).map(x => `<button type="button" data-p="${x}">${x}</button>`).join('')}</div></div>
+    <details style="margin-bottom:12px"><summary class="note"><b>Client (optionnel)</b> — pour le reçu et la relance</summary>
+      <div class="row2" style="margin-top:8px">${field('Nom', `<input name="client" placeholder="Ex : Mme Nsimba">`)}${field('Téléphone (WhatsApp)', `<input name="phone" type="tel" placeholder="08… ou +243…">`)}</div></details>
+    <button class="btn primary block">Encaisser</button></form>`);
+  const f = $('#qf'), E = f.elements; let pay = 'Cash';
+  const paintP = () => [...$('#segP').children].forEach(b => b.classList.toggle('on', b.dataset.p === pay)); paintP();
+  $('#segP').onclick = e => { const b = e.target.closest('button'); if(b){ pay = b.dataset.p; paintP(); } };
+  const upd = () => { const p = prod(E.pid.value); if(!p){ $('#qtot').innerHTML = ''; return; }
+    const q = num(E.qty.value), pr = num(E.price.value), u = toUSD(q*pr, p.cur);
+    $('#qcur').textContent = p.cur === 'FC' ? 'en ' + LC() : 'en dollars ($)';
+    $('#qtot').innerHTML = `<span>Total à encaisser</span><b class="num">${amt(q*pr, p.cur)}</b><small>${p.cur==='FC' ? '≈ ' + money(u) + ' · ' : ''}Bénéfice : ${money(u - q*unitCostUSD(p))} · Disponible : ${avail(st,'',p.id)}</small>`; };
+  E.pid.onchange = () => { const p = prod(E.pid.value); if(p) E.price.value = p.sell || ''; upd(); };
+  E.qty.oninput = upd; E.price.oninput = upd;
+  $('#qm').onclick = () => { E.qty.value = Math.max(1, num(E.qty.value) - 1); upd(); };
+  $('#qp').onclick = () => { E.qty.value = num(E.qty.value) + 1; upd(); };
+  f.onsubmit = e => { e.preventDefault();
+    const p = prod(E.pid.value); if(!p){ toast('Choisissez un produit'); return; }
+    const qty = Math.round(num(E.qty.value)); if(qty < 1){ toast('Quantité invalide'); return; }
+    const now = new Date(), t = String(now.getHours()).padStart(2,'0') + ':' + String(now.getMinutes()).padStart(2,'0');
+    const rec = {id:uid(), ts:Date.now(), type:'vente', quick:true, pid:p.id, qty, price:num(E.price.value), cur:p.cur, rate:rate(), costU:unitCostUSD(p), commU:0, liv:'', status:'livre', pay,
+      client:E.client.value.trim(), phone:E.phone.value.trim(), addr:'', date:today(), ddate:today(), dtime:t, note:''};
+    const next = S.moves.concat([rec]), err = checkStock(next, [p.id]);
+    if(err){ toast(err); return; }
+    S.moves = next; S.settings.setup = true; save(); lastQuick = rec.id;
+    render(); toast('Vente encaissée ✅'); quickSale();
+  };
+}
+
+/* ---------- Rapport du jour ---------- */
+let jourDate = '';
+function dayReport(d){
+  const r = {d, n:0, pcs:0, ca:0, cost:0, comm:0, dep:0, loss:0, vers:0, byPay:{}, byProd:{}, sales:[], pend:0, pendAmt:0};
+  for(const m of S.moves){
+    if(m.date !== d) continue;
+    if(m.type === 'vente' && m.status === 'livre'){
+      const u = saleUSD(m), c = m.liv ? m.qty * num(m.commU) : 0;
+      r.n++; r.pcs += m.qty; r.ca += u; r.cost += m.qty * num(m.costU); r.comm += c; r.sales.push(m);
+      const k = m.liv ? 'Par les livreurs' : (m.pay || 'Non précisé'); r.byPay[k] = (r.byPay[k] || 0) + u;
+      const P = r.byProd[m.pid] = r.byProd[m.pid] || {q:0, a:0}; P.q += m.qty; P.a += u;
+    } else if(m.type === 'vente' && (m.status === 'attente' || m.status === 'encours')){ r.pend++; r.pendAmt += saleUSD(m); }
+    else if(m.type === 'depense') r.dep += moneyUSD(m);
+    else if(m.type === 'perte') r.loss += m.qty * num(m.costU);
+    else if(m.type === 'versement') r.vers += moneyUSD(m);
+  }
+  r.sales.sort((a,b) => (a.dtime||'').localeCompare(b.dtime||'') || (a.ts||0) - (b.ts||0));
+  r.net = r.ca - r.cost - r.comm - r.dep - r.loss;
+  return r;
+}
+const dayName = d => new Date(d + 'T12:00:00').toLocaleDateString('fr-FR', {weekday:'long', day:'numeric', month:'long', year:'numeric'});
+function jourText(r){
+  const P = Object.entries(r.byProd).sort((x,y) => y[1].a - x[1].a).map(([id,v]) => `• ${pname(id)} : ${v.q} pièce(s) · ${money(v.a)}`).join('\n');
+  const Y = Object.entries(r.byPay).map(([k,v]) => `• ${k} : ${money(v)}`).join('\n');
+  return `*${S.settings.shop} — Rapport du jour*\n${dayName(r.d)}\n\nVentes : ${r.n} (${r.pcs} pièce(s)) — *${money(r.ca)}*\n${Y ? Y + '\n' : ''}\nCoût des produits : ${money(r.cost)}${r.comm ? '\nCommissions livreurs : ' + money(r.comm) : ''}\nDépenses du jour : ${money(r.dep)}${r.loss ? '\nPertes : ' + money(r.loss) : ''}\n*Bénéfice du jour : ${money(r.net)}*${r.vers ? '\nVersements reçus des livreurs : ' + money(r.vers) : ''}\n\n*Produits vendus*\n${P || '• aucune vente'}`;
+}
+function vJour(){
+  const d = jourDate || today(), r = dayReport(d), txt = jourText(r);
+  const ws = addDays(d, -((new Date(d + 'T12:00:00').getDay() + 6) % 7));
+  const week = [0,1,2,3,4,5,6].map(k => addDays(ws, k)).map(x => [x, dayReport(x)]);
+  return `<div class="chips noprint"><button class="chip" data-a="jourset:${addDays(d,-1)}">‹ Veille</button><button class="chip ${d===today()?'on':''}" data-a="jourset:${today()}">Aujourd'hui</button><button class="chip ${d===addDays(today(),-1)?'on':''}" data-a="jourset:${addDays(today(),-1)}">Hier</button>${d < today() ? `<button class="chip" data-a="jourset:${addDays(d,1)}">Lendemain ›</button>` : ''}</div>
+  <label class="f noprint" style="margin-top:10px"><span>Choisir une date</span><input type="date" id="jourIn" value="${d}" max="${today()}"></label>
+  <div class="card" style="margin-top:6px"><b>${esc(S.settings.shop)}</b><br><span class="note" style="text-transform:capitalize">${dayName(d)}</span></div>
+  <div class="kpis" style="margin-top:10px">
+    <div class="kpi hero"><div class="l">Ventes du jour</div><div class="v num">${money(r.ca)}</div><div class="s">${r.n} vente(s) · ${r.pcs} pièce(s)</div></div>
+    <div class="kpi"><div class="l">Bénéfice du jour</div><div class="v num ${r.net<0?'neg':''}">${money(r.net)}</div><div class="s">après coûts et dépenses</div></div>
+    <div class="kpi"><div class="l">Dépenses</div><div class="v num">${money(r.dep)}</div><div class="s">ce jour</div></div>
+  </div>
+  <div class="sec"><h2>Argent encaissé</h2></div>
+  <div class="card">${Object.entries(r.byPay).map(([k,v]) => `<div class="dl"><span>${esc(k)}</span><span class="num">${money(v)}</span></div>`).join('') || '<p class="note">Aucune vente ce jour</p>'}
+    ${r.vers ? `<div class="dl"><span>Versements reçus des livreurs</span><span class="num">${money(r.vers)}</span></div>` : ''}
+    ${r.pend ? `<div class="dl"><span>Commandes pas encore livrées</span><span class="num">${r.pend} · ${money(r.pendAmt)}</span></div>` : ''}</div>
+  <div class="sec"><h2>Détail des ventes</h2></div>
+  <div class="card tbw"><table class="tb"><tr><th>Heure</th><th>Produit</th><th class="rt">Qté</th><th class="rt">Montant</th><th>Payé</th></tr>
+  ${r.sales.map(m => `<tr><td>${esc(m.dtime || '')}</td><td>${esc(pname(m.pid))}${m.client ? `<br><span class="note">${esc(m.client)}</span>` : ''}</td><td class="rt num">${m.qty}</td><td class="rt num">${amt(m.qty*m.price, m.cur)}</td><td>${m.liv ? esc(lname(m.liv)) : esc(m.pay || '—')}</td></tr>`).join('') || '<tr><td colspan="5" class="note">Aucune vente ce jour</td></tr>'}</table></div>
+  ${Object.keys(r.byProd).length ? `<div class="sec"><h2>Par produit</h2></div><div class="card">${Object.entries(r.byProd).sort((x,y) => y[1].a - x[1].a).map(([id,v]) => `<div class="dl"><span>${esc(pname(id))}</span><span class="num">${v.q} · ${money(v.a)}</span></div>`).join('')}</div>` : ''}
+  <div class="sec"><h2>La semaine jour par jour</h2></div>
+  <div class="card tbw"><table class="tb"><tr><th>Jour</th><th class="rt">Ventes</th><th class="rt">Montant</th><th class="rt">Bénéfice</th></tr>
+  ${week.map(([x,w]) => `<tr data-a="jourset:${x}" style="cursor:pointer${x===d?';font-weight:700;background:var(--brand-soft)':''}"><td style="text-transform:capitalize">${new Date(x + 'T12:00:00').toLocaleDateString('fr-FR', {weekday:'long', day:'numeric'})}</td><td class="rt num">${w.n}</td><td class="rt num">${money(w.ca)}</td><td class="rt num">${money(w.net)}</td></tr>`).join('')}</table>
+  <p class="note noprint" style="margin-top:6px">Touchez un jour pour voir son détail.</p></div>
+  <div class="stack noprint" style="margin-top:14px">
+    ${modeOf() !== 'livraison' ? `<button class="btn primary block" data-a="quick">⚡ Vente rapide</button>` : ''}
+    <a class="btn wa block" href="${waLink('', txt)}" target="_blank" rel="noopener">${ico('wa')} Envoyer le rapport par WhatsApp</a>
+    <div class="btns"><button class="btn" data-a="jourcopy">Copier le texte</button><button class="btn" data-a="rprint">📄 Imprimer / PDF</button></div>
+  </div>`;
+}
+
 /* ---------- Relevé de commissions d'un livreur (semaine lun → sam) ---------- */
 let relLiv = '', relWeek = 0;
 const dAbs = (iso, long) => new Date(iso + 'T12:00:00').toLocaleDateString('fr-FR', long ? {weekday:'long', day:'numeric', month:'long', year:'numeric'} : {day:'numeric', month:'short'});
@@ -1107,6 +1220,7 @@ const field = (label, inner, hint = '') => `<label class="f"><span>${label}</spa
 
 function fabSheet(){
   const A2 = [
+    ['quick','c-out','cart','⚡ Vente rapide','Vente sur place / en boutique : payé tout de suite'],
     ['new:vente','c-out','cart','Vente','Commande client, livrée par un livreur ou au dépôt'],
     ['new:envoi','c-send','send','Envoyer du stock à un livreur','Marchandise confiée à un livreur'],
     ['new:entree','c-in','in','Entrée de stock','Marchandise reçue ou achetée (au dépôt)'],
@@ -1244,6 +1358,7 @@ function moveForm(type, opt = {}){
       ${field('Téléphone client (WhatsApp)', `<input name="phone" type="tel" value="${esc(m?.phone)}" placeholder="08… ou +243…">`)}
       ${field('Adresse complète de livraison', `<textarea name="addr" placeholder="Commune, quartier, avenue, n°, point de repère…">${esc(m?.addr)}</textarea>`)}
       <div class="row2">${field('Jour de livraison', `<input name="ddate" type="date" value="${m ? (m.ddate || m.date) : today()}">`)}${field('Heure de livraison', `<input name="dtime" type="time" value="${esc(m?.dtime || '')}">`)}</div>
+      ${field('Payé en', `<select name="pay">${PAYS.map(x => `<option value="${x}" ${(m?.pay||'')===x?'selected':''}>${x || '— (non précisé)'}</option>`).join('')}</select>`, 'Pour une vente directe : cash, Mobile Money…')}
       <div class="f"><span>Statut</span><div class="seg" id="segS">${Object.entries(STATUS).map(([k,l]) => `<button type="button" data-s="${k}">${l}</button>`).join('')}</div></div>`;
   else h += `<div></div></div>`;
   h += `<div class="row2">${field(type === 'vente' ? 'Date de la commande' : 'Date', `<input name="date" type="date" required value="${m ? m.date : today()}">`)}${field('Note', `<input name="note" value="${esc(m?.note)}" placeholder="${type==='entree'?'Fournisseur…':'Optionnel'}">`)}</div>
@@ -1302,7 +1417,7 @@ function moveForm(type, opt = {}){
       if(!m || m.pid !== p.id || m.liv !== rec.liv || m.price !== rec.price) rec.commU = commUFor(p, liv(rec.liv), toUSD(rec.price, p.cur, m && m.cur === p.cur ? m.rate : rate()));
       if(!m || m.pid !== p.id || m.cur !== p.cur) rec.rate = rate();
       rec.client = E.client.value.trim(); rec.phone = E.phone.value.trim(); rec.addr = E.addr.value.trim(); rec.status = status;
-      rec.ddate = E.ddate.value || rec.date; rec.dtime = E.dtime.value;
+      rec.ddate = E.ddate.value || rec.date; rec.dtime = E.dtime.value; rec.pay = E.pay ? E.pay.value : (rec.pay || '');
     }
     const next = m ? S.moves.map(x => x.id === m.id ? rec : x) : S.moves.concat([rec]);
     const err = checkStock(next, [p.id].concat(m ? [m.pid] : []));
@@ -1506,6 +1621,7 @@ function setupSheet(){
     <div class="f"><span>Logo (optionnel)</span><div style="display:flex;gap:10px;align-items:center"><div class="logo" id="wlogo" style="width:54px;height:54px;background:var(--brand);color:var(--brand-ink)">${st.logo ? `<img src="${st.logo}" alt="">` : '+'}</div>
       <label class="btn sm" style="cursor:pointer">Choisir une image<input type="file" accept="image/*" id="logoIn" hidden></label></div></div>
     <div class="f"><span>Couleur</span><div class="colors">${COLORS.map(c => `<button type="button" style="background:${c}" class="${c===st.color?'on':''}" data-a="wcolor:${c}"></button>`).join('')}</div></div>
+    ${modeField(st)}
     ${countryFields(st)}
     <div class="row2">${field('Indicatif téléphone', `<input name="cc" inputmode="numeric" value="${esc(st.cc)}">`)}${field('WhatsApp boutique', `<input name="wa" type="tel" value="${esc(st.wa)}" placeholder="+243 …">`)}</div>
     <button class="btn primary block">Commencer</button></form>`);
@@ -1569,6 +1685,9 @@ const A = {
   clientsale: k => { const c = clientsList().find(x => x.key === k); moveForm('vente', {client:c}); },
   rweek: v => { rapWeek = +v; render(); },
   relweek: v => { relWeek = +v; render(); },
+  quick: () => quickSale(),
+  jourset: v => { jourDate = v > today() ? today() : v; closeSheet(); view = 'jour'; render(); window.scrollTo(0,0); },
+  jourcopy: () => copyText(jourText(dayReport(jourDate || today()))),
   releve: id => { relLiv = id; relWeek = 0; closeSheet(); view = 'releve'; render(); window.scrollTo(0,0); },
   relcopy: id => copyText(releveText(releveData(id, relWeek))),
   rcopy: () => { const [a,b] = weekRange(rapWeek); copyText(rapportText(a, b, weekReport(a, b))); },
@@ -1592,13 +1711,14 @@ document.addEventListener('click', e => {
 document.addEventListener('submit', e => {
   const f = e.target, E = f.elements;
   if(f.id === 'setf'){ e.preventDefault();
-    Object.assign(S.settings, {shop:E.shop.value.trim() || 'Ma Boutique', color:E.color.value, country:E.country.value, lc:E.lc.value.trim() || 'FC', rate:num(E.rate.value) || S.settings.rate, fee:num(E.fee.value), feeCur:E.feeCur.value, cc:E.cc.value.replace(/\D/g,''), wa:E.wa.value.trim(), setup:true});
+    Object.assign(S.settings, {shop:E.shop.value.trim() || 'Ma Boutique', color:E.color.value, country:E.country.value, lc:E.lc.value.trim() || 'FC', rate:num(E.rate.value) || S.settings.rate, fee:num(E.fee.value), feeCur:E.feeCur.value, cc:E.cc.value.replace(/\D/g,''), wa:E.wa.value.trim(), mode:E.mode.value, setup:true});
     save(); render(); toast('Réglages enregistrés'); }
   if(f.id === 'wf'){ e.preventDefault();
-    Object.assign(S.settings, {shop:E.shop.value.trim() || 'Ma Boutique', country:E.country.value, lc:E.lc.value.trim() || 'FC', rate:num(E.rate.value) || 2300, cc:E.cc.value.replace(/\D/g,''), wa:E.wa.value.trim(), setup:true});
+    Object.assign(S.settings, {shop:E.shop.value.trim() || 'Ma Boutique', country:E.country.value, lc:E.lc.value.trim() || 'FC', rate:num(E.rate.value) || 2300, cc:E.cc.value.replace(/\D/g,''), wa:E.wa.value.trim(), mode:E.mode.value, setup:true});
     save(); closeSheet(); view = 'stock'; render(); toast('Boutique prête ✅ Ajoutez vos produits'); }
 });
 document.addEventListener('change', e => {
+  if(e.target.id === 'jourIn' && e.target.value){ A.jourset(e.target.value); return; }
   if(e.target.id === 'logoIn'){
     const file = e.target.files[0]; if(!file) return;
     const r = new FileReader();
