@@ -204,6 +204,9 @@ body.authon .top, body.authon nav.nav, body.authon .fab, body.authon main{displa
 .subban.info{background:var(--info-soft);color:var(--info)}
 .subban.warn{background:var(--warn-soft);color:var(--warn)}
 .subban.bad{background:var(--bad-soft);color:var(--bad)}
+.syncpill{flex:none;padding:6px 10px;border-radius:999px;font-size:12px;font-weight:700;background:rgba(255,255,255,.18);color:inherit;white-space:nowrap}
+.syncpill.s-off,.syncpill.s-wait{background:#fff3;box-shadow:inset 0 0 0 1.5px #fde68a}
+.syncpill.s-err{background:#fecaca;color:#7f1d1d}
 textarea.code{width:100%;min-height:90px;font:12px/1.4 ui-monospace,Menlo,monospace;padding:10px;border:1.5px solid var(--line);border-radius:11px}
 
 @media (min-width:900px){
@@ -806,7 +809,7 @@ function vReglages(){
 
   <div class="sec"><h2>Sauvegarde et données</h2></div>
   <div class="card stack">
-    <p class="note">${storageOK ? 'Vos données sont enregistrées <b>sur cet appareil uniquement</b>. Faites une sauvegarde chaque semaine et gardez-la sur WhatsApp ou Google Drive.' : '<b style="color:var(--bad)">L\'enregistrement automatique ne fonctionne pas ici.</b> Exportez vos données avant de fermer la page.'}</p>
+    <p class="note">${storageOK ? 'Vos données sont enregistrées <b>en ligne</b> (et gardées sur ce téléphone pour travailler sans connexion). Vous pouvez aussi exporter une sauvegarde de temps en temps.' : '<b style="color:var(--bad)">L\'enregistrement automatique ne fonctionne pas ici.</b> Exportez vos données avant de fermer la page.'}</p>
     <button class="btn primary block" data-a="backup">Exporter une sauvegarde</button>
     <button class="btn block" data-a="restore">Restaurer une sauvegarde</button>
     <button class="btn block" data-a="csv">Exporter les ventes (Excel / CSV)</button>
@@ -1373,7 +1376,7 @@ const A = {
   startempty: () => setupSheet(),
   reset: async () => {
     if(!await ask('Effacer TOUTES les données (produits, livreurs, ventes, livre) ? Pensez à exporter une sauvegarde avant.', 'Tout effacer')) return;
-    const k = S.settings; S = defaults(); Object.assign(S.settings, {shop:k.shop, logo:k.logo, color:k.color, rate:k.rate, cc:k.cc, wa:k.wa, fee:k.fee, feeCur:k.feeCur});
+    const k = S.settings; S = defaults(); S.settings = Object.assign(defaults().settings, k);
     save(); view = 'home'; render(); toast('Données effacées');
   }
 };
@@ -1609,14 +1612,21 @@ function openShop(shop){
   S = load();
   const cloud = shop.settings || {};
   Object.assign(S.settings, cloud, {shop: shop.name || S.settings.shop, setup:true});
-  ONLINE.pushed = JSON.stringify(settingsForCloud());
+  ONLINE.pushed = cj(settingsForCloud());
+  META = loadMeta();
   rawSave();
   try{ localStorage.setItem(LAST_KEY, JSON.stringify({user:ONLINE.user && ONLINE.user.id, shop})); }catch(_){}
   hideAuth(); closeSheet(); view = 'home'; render();
+  syncNow();
 }
-async function logout(){
+async function logout(force){
+  if(ONLINE.shop && !force){
+    await syncNow();
+    const n = ONLINE.shop && shopWritable() ? computeDirty().length : 0;
+    if(n && !await ask(`${n} modification(s) ne sont pas encore envoyées en ligne (pas de connexion ?). Si vous vous déconnectez maintenant, elles seront perdues. Continuer ?`, 'Se déconnecter quand même')) return;
+  }
   try{ if(sb) await sb.auth.signOut(); }catch(_){}
-  try{ localStorage.removeItem(LAST_KEY); }catch(_){}
+  try{ localStorage.removeItem(LAST_KEY); if(ONLINE.shop){ localStorage.removeItem(KEY); localStorage.removeItem(KEY + '_sync'); } }catch(_){}
   ONLINE.user = ONLINE.shop = null; ONLINE.shops = [];
   S = defaults(); closeSheet(); showAuth('login');
 }
@@ -1627,10 +1637,12 @@ const rawSave = save;
 let pushT;
 save = function(){
   rawSave();
-  if(!sb || !ONLINE.shop || ONLINE.role !== 'proprietaire') return;
+  if(!sb || !ONLINE.shop) return;
+  scheduleSync();
+  if(ONLINE.role !== 'proprietaire' || !shopWritable()) return;
   clearTimeout(pushT);
   pushT = setTimeout(async () => {
-    const st = settingsForCloud(), snap = JSON.stringify(st), name = S.settings.shop || ONLINE.shop.name;
+    const st = settingsForCloud(), snap = cj(st), name = S.settings.shop || ONLINE.shop.name;
     if(snap === ONLINE.pushed && name === ONLINE.shop.name) return;
     const {error} = await sb.from('shops').update({name, settings:st}).eq('id', ONLINE.shop.id);
     if(error){ toast('Réglages enregistrés sur ce téléphone, pas encore en ligne.'); return; }
@@ -1644,6 +1656,12 @@ render = function(){
   rawRender();
   if(!ONLINE.shop) return;
   const si = subInfo(ONLINE.shop), main = $('#main');
+  $('#top').insertAdjacentHTML('beforeend', `<button class="syncpill" id="syncpill" data-a="syncnow"></button>`); paintSync();
+  if(view === 'home' && !S.products.length && !S.moves.length && shopWritable()){
+    const wb = localWB();
+    if(wb) main.insertAdjacentHTML('afterbegin', `<div class="card" style="margin-bottom:12px;border:2px solid var(--brand)"><b>Données trouvées sur cet appareil</b><p class="note" style="margin:4px 0 10px">L'application « ${esc(wb.settings && wb.settings.shop || 'WB Stock')} » contient ${wb.products.length} produit(s), ${wb.livreurs.length} livreur(s) et ${wb.moves.length} opération(s). Voulez-vous les mettre en ligne dans cette boutique ?</p><button class="btn primary block" data-a="importwb">Importer ces données</button></div>`);
+    else main.insertAdjacentHTML('afterbegin', `<div class="card" style="margin-bottom:12px"><b>Vous avez déjà des données dans WB Stock ?</b><p class="note" style="margin:4px 0 10px">Dans l'ancienne application : Plus → Réglages → Exporter une sauvegarde → « Copier ». Puis ici : Plus → Réglages → Restaurer une sauvegarde → coller le texte.</p><button class="btn block" data-a="restore">Restaurer une sauvegarde maintenant</button></div>`);
+  }
   if(view === 'home' && si && si.cls !== 'ok'){
     main.insertAdjacentHTML('afterbegin', `<div class="subban ${si.cls}">${esc(si.txt)}${ONLINE.offline ? '<br><b>Hors ligne</b>' : ''}</div>`);
   }
@@ -1664,6 +1682,148 @@ render = function(){
 A.logout = async () => { if(await ask('Se déconnecter de ce téléphone ?', 'Se déconnecter', false)) logout(); };
 A.switchshop = () => { ONLINE.choosing = true; showShopChooser(); };
 A.newshop = () => showCreateShop();
+
+/* ---------- Synchronisation des données (produits, livreurs, opérations) ---------- */
+// JSON canonique (clés triées) : la base réordonne les clés, il faut comparer le contenu, pas l'ordre.
+function cj(v){
+  if(Array.isArray(v)) return '[' + v.map(cj).join(',') + ']';
+  if(v && typeof v === 'object') return '{' + Object.keys(v).filter(k => v[k] !== undefined).sort().map(k => JSON.stringify(k) + ':' + cj(v[k])).join(',') + '}';
+  return JSON.stringify(v === undefined ? null : v);
+}
+function fnv(str){ let h = 0x811c9dc5; for(let i = 0; i < str.length; i++){ h ^= str.charCodeAt(i); h = Math.imul(h, 16777619); } return (h >>> 0).toString(36); }
+const KINDS = [['product','products'],['livreur','livreurs'],['move','moves']];
+const ARR = {product:'products', livreur:'livreurs', move:'moves'};
+let META = {last:null, h:{}};
+const SYNC = {busy:false, again:false, state:'idle', pending:0, err:'', t:null};
+function loadMeta(){ try{ const m = JSON.parse(localStorage.getItem(KEY + '_sync') || 'null'); if(m && m.h) return m; }catch(_){} return {last:null, h:{}}; }
+function saveMeta(){ try{ localStorage.setItem(KEY + '_sync', JSON.stringify(META)); }catch(_){} }
+function shopWritable(){ const si = subInfo(ONLINE.shop); return !!ONLINE.shop && (!si || si.cls !== 'bad') && ['proprietaire','gerant'].includes(ONLINE.role); }
+function computeDirty(){
+  const out = [], seen = new Set();
+  for(const [kind, arr] of KINDS) for(const it of S[arr] || []){
+    if(!it || it.id == null) continue;
+    const key = kind + ':' + it.id; seen.add(key);
+    const h = fnv(cj(it));
+    if(META.h[key] !== h) out.push({key, kind, id:String(it.id), data:it, deleted:false, h});
+  }
+  for(const key in META.h) if(!seen.has(key) && META.h[key] !== 'x'){
+    const i = key.indexOf(':'); out.push({key, kind:key.slice(0,i), id:key.slice(i+1), data:{id:key.slice(i+1)}, deleted:true, h:'x'});
+  }
+  return out;
+}
+async function pushDirty(){
+  const d = computeDirty(); SYNC.pending = d.length;
+  for(let i = 0; i < d.length; i += 200){
+    const batch = d.slice(i, i + 200);
+    const {error} = await sb.from('items').upsert(batch.map(x => ({shop_id:ONLINE.shop.id, kind:x.kind, id:x.id, data:x.data, deleted:x.deleted})), {onConflict:'shop_id,kind,id'});
+    if(error) throw error;
+    batch.forEach(x => META.h[x.key] = x.h); saveMeta();
+    SYNC.pending = Math.max(0, SYNC.pending - batch.length); paintSync();
+  }
+}
+function applyRow(r){
+  const arrName = ARR[r.kind]; if(!arrName) return false;
+  const key = r.kind + ':' + r.id, arr = S[arrName], i = arr.findIndex(x => String(x.id) === String(r.id));
+  if(r.deleted){ META.h[key] = 'x'; if(i >= 0){ arr.splice(i, 1); return true; } return false; }
+  const h = fnv(cj(r.data));
+  if(i >= 0 && fnv(cj(arr[i])) === h){ META.h[key] = h; return false; }
+  if(i >= 0) arr[i] = r.data; else arr.push(r.data);
+  META.h[key] = h; return true;
+}
+async function pull(){
+  let since = META.last, changed = false;
+  for(let page = 0; page < 50; page++){
+    let q = sb.from('items').select('kind,id,data,deleted,updated_at').eq('shop_id', ONLINE.shop.id).order('updated_at', {ascending:true}).limit(1000);
+    if(since) q = q.gte('updated_at', since);
+    const {data, error} = await q;
+    if(error) throw error;
+    for(const r of data){ if(applyRow(r)) changed = true; if(!META.last || r.updated_at > META.last) META.last = r.updated_at; }
+    if(data.length < 1000) break;
+    since = data[data.length - 1].updated_at;
+  }
+  saveMeta();
+  return changed;
+}
+async function refreshShop(){
+  const {data, error} = await sb.from('shops').select('id,name,settings,status,paid_until').eq('id', ONLINE.shop.id);
+  if(error || !data || !data[0]) return false;
+  const row = data[0], before = cj([ONLINE.shop.status, ONLINE.shop.paid_until, ONLINE.shop.name]);
+  Object.assign(ONLINE.shop, {status:row.status, paid_until:row.paid_until});
+  let changed = before !== cj([row.status, row.paid_until, row.name]);
+  // réglages modifiés sur un autre appareil (et rien en attente ici)
+  if(cj(row.settings || {}) !== ONLINE.pushed && cj(settingsForCloud()) === ONLINE.pushed){
+    Object.assign(S.settings, row.settings || {}, {shop:row.name}); ONLINE.pushed = cj(row.settings || {}); ONLINE.shop.name = row.name; rawSave(); changed = true;
+  }
+  return changed;
+}
+async function syncNow(){
+  if(!sb || !ONLINE.shop) return;
+  if(SYNC.busy){ SYNC.again = true; return; }
+  if(navigator.onLine === false){ SYNC.state = 'offline'; paintSync(); return; }
+  SYNC.busy = true; SYNC.state = 'sync'; paintSync();
+  try{
+    let changed = await refreshShop();
+    if(shopWritable()) await pushDirty();
+    if(await pull()) changed = true;
+    if(changed){ rawSave(); render(); }
+    SYNC.pending = shopWritable() ? computeDirty().length : 0;
+    SYNC.state = SYNC.pending ? 'pending' : 'ok'; SYNC.err = ''; ONLINE.offline = false;
+  }catch(e){
+    SYNC.state = /fetch|network|load failed/i.test(String(e && e.message)) ? 'offline' : 'error';
+    SYNC.err = authErr(e); SYNC.pending = shopWritable() ? computeDirty().length : 0;
+  }finally{
+    SYNC.busy = false; paintSync();
+    if(SYNC.again){ SYNC.again = false; scheduleSync(800); }
+  }
+}
+function scheduleSync(ms = 1500){ clearTimeout(SYNC.t); SYNC.t = setTimeout(syncNow, ms); }
+function paintSync(){
+  const el = $('#syncpill'); if(!el) return;
+  const T = {idle:['…',''], sync:['↻ Synchro…','s-sync'], ok:['✓ En ligne','s-ok'], pending:['⏳ ' + SYNC.pending + ' en attente','s-wait'], offline:['Hors ligne' + (SYNC.pending ? ' · ' + SYNC.pending : ''),'s-off'], error:['⚠ Erreur','s-err']}[SYNC.state] || ['…',''];
+  el.textContent = T[0]; el.className = 'syncpill ' + T[1];
+}
+A.syncnow = () => {
+  if(SYNC.state === 'error') toast(SYNC.err || 'Erreur de synchronisation');
+  else if(SYNC.state === 'offline') toast('Pas de connexion : vos opérations sont gardées sur ce téléphone et seront envoyées au retour du réseau.');
+  else if(!shopWritable()) toast('Lecture seule : abonnement inactif.');
+  syncNow();
+};
+window.addEventListener('online', () => syncNow());
+window.addEventListener('offline', () => { SYNC.state = 'offline'; paintSync(); });
+document.addEventListener('visibilitychange', () => { if(document.visibilityState === 'visible') syncNow(); });
+setInterval(() => { if(document.visibilityState !== 'hidden') syncNow(); }, 45000);
+
+// Lecture seule quand l'abonnement est inactif (ou pour un rôle sans droit d'écriture)
+const WRITE_ACTIONS = ['new','money','status','delmove','delprod','editprod','editsale','editliv','newliv','delliv','color','rmlogo','demo','reset','restore','importwb','preset'];
+document.addEventListener('click', e => {
+  if(!ONLINE.shop || shopWritable() || e.target.closest('#auth')) return;
+  const t = e.target.closest('[data-a], #fab, form button:not([type=button])'); if(!t) return;
+  const a = t.id === 'fab' ? 'new' : (t.dataset.a || 'submit').split(':')[0];
+  if(a !== 'submit' && !WRITE_ACTIONS.includes(a)) return;
+  e.preventDefault(); e.stopImmediatePropagation();
+  toast(ONLINE.role === 'livreur' ? 'Accès livreur : lecture seule.' : 'Abonnement inactif : lecture seule. Contactez BASILUA TECH.');
+}, true);
+
+// Import des données de l'ancienne application WB Stock (même téléphone / même navigateur)
+function localWB(){
+  for(const k of ['gestion_stock_livreurs_v2','stock_livreurs_vierge_v1']){
+    try{ const d = JSON.parse(localStorage.getItem(k) || 'null'); if(d && Array.isArray(d.products) && (d.products.length || (d.moves||[]).length)) return normalize(d); }catch(_){}
+  }
+  return null;
+}
+A.importwb = async () => {
+  const wb = localWB(); if(!wb) return;
+  if(!await ask(`Mettre en ligne ${wb.products.length} produit(s), ${wb.livreurs.length} livreur(s) et ${wb.moves.length} opération(s) dans « ${esc(ONLINE.shop.name)} » ?`, 'Importer', false)) return;
+  const keepName = S.settings.shop;
+  S.products = wb.products; S.livreurs = wb.livreurs; S.moves = wb.moves;
+  Object.assign(S.settings, wb.settings, {shop:keepName, setup:true});
+  save(); render(); toast('Import en cours… les données partent en ligne');
+  syncNow();
+};
+A.demo = async () => {
+  if(!await ask('Les exemples seront enregistrés dans votre boutique en ligne. Vous pourrez tout effacer ensuite dans Réglages. Continuer ?', 'Charger les exemples', false)) return;
+  const keep = Object.assign({}, S.settings); seedDemo(); S.settings = keep; save(); render();
+};
 
 /* ---------- Démarrage ---------- */
 (async function boot(){

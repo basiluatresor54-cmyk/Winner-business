@@ -1375,7 +1375,7 @@ const A = {
   startempty: () => setupSheet(),
   reset: async () => {
     if(!await ask('Effacer TOUTES les données (produits, livreurs, ventes, livre) ? Pensez à exporter une sauvegarde avant.', 'Tout effacer')) return;
-    const k = S.settings; S = defaults(); Object.assign(S.settings, {shop:k.shop, logo:k.logo, color:k.color, rate:k.rate, cc:k.cc, wa:k.wa, fee:k.fee, feeCur:k.feeCur});
+    const k = S.settings; S = defaults(); S.settings = Object.assign(defaults().settings, k);
     save(); view = 'home'; render(); toast('Données effacées');
   }
 };
