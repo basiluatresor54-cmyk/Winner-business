@@ -204,6 +204,7 @@ body.authon .top, body.authon nav.nav, body.authon .fab, body.authon main{displa
 .subban.info{background:var(--info-soft);color:var(--info)}
 .subban.warn{background:var(--warn-soft);color:var(--warn)}
 .subban.bad{background:var(--bad-soft);color:var(--bad)}
+.subban.subsmall{padding:7px 12px;font-size:12.5px;margin-bottom:10px}.subban a.link{color:inherit;text-decoration:underline}
 .syncpill{flex:none;padding:6px 10px;border-radius:999px;font-size:12px;font-weight:700;background:rgba(255,255,255,.18);color:inherit;white-space:nowrap}
 .syncpill.s-off,.syncpill.s-wait{background:#fff3;box-shadow:inset 0 0 0 1.5px #fde68a}
 .syncpill.s-err{background:#fecaca;color:#7f1d1d}
@@ -1813,10 +1814,37 @@ function subInfo(shop){
   const t = today(), end = shop.paid_until;
   const days = end ? Math.round((new Date(end + 'T12:00:00') - new Date(t + 'T12:00:00')) / 864e5) : null;
   if(shop.status === 'bloque') return {cls:'bad', txt:'Compte bloqué : lecture seule. Contactez BASILUA TECH pour le réactiver.', short:'Bloqué'};
-  if(end && days < 0) return {cls:'bad', txt:`Abonnement expiré depuis le ${fmtDate(end, true)} : lecture seule. Contactez BASILUA TECH.`, short:'Expiré'};
-  if(shop.status === 'essai') return {cls:days <= 3 ? 'warn' : 'info', txt:`Essai gratuit : ${days} jour${days>1?'s':''} restant${days>1?'s':''} (jusqu'au ${fmtDate(end, true)}).`, short:'Essai · ' + days + ' j'};
-  if(end && days <= 5) return {cls:'warn', txt:`Abonnement actif jusqu'au ${fmtDate(end, true)} (${days} jour${days>1?'s':''}).`, short:'Actif'};
-  return {cls:'ok', txt: end ? `Abonnement actif jusqu'au ${fmtDate(end, true)}.` : 'Abonnement actif.', short:'Actif'};
+  if(end && days < 0) return {cls:'bad', txt:`Abonnement expiré depuis le ${dAbs(end, 1)} : lecture seule. Contactez BASILUA TECH.`, short:'Expiré'};
+  if(shop.status === 'essai') return {cls:days <= 3 ? 'warn' : 'info', txt:`Essai gratuit : ${days} jour${days>1?'s':''} restant${days>1?'s':''} (jusqu'au ${dAbs(end, 1)}).`, short:'Essai · ' + days + ' j'};
+  if(end && days <= 5) return {cls:'warn', txt:`Abonnement actif jusqu'au ${dAbs(end, 1)} (${days} jour${days>1?'s':''}).`, short:'Actif'};
+  return {cls:'ok', txt: end ? `Abonnement actif jusqu'au ${dAbs(end, 1)}.` : 'Abonnement actif.', short:'Actif'};
+}
+/* ---------- Prix de l'abonnement (réglable dans l'espace BASILUA TECH) ---------- */
+let PRICE = (() => { try{ const v = parseFloat(localStorage.getItem('stock_online_price')); return isNaN(v) ? 2.9 : v; }catch(_){ return 2.9; } })();
+const subPrice = () => fmt(PRICE) + ' $ / mois';
+async function loadPrice(){ try{ const r = await sb.rpc('get_price'); if(r.data != null){ PRICE = +r.data; localStorage.setItem('stock_online_price', String(PRICE)); } }catch(_){} }
+function subDays(shop){ const end = shop && shop.paid_until; return end ? Math.round((new Date(end + 'T12:00:00') - new Date(today() + 'T12:00:00')) / 864e5) : null; }
+const inDays = d => d <= 0 ? "aujourd'hui" : d === 1 ? 'demain' : 'dans ' + d + ' jours';
+// Bandeau d'abonnement : prix pendant l'essai, avertissement avant la fin, rien quand c'est payé
+function subBanner(compact){
+  const shop = ONLINE.shop, si = subInfo(shop); if(!si || ONLINE.role === 'livreur') return '';
+  const d = subDays(shop), owner = ONLINE.role === 'proprietaire', essai = shop.status === 'essai' && si.cls !== 'bad';
+  if(si.cls === 'ok') return '';
+  const renew = si.cls === 'bad' || (!essai && d != null && d <= 5);
+  const msg = `Bonjour BASILUA TECH, je veux ${renew ? 'renouveler' : 'activer'} mon abonnement Stock & Livreurs (${subPrice()}) pour la boutique « ${shop.name} ».`;
+  const btn = owner ? `<a class="btn sm wa" style="margin-top:8px" href="${supportLink(msg)}" target="_blank" rel="noopener">${ico('wa')} ${renew ? 'Renouveler' : 'Activer'} mon abonnement · ${subPrice()}</a>` : '';
+  let txt;
+  if(si.cls === 'bad') txt = `⛔ ${esc(si.txt)}<br><b>Abonnement : ${subPrice()}</b>`;
+  else if(essai) txt = `🎁 <b>Essai gratuit</b> : ${d} jour${d>1?'s':''} restant${d>1?'s':''} (fin ${inDays(d) === "aujourd'hui" ? "aujourd'hui" : 'le ' + dAbs(shop.paid_until, 1)}).<br>Ensuite : <b>${subPrice()}</b>, payable par Mobile Money.`;
+  else txt = `⚠️ <b>Votre abonnement se termine ${inDays(d)}</b> (${dAbs(shop.paid_until, 1)}).<br>Renouvelez pour ne pas passer en lecture seule : <b>${subPrice()}</b>.`;
+  if(compact) return `<div class="subban ${si.cls} subsmall">${essai ? `🎁 Essai : ${d} j restant${d>1?'s':''} · ${subPrice()}` : si.cls === 'bad' ? '⛔ ' + esc(si.short) + ' · ' + subPrice() : `⚠️ Abonnement : fin ${inDays(d)}`}${owner ? ` · <a class="link" href="${supportLink(msg)}" target="_blank" rel="noopener">${renew ? 'Renouveler' : 'Activer'}</a>` : ''}</div>`;
+  return `<div class="subban ${si.cls}">${txt}${ONLINE.offline ? '<br><b>Hors ligne</b>' : ''}${btn ? '<br>' + btn : ''}</div>`;
+}
+// Avertissement une fois par jour : fin d'essai proche, abonnement bientôt fini ou expiré
+function subWarnOnce(){
+  const shop = ONLINE.shop, si = subInfo(shop); if(!si || ONLINE.role !== 'proprietaire' || si.cls === 'ok' || si.cls === 'info') return;
+  const k = 'stock_online_warn_' + shop.id; try{ if(localStorage.getItem(k) === today()) return; localStorage.setItem(k, today()); }catch(_){}
+  setTimeout(() => sheet(si.cls === 'bad' ? 'Abonnement terminé' : 'Avertissement abonnement', subBanner(false) + `<p class="note" style="margin-top:10px">Envoyez le paiement par Mobile Money puis le message WhatsApp : BASILUA TECH active votre abonnement et ce message disparaît.</p>`), 600);
 }
 const ROLE_TXT = {proprietaire:'Propriétaire', gerant:'Gérant', livreur:'Livreur'};
 
@@ -1876,6 +1904,7 @@ async function afterLogin(){
   authShell(`<p class="note">Chargement de vos boutiques…</p>`);
   try{ const inv = await sb.rpc('accept_invites'); if(inv.data > 0) toast('Invitation acceptée ✅'); }catch(_){}
   try{ const ad = await sb.rpc('am_i_admin'); ONLINE.admin = !!ad.data; }catch(_){ }
+  loadPrice();
   try{
     const [shops, mem] = await Promise.all([
       sb.from('shops').select('id,name,settings,status,paid_until'),
@@ -1947,7 +1976,7 @@ function openShop(shop){
   rawSave();
   try{ localStorage.setItem(LAST_KEY, JSON.stringify({user:ONLINE.user && ONLINE.user.id, shop})); }catch(_){}
   hideAuth(); closeSheet(); view = ONLINE.role === 'livreur' ? 'moi' : 'home'; render();
-  syncNow();
+  syncNow(); subWarnOnce();
 }
 async function logout(force){
   if(ONLINE.shop && !force){
@@ -2014,9 +2043,7 @@ render = function(){
     if(wb) main.insertAdjacentHTML('afterbegin', `<div class="card" style="margin-bottom:12px;border:2px solid var(--brand)"><b>Données trouvées sur cet appareil</b><p class="note" style="margin:4px 0 10px">L'application « ${esc(wb.settings && wb.settings.shop || 'WB Stock')} » contient ${wb.products.length} produit(s), ${wb.livreurs.length} livreur(s) et ${wb.moves.length} opération(s). Voulez-vous les mettre en ligne dans cette boutique ?</p><button class="btn primary block" data-a="importwb">Importer ces données</button></div>`);
     else main.insertAdjacentHTML('afterbegin', `<div class="card" style="margin-bottom:12px"><b>Vous avez déjà des données dans WB Stock ?</b><p class="note" style="margin:4px 0 10px">Dans l'ancienne application : Plus → Réglages → Exporter une sauvegarde → « Copier ». Puis ici : Plus → Réglages → Restaurer une sauvegarde → coller le texte.</p><button class="btn block" data-a="restore">Restaurer une sauvegarde maintenant</button></div>`);
   }
-  if(view === 'home' && si && si.cls !== 'ok'){
-    main.insertAdjacentHTML('afterbegin', `<div class="subban ${si.cls}">${esc(si.txt)}${ONLINE.offline ? '<br><b>Hors ligne</b>' : ''}${ONLINE.role === 'proprietaire' ? `<br><a class="btn sm wa" style="margin-top:8px" href="${supportLink(`Bonjour BASILUA TECH, je veux ${si.cls === 'bad' ? 'renouveler' : 'activer'} mon abonnement Stock & Livreurs pour la boutique « ${ONLINE.shop.name} ».`)}" target="_blank" rel="noopener">${ico('wa')} ${si.cls === 'bad' ? 'Renouveler' : 'Activer'} mon abonnement</a>` : ''}</div>`);
-  }
+  if(si && si.cls !== 'ok') main.insertAdjacentHTML('afterbegin', subBanner(view !== 'home' && view !== 'reglages'));
   if(view === 'reglages'){
     const meta = (ONLINE.user && ONLINE.user.user_metadata) || {};
     main.querySelector('.back')?.insertAdjacentHTML('afterend', `<div class="sec" style="margin-top:4px"><h2>Mon compte</h2></div>
@@ -2026,6 +2053,7 @@ render = function(){
         <div class="dl"><span>Boutique</span><span>${esc(ONLINE.shop.name)}</span></div>
         <div class="dl"><span>Rôle</span><span>${ROLE_TXT[ONLINE.role] || '—'}</span></div>
         <div class="dl"><span>Abonnement</span><span>${si ? esc(si.short) : '—'}</span></div>
+        ${si && si.cls !== 'ok' ? `<div class="dl"><span>Tarif</span><span><b>${subPrice()}</b></span></div>` : ''}
         <p class="note" style="margin:8px 0 12px">${si ? esc(si.txt) : ''}</p>
         <a class="btn wa block" style="margin-bottom:8px" href="${supportLink('Bonjour BASILUA TECH, j\'ai besoin d\'aide avec Stock & Livreurs (boutique « ' + ONLINE.shop.name + ' »).')}" target="_blank" rel="noopener">${ico('wa')} Contacter BASILUA TECH (aide, abonnement)</a>
         <div class="btns">${ONLINE.shops.length > 1 ? '<button class="btn" data-a="switchshop">Changer de boutique</button>' : '<button class="btn" data-a="newshop">+ Autre boutique</button>'}<button class="btn ghost-bad" data-a="logout">Se déconnecter</button></div>
@@ -2323,6 +2351,7 @@ CUSTOM.admin = () => {
     <div class="kpi"><div class="l">En essai</div><div class="v num">${cnt('essai')}</div><div class="s">à convertir</div></div>
     <div class="kpi"><div class="l">Expirées / bloquées</div><div class="v num neg">${cnt('bad')}</div><div class="s">à relancer</div></div>
   </div>
+  <div class="card" style="margin-top:12px"><form id="pricef" style="display:flex;gap:8px;align-items:flex-end"><label class="f" style="flex:1;margin:0"><span>Prix de l'abonnement ($ par mois) — affiché aux clients</span><input name="p" type="number" step="0.01" min="0" value="${esc(PRICE)}"></label><button class="btn">Enregistrer</button></form></div>
   <div class="card" style="margin-top:12px"><form id="trialf" style="display:flex;gap:8px;align-items:flex-end"><label class="f" style="flex:1;margin:0"><span>Essai gratuit des nouvelles boutiques (jours)</span><input name="days" type="number" min="0" max="365" value="${esc(ADM.trial ?? 7)}"></label><button class="btn">Enregistrer</button></form></div>
   <div class="sec"><h2>Clients</h2><button class="link" data-a="admreload">↻ Actualiser</button></div>
   <input class="search" type="search" placeholder="Rechercher un client, un numéro, un pays…" value="${esc(ADM.q)}" oninput="ADM.q=this.value;document.getElementById('admlist').innerHTML=admRows()">
@@ -2336,7 +2365,8 @@ function admRows(list){
   return list.map(s => { const i = shopState(s); return `<button class="it" data-a="admshop:${s.id}"><div class="ic c-brand">${esc(initials(s.name))}</div><div class="m"><div class="t">${esc(s.name)}</div><div class="d">${esc(s.owner_name || '—')} · ${esc(telPretty(s.owner_phone || ''))}${s.country ? ' · ' + esc(s.country) : ''}</div><div class="d">${s.last_activity ? 'Actif ' + fmtDate(String(s.last_activity).slice(0,10)) : 'Aucune donnée'} · ${s.nb_items} élément(s) · ${s.nb_members} membre(s)</div></div><div class="r"><span class="pill ${i.cls === 'bad' ? 'p-annule' : s.status === 'essai' ? 'p-attente' : 'p-livre'}" style="${i.cls === 'bad' ? 'background:var(--bad-soft);color:var(--bad)' : ''}">${esc(i.short)}</span><div class="sm">${s.paid_until ? fmtDate(s.paid_until) : '∞'}</div></div></button>`; }).join('');
 }
 CUSTOM_AFTER.admin = () => {
-  if(ADM.shops === null && !ADM.loading) loadAdmin();
+  if(ADM.shops === null && !ADM.loading){ loadAdmin(); loadPrice(); }
+  const pf = $('#pricef'); if(pf) pf.onsubmit = async e => { e.preventDefault(); const v = parseFloat(String(e.target.elements.p.value).replace(',', '.')); if(isNaN(v)) return toast('Prix invalide'); const {error} = await sb.rpc('admin_set_price', {p_price:v}); if(error) return toast(rpcErr(error)); PRICE = v; try{ localStorage.setItem('stock_online_price', String(v)); }catch(_){} toast('Prix enregistré : ' + subPrice()); };
   const f = $('#trialf'); if(f) f.onsubmit = async e => { e.preventDefault(); const d = parseInt(e.target.elements.days.value, 10); const {error} = await sb.rpc('admin_set_trial_days', {p_days:d}); if(error) return toast(rpcErr(error)); ADM.trial = d; toast('Essai gratuit : ' + d + ' jours pour les nouvelles boutiques'); };
 };
 A.admreload = () => { ADM.shops = null; render(); };
@@ -2364,7 +2394,7 @@ A.admshop = async (id) => {
     </div>
     <form id="admf" class="card" style="margin-bottom:12px"><div class="row2">${field('Statut', `<select name="st"><option value="actif" ${s.status==='actif'?'selected':''}>Actif</option><option value="essai" ${s.status==='essai'?'selected':''}>Essai</option><option value="bloque" ${s.status==='bloque'?'selected':''}>Bloqué</option></select>`)}${field('Jusqu\'au (vide = illimité)', `<input name="d" type="date" value="${esc(s.paid_until || '')}">`)}</div><button class="btn block">Enregistrer cette date</button></form>
     <div class="stack">
-      <a class="btn wa block" href="${waLink('+' + (s.owner_phone || ''), `Bonjour ${s.owner_name || ''} 👋\nVotre abonnement Stock & Livreurs pour « ${s.name} » ${i.cls === 'bad' ? 'est expiré' : 'se termine le ' + (s.paid_until ? fmtDate(s.paid_until, true) : '—')}.\nPour continuer à enregistrer vos ventes, renouvelez votre abonnement. Merci 🙏\nBASILUA TECH`)}" target="_blank" rel="noopener">${ico('wa')} Rappel de paiement</a>
+      <a class="btn wa block" href="${waLink('+' + (s.owner_phone || ''), `Bonjour ${s.owner_name || ''} 👋\nVotre abonnement Stock & Livreurs pour « ${s.name} » ${i.cls === 'bad' ? 'est expiré' : 'se termine le ' + (s.paid_until ? fmtDate(s.paid_until, true) : '—')}.\nPour continuer à enregistrer vos ventes, renouvelez votre abonnement (${subPrice()}) par Mobile Money. Merci 🙏\nBASILUA TECH`)}" target="_blank" rel="noopener">${ico('wa')} Rappel de paiement</a>
     </div>
     <div class="sec"><h2>Comptes de cette boutique</h2></div>
     <div class="list" id="admmem"><div class="empty">Chargement…</div></div>`);
