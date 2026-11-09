@@ -565,24 +565,42 @@ function vStock(){
   <div style="margin-top:8px"><button class="btn block" data-a="invform:">📋 Contrôle de stock du dépôt</button></div>
   ${invHistHTML('')}`;
 }
+// Par produit : entré, vendu (livré, packs décomposés), en cours, perdu ; packs vendus
+function prodFlow(){
+  const F = {}, g = id => F[id] = F[id] || {in:0, sold:0, pend:0, lost:0, packs:0};
+  for(const m of S.moves){
+    if(!m.pid) continue;
+    if(m.type === 'vente' && m.status !== 'annule' && isKit(prod(m.pid)) && m.status === 'livre') g(m.pid).packs += m.qty;
+    for(const [pid, q] of lines(m.pid, m.qty)){
+      if(m.type === 'entree' || m.type === 'ajust') g(pid).in += q;
+      else if(m.type === 'vente' && m.status === 'livre') g(pid).sold += q;
+      else if(m.type === 'vente' && m.status !== 'annule') g(pid).pend += q;
+      else if(m.type === 'perte') g(pid).lost += q;
+    }
+  }
+  return F;
+}
 function stockRows(){
   if(!S.products.length) return `<div class="list"><div class="empty"><b>Aucun produit</b>Ajoutez votre premier produit.</div></div>`;
   const st = stockAt(), q = stockQ.trim().toLowerCase();
   const match = p => !q || (p.name + ' ' + (p.cat||'')).toLowerCase().includes(q);
   const simple = S.products.filter(p => !isKit(p) && match(p)).sort(byName);
   const kits = S.products.filter(p => isKit(p) && match(p)).sort(byName);
-  let units = 0, dep = 0, hand = 0;
-  S.products.filter(p => !isKit(p)).forEach(p => { units += totalOf(st,p.id); dep += qAt(st,'',p.id); hand += inHands(st,p.id); });
+  let units = 0, dep = 0, hand = 0, soldAll = 0;
+  const F = prodFlow();
+  S.products.filter(p => !isKit(p)).forEach(p => { units += totalOf(st,p.id); dep += qAt(st,'',p.id); hand += inHands(st,p.id); soldAll += (F[p.id] || {}).sold || 0; });
+  const fl = id => { const f = F[id] || {}; return `<div class="d">Entré <b>${f.in || 0}</b> · <span class="green">Vendu <b>${f.sold || 0}</b></span>${f.pend ? ' · En cours <b>' + f.pend + '</b>' : ''}${f.lost ? ' · Perdu <b>' + f.lost + '</b>' : ''}</div>`; };
   const row = p => { const tot = totalOf(st,p.id), cls = tot<=0 ? 'qty-zero' : tot<=(p.alert||0) ? 'qty-low' : '';
     return `<button class="it" data-a="prod:${p.id}">${pic(p)}
-      <div class="m"><div class="t">${esc(p.name)}</div><div class="d">Dépôt <b>${qAt(st,'',p.id)}</b> · Chez livreurs <b>${inHands(st,p.id)}</b></div><div class="d">${priceTxt(p)} · achat ${num(p.buy)>0 ? amt(p.buy, p.cur) : '?'} · commission ${commTxt(p)}${num(p.buy)>0?'':' · <span class="red">prix d\'achat ?</span>'}</div></div>
+      <div class="m"><div class="t">${esc(p.name)}</div><div class="d">Dépôt <b>${qAt(st,'',p.id)}</b> · Chez livreurs <b>${inHands(st,p.id)}</b></div>${fl(p.id)}<div class="d">${priceTxt(p)} · achat ${num(p.buy)>0 ? amt(p.buy, p.cur) : '?'} · commission ${commTxt(p)}${num(p.buy)>0?'':' · <span class="red">prix d\'achat ?</span>'}</div></div>
       <div class="r"><div class="big num ${cls}">${tot}</div><div class="sm">total</div></div></button>`; };
   const krow = p => `<button class="it" data-a="prod:${p.id}">${p.photo ? pic(p) : `<div class="ic c-send">${ico('tag')}</div>`}
-      <div class="m"><div class="t">${esc(p.name)}</div><div class="d">Pack : ${p.kit.map(c => c.q + ' × ' + esc(pname(c.pid))).join(' + ')}</div><div class="d">${priceTxt(p)} · commission ${commTxt(p)}</div></div>
+      <div class="m"><div class="t">${esc(p.name)}</div><div class="d">Pack : ${p.kit.map(c => c.q + ' × ' + esc(pname(c.pid))).join(' + ')}</div><div class="d"><span class="green">Vendus <b>${(F[p.id] || {}).packs || 0}</b> pack(s)</span></div><div class="d">${priceTxt(p)} · commission ${commTxt(p)}</div></div>
       <div class="r"><div class="big num">${avail(st,'',p.id)}</div><div class="sm">possibles<br>au dépôt</div></div></button>`;
   return `<div class="kpis" style="margin-bottom:14px">
       <div class="kpi"><div class="l">Au dépôt</div><div class="v num">${fmt(dep)}</div><div class="s">pièces chez vous</div></div>
-      <div class="kpi"><div class="l">Chez les livreurs</div><div class="v num">${fmt(hand)}</div><div class="s">pièces confiées</div></div></div>
+      <div class="kpi"><div class="l">Chez les livreurs</div><div class="v num">${fmt(hand)}</div><div class="s">pièces confiées</div></div>
+      <div class="kpi"><div class="l">Déjà vendues</div><div class="v num">${fmt(soldAll)}</div><div class="s">pièces livrées (packs compris)</div></div></div>
     <div class="list">${simple.length ? simple.map(row).join('') : '<div class="empty">Aucun résultat</div>'}</div>
     ${kits.length ? `<div class="sec"><h2>Packs</h2><span class="note">le stock vient des produits</span></div><div class="list">${kits.map(krow).join('')}</div>` : ''}`;
 }
