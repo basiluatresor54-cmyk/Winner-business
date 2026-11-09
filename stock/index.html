@@ -868,43 +868,71 @@ function countryFields(st){
 /* ---------- Commande WhatsApp : lecture automatique d'un message collé ---------- */
 const norm = t => String(t||'').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'');
 function bestProduct(text){
-  const T = ' ' + norm(text).replace(/[^a-z0-9]+/g,' ') + ' ';
+  const st = w => w.length > 4 ? w.replace(/(es|s|x)$/,'') : w;
+  const toks = norm(text).replace(/[^a-z0-9]+/g,' ').split(' ').filter(Boolean).map(st);
+  const T = ' ' + toks.join(' ') + ' ';
+  const packWord = /\b(duo|kit|gamme|combo|ensemble|lot|pack|coffret)\b/.test(norm(text));
   let best = null, bs = 0;
   for(const p of S.products){
-    const words = norm(p.name).replace(/[^a-z0-9]+/g,' ').split(' ').filter(w => w.length >= 3 && !['pour','avec','des','les','une','piece','pieces'].includes(w));
+    const words = norm(p.name).replace(/[^a-z0-9]+/g,' ').split(' ').filter(w => w.length >= 3 && !['pour','avec','des','les','une','piece','pieces','pack'].includes(w)).map(st);
     if(!words.length) continue;
-    const hit = words.filter(w => T.includes(' ' + w + ' ') || T.includes(' ' + w + 's ')).length;
-    const sc = hit * 10 - (words.length - hit);
+    const hit = words.filter(w => T.includes(' ' + w + ' ')).length;
+    let sc = hit * 10 - (words.length - hit);
+    if(isKit(p)) sc += packWord ? 15 : -2;
     if(hit && sc > bs){ bs = sc; best = p.id; }
   }
   return best;
 }
+const JOURS = ['dimanche','lundi','mardi','mercredi','jeudi','vendredi','samedi'];
 function parseOrder(txt){
-  const lines = txt.replace(/\r/g,'').split('\n').map(l => l.replace(/^[\s*•\-–📍📞👤📦🕒⏰📅]+/u,'').replace(/\*/g,'').trim()).filter(Boolean);
+  const lines = txt.replace(/\r/g,'').split('\n').map(l => l.replace(/^[\s*•\-–—📍📞👤📦🕒⏰📅🛵💵✅]+/u,'').replace(/\*/g,'').trim()).filter(Boolean);
   const lab = re => { for(const l of lines){ const x = l.match(re); if(x && x[1] && x[1].trim()) return x[1].trim(); } return ''; };
   const o = {};
   o.client = lab(/^(?:nom(?:\s+(?:et\s+)?(?:complet|pr[ée]nom))?|client(?:e)?|name)\s*[:=\-–]\s*(.+)$/i);
-  o.phone = lab(/^(?:t[ée]l[ée]?(?:phone)?|num[ée]ro|contact|whatsapp|phone)\s*[:=\-–]\s*(.+)$/i);
-  if(!o.phone){ const x = txt.match(/(\+?\d[\d .\-]{7,}\d)/); if(x) o.phone = x[1].trim(); }
+  // Téléphone (et éventuellement le nom sur la même ligne : « Contact : Jemima - 2438… »)
+  const ct = lab(/^(?:t[ée]l[ée]?(?:phone)?|num[ée]ro|contact|whatsapp|phone|tel)\s*[:=\-–]\s*(.+)$/i);
+  const numIn = t => { const x = String(t||'').match(/(\+?\d[\d .\-]{7,}\d)/); return x ? x[1] : ''; };
+  let ph = numIn(ct) || numIn(txt);
+  if(ct && !o.client){ const nm = ct.replace(numIn(ct), '').replace(/[\-–—:,/()]+/g,' ').trim(); if(/[a-zà-ÿ]{2,}/i.test(nm)) o.client = nm; }
+  if(ph){ ph = ph.replace(/[ .\-]/g,''); if(/^243\d{9}$/.test(ph)) ph = '+' + ph; o.phone = ph; }
+  if(!o.client){ const x = txt.match(/^\s*(?:merci|bonjour|bonsoir|parfait|salut|cher|ch[eè]re)\s+([A-ZÀ-Ÿa-zà-ÿ][\wà-ÿ'\-]+(?:\s+[A-ZÀ-Ÿ][\wà-ÿ'\-]+)?)/i); if(x && !/^(madame|monsieur|maman|papa|pour|beaucoup|a|à|de)$/i.test(x[1])) o.client = x[1]; }
   const city = lab(/^ville\s*[:=\-–]\s*(.+)$/i);
   o.addr = lab(/^(?:adresse(?:\s+(?:compl[èe]te|de\s+livraison))?|address|lieu|localisation|domicile)\s*[:=\-–]\s*(.+)$/i);
   const extra = ['commune','quartier','avenue','av','r[ée]f[ée]rence','rep[èe]re'].map(k => lab(new RegExp('^' + k + '\\.?\\s*[:=\\-–]\\s*(.+)$','i'))).filter(Boolean);
   o.addr = [o.addr].concat(extra).filter(Boolean).join(', ');
+  const livLine = lab(/^livraison\s*[:=]\s*(.+)$/i);
+  if(!o.addr && livLine && !/^(demain|aujourd|ce soir|\d)/i.test(livLine)) o.addr = livLine.split(/\s[—–-]\s/)[0].trim();
   if(city && !norm(o.addr).includes(norm(city))) o.addr = o.addr ? o.addr + ', ' + city : city;
+  // Produit : ligne « Produit : … » sinon la ligne qui ressemble le plus à un produit
   const pl = lab(/^(?:produits?|articles?|commande)\s*[:=\-–]\s*(.+)$/i);
-  o.pid = bestProduct(pl) || bestProduct(txt);
-  const q = lab(/^(?:quantit[ée]|qt[ée]|nombre|nbr?)\s*[:=\-–]\s*(\d+)/i) || ((pl || '').match(/(?:x\s*(\d+)|(\d+)\s*(?:x|pi[eè]ces?|pcs?|bo[iî]tes?|flacons?)\b)/i) || []).slice(1).find(Boolean);
+  let pline = pl;
+  if(!pline){ let bsc = 0; for(const l of lines){ if(/^(adresse|livraison|heure|contact|t[ée]l|ville|nom)\b/i.test(l)) continue; const id = bestProduct(l); if(id){ const sc = (/(x\s*\d|\d\s*x|\$|fc\b)/i.test(l) ? 2 : 1); if(sc > bsc){ bsc = sc; pline = l; } } } }
+  o.pid = bestProduct(pline) || bestProduct(txt);
+  const q = lab(/^(?:quantit[ée]|qt[ée]|nombre|nbr?)\s*[:=\-–]\s*(\d+)/i) || ((pline || '').match(/(?:\bx\s*(\d+)|\b(\d+)\s*(?:x\b|pi[eè]ces?|pcs?|bo[iî]tes?|flacons?|pots?))/i) || []).slice(1).find(Boolean);
   if(q) o.qty = parseInt(q, 10);
-  if(!o.qty && o.pid){ const ws = norm(prod(o.pid).name).split(/[^a-z0-9]+/).filter(w => w.length >= 3); const x = ws.length && norm(txt).match(new RegExp('\\b(\\d{1,2})\\s*(?:x\\s*)?(?:' + ws.join('|') + ')')); if(x) o.qty = parseInt(x[1], 10); }
-  o.when = lab(/^(?:heure|horaire|jour|date|livraison|quand)[^:=]*[:=]\s*(.+)$/i);
+  if(!o.qty && o.pid){ const ws = norm(prod(o.pid).name).split(/[^a-z0-9]+/).filter(w => w.length >= 3); const x = ws.length && norm(pline || txt).match(new RegExp('\\b(\\d{1,2})\\s*(?:x\\s*)?(?:' + ws.join('|') + ')')); if(x) o.qty = parseInt(x[1], 10); }
+  // Prix écrit sur la ligne du produit (« 10$ », « 23 000 FC »)
+  if(o.pid && pline){ const P = prod(o.pid), qq = o.qty || 1;
+    const usd = pline.match(/(\d+(?:[.,]\d+)?)\s*(?:\$|usd|dollars?)/i), fc = pline.match(/(\d[\d\s.]*\d|\d)\s*(?:fc|francs?)\b/i);
+    let v = null; if(P.cur === '$' && usd) v = num(usd[1]); else if(P.cur === 'FC' && fc) v = num(fc[1].replace(/[\s.]/g,'')); else if(P.cur === 'FC' && usd) v = Math.round(num(usd[1]) * rate()); else if(P.cur === '$' && fc) v = r2(num(fc[1].replace(/[\s.]/g,'')) / rate());
+    if(v){ const sell = num(P.sell); o.amount = v; o.price = qq > 1 && Math.abs(v - sell*qq) < Math.abs(v - sell) ? r2(v / qq) : v; } }
+  // Pack de N pièces identiques : « crème x2 : 10$ » → le pack
+  if(o.pid && !isKit(prod(o.pid))){ const qq = o.qty || 1, K = S.products.find(k => isKit(k) && k.kit.length === 1 && k.kit[0].pid === o.pid && qq % k.kit[0].q === 0);
+    const v = o.amount, packT = K ? num(K.sell) * qq / K.kit[0].q : 0, oneT = num(prod(o.pid).sell) * qq;
+    if(K && (/\b(pack|lot|duo)\b/i.test(norm(pline || txt)) || (v && Math.abs(v - packT) < Math.abs(v - oneT)))){ const n = K.kit[0].q; o.pid = K.id; o.qty = qq / n; if(v) o.price = r2(v / o.qty); } }
+  // Jour et heure
+  o.when = lab(/^(?:heure|horaire|jour|date|quand|cr[ée]neau|moment)[^:=]*[:=]\s*(.+)$/i);
+  if(!o.when && livLine && /(\d+\s*h|demain|aujourd|soir|matin|midi|lundi|mardi|mercredi|jeudi|vendredi|samedi|dimanche)/i.test(livLine)) o.when = livLine;
   const src = o.when || txt;
   const h = src.match(/\b(\d{1,2})\s*(?:h|:)\s*(\d{2})?\b/i);
   if(h && +h[1] < 24) o.dtime = String(h[1]).padStart(2,'0') + ':' + (h[2] || '00');
   if(/apr[eè]s[- ]demain/i.test(src)) o.ddate = addDays(today(), 2);
   else if(/demain/i.test(src)) o.ddate = addDays(today(), 1);
-  else if(/aujourd/i.test(src)) o.ddate = today();
+  else if(/aujourd|ce soir|ce matin|cet apr/i.test(src)) o.ddate = today();
+  else { const j = JOURS.findIndex(d => norm(src).includes(d)); if(j >= 0){ const now = new Date(today() + 'T12:00:00').getDay(); o.ddate = addDays(today(), ((j - now + 7) % 7) || 7); } }
+  if(o.when && /\b(entre|et|vers|avant|apr[eè]s)\b|\d\s*h?\s*[-–à]\s*\d/i.test(o.when)) o.slot = o.when;
   const all = norm(city + ' ' + o.addr + ' ' + txt);
-  const L = S.livreurs.find(l => l.city && city && norm(l.city) === norm(city)) || S.livreurs.find(l => l.city && all.includes(norm(l.city)));
+  const L = S.livreurs.find(l => l.city && city && norm(l.city) === norm(city)) || S.livreurs.find(l => l.city && norm(o.addr).includes(norm(l.city))) || S.livreurs.find(l => l.city && all.includes(norm(l.city)));
   if(L){ o.liv = L.id; o.city = L.city; }
   return o;
 }
@@ -1609,7 +1637,8 @@ function moveForm(type, opt = {}){
     if(o.ddate) E.ddate.value = o.ddate;
     set('dtime', o.dtime, 'heure');
     if(o.liv && E.loc){ E.loc.value = o.liv; E.loc.onchange(); got.push('livreur (' + o.city + ')'); }
-    if(o.when && !o.dtime) E.note.value = (E.note.value ? E.note.value + ' · ' : '') + 'Livraison : ' + o.when;
+    if(o.price && E.price){ E.price.value = o.price; got.push('prix'); }
+    if(o.when && (!o.dtime || o.slot)) E.note.value = (E.note.value ? E.note.value + ' · ' : '') + 'Livraison : ' + o.when;
     upd();
     $('#pasteMsg').innerHTML = (got.length ? '✅ Rempli : ' + got.join(', ') + '. ' : '') + (miss.length ? '<span class="red">À compléter : ' + miss.join(', ') + '.</span>' : '') + ' Vérifiez avant d\'enregistrer.';
   };
