@@ -213,6 +213,7 @@ body.livmode{padding-bottom:24px}
 @media (min-width:900px){body.livmode{padding-left:0}}
 textarea.code{width:100%;min-height:90px;font:12px/1.4 ui-monospace,Menlo,monospace;padding:10px;border:1.5px solid var(--line);border-radius:11px}
 
+.tb .num{white-space:nowrap}
 /* vente rapide / rapport du jour */
 .quickbtn{font-size:18px;padding:16px;margin:4px 0 10px}
 .daycard{display:flex;justify-content:space-between;align-items:center;width:100%;text-align:left;margin-bottom:10px;gap:8px}
@@ -550,6 +551,7 @@ function vHome(){
     <button class="kpi" data-a="nav:stock"><div class="l">Stock total</div><div class="v num">${fmt(units)}</div><div class="s">pièces · valeur ${money(valBuy)}</div></button>
     <button class="kpi" data-a="nav:depenses"><div class="l">Dépenses ${per}</div><div class="v num">${money(r.dep)}</div><div class="s">transport, pub, boutique…</div></button>
   </div>
+  ${stockBilanCard()}
   <div class="grid2"><div>
   <div class="sec"><h2>Où va l'argent ${per}</h2></div>
   <div class="card">
@@ -1025,6 +1027,45 @@ function vRapport(){
   <div class="stack noprint" style="margin-top:14px">
     <a class="btn wa block" href="${waLink('', txt)}" target="_blank" rel="noopener">${ico('wa')} Envoyer le rapport par WhatsApp</a>
     <div class="btns"><button class="btn" data-a="rcopy">Copier le texte</button><button class="btn" data-a="rprint">Imprimer / PDF</button></div>
+  </div>`;
+}
+
+/* ---------- Bilan de la marchandise (depuis le début) ---------- */
+function stockBilan(){
+  const st = stockAt(), r = {inv:0, invQ:0, ca:0, soldCost:0, soldQ:0, lossCost:0, restQ:0, restBuy:0, restSell:0, comm:0, dep:0, byProd:[]};
+  for(const m of S.moves){
+    if(m.type === 'entree'){ const p = prod(m.pid); const c = num(m.cost) > 0 ? toUSD(num(m.cost), p && p.cur) : unitCostUSD(p); r.inv += m.qty * c; r.invQ += m.qty; }
+    else if(m.type === 'vente' && m.status === 'livre'){ r.ca += saleUSD(m); r.soldCost += m.qty * num(m.costU); r.comm += m.liv ? m.qty * num(m.commU) : 0; }
+    else if(m.type === 'perte') r.lossCost += m.qty * num(m.costU);
+    else if(m.type === 'depense') r.dep += moneyUSD(m);
+  }
+  for(const p of S.products.filter(p => !isKit(p))){
+    const q = Math.max(0, totalOf(st, p.id)); if(!q) continue;
+    const b = q * unitCostUSD(p), v = q * toUSD(num(p.sell), p.cur);
+    r.restQ += q; r.restBuy += b; r.restSell += v; r.byProd.push([p, q, b, v]);
+  }
+  r.recup = r.inv ? r.ca / r.inv * 100 : 0;
+  r.netNow = r.ca - r.soldCost - r.comm - r.dep - r.lossCost;
+  return r;
+}
+function stockBilanCard(){
+  if(!S.moves.some(m => m.type === 'entree')) return '';
+  const r = stockBilan(), pct = Math.min(100, r.recup);
+  return `<div class="sec"><h2>Ma marchandise — depuis le début</h2></div>
+  <div class="card">
+    <div class="dl"><span>Marchandise achetée (prix d'achat)</span><span class="num"><b>${money(r.inv)}</b></span></div>
+    <div class="dl"><span>Déjà vendu (chiffre d'affaires)</span><span class="num"><b>${money(r.ca)}</b></span></div>
+    <div class="split" style="margin:6px 0 2px"><i style="width:${pct}%;background:var(--ok,#15803d)"></i></div>
+    <p class="note" style="margin-bottom:8px">${fmt(r.recup)} % de l'argent investi déjà récupéré en ventes${r.recup >= 100 ? ' ✅ marchandise remboursée' : ''}</p>
+    <div class="dl"><span>Reste en stock (dépôt + livreurs)</span><span class="num">${fmt(r.restQ)} pièce(s)</span></div>
+    <div class="dl"><span>Valeur du reste au prix d'achat</span><span class="num">${money(r.restBuy)}</span></div>
+    <div class="dl strong"><span>Valeur du reste si tout est vendu</span><span class="num">${money(r.restSell)}</span></div>
+    <div class="dl"><span>Bénéfice net réalisé jusqu'ici</span><span class="num ${r.netNow < 0 ? 'red' : 'green'}">${money(r.netNow)}</span></div>
+    <details style="margin-top:8px"><summary class="note"><b>Détail par produit</b></summary>
+      <table class="tb" style="margin-top:6px"><tr><th>Produit</th><th class="rt">Reste</th><th class="rt">Achat</th><th class="rt">Vente</th></tr>
+      ${r.byProd.sort((a,b) => b[3] - a[3]).map(([p,q,b,v]) => `<tr><td>${esc(p.name)}</td><td class="rt num">${q}</td><td class="rt num">${money(b)}</td><td class="rt num">${money(v)}</td></tr>`).join('')}</table>
+      <p class="note" style="margin-top:6px">« Vente » = au prix de la pièce seule. Vendu en pack (ex. duo à 15 $), le montant sera un peu plus bas. Dépenses et commissions à venir non comptées.</p>
+    </details>
   </div>`;
 }
 
