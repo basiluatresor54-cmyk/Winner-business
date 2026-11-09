@@ -396,9 +396,18 @@ function unitCostUSD(p){
 function commUFor(p, l, unitUSD){
   if(!p || !l || l.pay === 'salaire') return 0;
   if(l.pay === 'pct') return unitUSD * num(l.pct) / 100;
-  return p.commMode === 'pct' ? unitUSD * num(p.comm) / 100 : num(p.comm);
+  const c = commFor(p, l.city);
+  return p.commMode === 'pct' ? unitUSD * c / 100 : c;
 }
-const commTxt = p => p.commMode === 'pct' ? fmt(num(p.comm)) + ' %' : money(num(p.comm));
+// Commission du produit pour une ville (valeur propre à la ville si renseignée, sinon valeur générale)
+function commFor(p, city){
+  const cc = p && p.commCity;
+  if(city && cc){ const k = Object.keys(cc).find(x => norm0(x) === norm0(city)); if(k && cc[k] !== '' && cc[k] != null) return num(cc[k]); }
+  return num(p && p.comm);
+}
+const norm0 = t => String(t||'').trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');
+const commVal = (p, v) => p.commMode === 'pct' ? fmt(v) + ' %' : money(v);
+const commTxt = p => commVal(p, num(p.comm)) + (p.commCity && Object.keys(p.commCity).length ? ' · ' + Object.entries(p.commCity).map(([c,v]) => esc(c) + ' ' + commVal(p, num(v))).join(' · ') : '');
 const payTxt = l => l.pay === 'salaire' ? 'Salaire ' + money(num(l.salary)) + ' / mois' : l.pay === 'pct' ? fmt(num(l.pct)) + ' % de chaque vente' : 'Commission selon le produit';
 function inPer(date, p){
   if(p === 'tout') return true;
@@ -931,6 +940,10 @@ function productForm(id){
       ${field('Devise du prix', `<select name="cur"><option value="$" ${p?.cur!=='FC'?'selected':''}>Dollar ($)</option><option value="FC" ${p?.cur==='FC'?'selected':''}>Monnaie locale (${esc(LC())})</option></select>`)}</div>
     <div class="row2">${field('Prix de vente *', `<input name="sell" type="number" step="any" min="0" required value="${p ? p.sell : ''}" placeholder="0">`)}${field("Prix d'achat *", `<input name="buy" type="number" step="any" min="0" value="${p && num(p.buy) ? p.buy : ''}" placeholder="0">`, 'Coût par pièce (même devise)')}</div>
     <div class="row2">${field('Commission livreur', `<select name="commMode"><option value="fixe" ${p?.commMode!=='pct'?'selected':''}>Montant fixe ($)</option><option value="pct" ${p?.commMode==='pct'?'selected':''}>Pourcentage (%)</option></select>`)}${field('Valeur', `<input name="comm" type="number" step="any" min="0" value="${p ? p.comm : ''}" placeholder="Ex : 2">`, '<span id="commHint">par pièce livrée</span>')}</div>
+    <details class="card" style="margin-bottom:12px" ${p && p.commCity && Object.keys(p.commCity).length ? 'open' : ''}><summary><b>Commission différente selon la ville</b> <span class="note">(optionnel)</span></summary>
+      <p class="note" style="margin:8px 0">Laissez vide pour utiliser la commission générale ci-dessus. <span id="cityUnit"></span></p>
+      <div id="cityRows">${cityCommRows(p)}</div>
+      <button type="button" class="btn sm" id="addCity" style="margin-top:4px">+ Autre ville</button></details>
     ${field('Alerte stock bas', `<input name="alert" type="number" min="0" step="1" value="${p ? p.alert : 3}">`, 'Alerte quand il reste ce nombre de pièces ou moins')}
     ${p ? '' : `<div id="initw">${field('Stock de départ au dépôt', `<input name="init" type="number" min="0" step="1" placeholder="0">`)}</div>`}
     <label class="f" style="display:flex;gap:10px;align-items:center"><input type="checkbox" name="iskit" ${isKit(p)?'checked':''} style="width:22px;height:22px;min-height:0"><span style="margin:0">C'est un pack (composé d'autres produits)</span></label>
@@ -941,7 +954,8 @@ function productForm(id){
   const f = $('#pf'), E = f.elements;
   E.iskit.onchange = () => { $('#kitw').hidden = !E.iskit.checked; if($('#initw')) $('#initw').hidden = E.iskit.checked; E.buy.required = !E.iskit.checked; };
   E.buy.required = !E.iskit.checked;
-  const ch = () => $('#commHint').textContent = E.commMode.value === 'pct' ? '% du prix de vente' : '$ par pièce livrée';
+  const ch = () => { $('#commHint').textContent = E.commMode.value === 'pct' ? '% du prix de vente' : '$ par pièce livrée'; $('#cityUnit').textContent = E.commMode.value === 'pct' ? 'Valeurs en %.' : 'Valeurs en $ par pièce.'; };
+  $('#addCity').onclick = () => { $('#cityRows').insertAdjacentHTML('beforeend', cityRow('', '')); $('#cityRows').lastElementChild.querySelector('input').focus(); };
   E.commMode.onchange = ch; ch();
   f.onsubmit = e => {
     e.preventDefault();
@@ -954,7 +968,7 @@ function productForm(id){
     }
     if(p && S.moves.some(m => m.pid === p.id) && JSON.stringify(kitv) !== JSON.stringify(isKit(p) ? p.kit : null)){
       toast(isKit(p) ? 'Ce pack a déjà des ventes : sa composition ne peut plus changer' : 'Ce produit a déjà du stock : créez plutôt un nouveau pack'); return; }
-    const data = {name, details:E.details.value.trim(), cat:E.cat.value.trim(), cur:E.cur.value, sell:num(E.sell.value), buy:num(E.buy.value), comm:num(E.comm.value), commMode:E.commMode.value, alert:Math.max(0, Math.round(num(E.alert.value))), kit:kitv};
+    const data = {name, details:E.details.value.trim(), cat:E.cat.value.trim(), cur:E.cur.value, sell:num(E.sell.value), buy:num(E.buy.value), comm:num(E.comm.value), commMode:E.commMode.value, commCity:readCityComm(f), alert:Math.max(0, Math.round(num(E.alert.value))), kit:kitv};
     if(p){ Object.assign(p, data); toast('Produit modifié'); }
     else {
       const np = Object.assign({id:uid()}, data); S.products.push(np);
@@ -964,6 +978,20 @@ function productForm(id){
     }
     S.settings.setup = true; save(); closeSheet(); render();
   };
+}
+function cityRow(city, v){
+  return `<div class="kitrow" style="grid-template-columns:1fr 90px"><input name="ccity" list="ccl" value="${esc(city)}" placeholder="Ville"><input name="cval" type="number" step="any" min="0" value="${v === '' || v == null ? '' : esc(v)}" placeholder="—"></div>`;
+}
+function cityCommRows(p){
+  const have = Object.assign({}, p && p.commCity || {});
+  const cs = [...new Set(cities().filter(c => c !== 'Sans ville').concat(Object.keys(have)))];
+  if(!cs.length) cs.push('');
+  return `<datalist id="ccl">${[...new Set(CITIES.concat(cities()))].map(c => `<option value="${esc(c)}">`).join('')}</datalist>` + cs.map(c => cityRow(c, have[c] ?? '')).join('');
+}
+function readCityComm(f){
+  const o = {}, cs = [...f.querySelectorAll('[name=ccity]')], vs = [...f.querySelectorAll('[name=cval]')];
+  cs.forEach((c,i) => { const city = c.value.trim(), v = vs[i].value.trim(); if(city && v !== '') o[city] = num(v); });
+  return Object.keys(o).length ? o : null;
 }
 function prodSheet(id){
   const p = prod(id); if(!p) return;
@@ -978,7 +1006,8 @@ function prodSheet(id){
     <div class="card" style="margin-bottom:12px">
       <div class="dl"><span>Prix de vente</span><span class="num">${priceTxt(p)}${p.cur==='FC' ? ' ≈ ' + money(su) : ''}</span></div>
       <div class="dl"><span>Prix d'achat</span><span class="num">${num(p.buy)>0 ? amt(p.buy, p.cur) : (kit && cu ? '≈ ' + money(cu) + ' (produits)' : '<span class="red">à compléter</span>')}</span></div>
-      <div class="dl"><span>Commission livreur</span><span class="num">${commTxt(p)}${p.commMode==='pct' ? ' ≈ ' + money(cm) : ''}</span></div>
+      <div class="dl"><span>Commission livreur</span><span class="num">${commVal(p, num(p.comm))}${p.commMode==='pct' ? ' ≈ ' + money(cm) : ''}</span></div>
+      ${p.commCity ? Object.entries(p.commCity).map(([c,v]) => `<div class="dl"><span>&nbsp;&nbsp;↳ à ${esc(c)}</span><span class="num">${commVal(p, num(v))}${p.commMode==='pct' ? ' ≈ ' + money(su * num(v) / 100) : ''}</span></div>`).join('') : ''}
       <div class="dl strong"><span>Bénéfice par pièce (après commission)</span><span class="num ${marge<0?'red':'green'}">${money(marge)}</span></div>
       ${p.cat ? `<div class="dl"><span>Catégorie</span><span>${esc(p.cat)}</span></div>` : ''}
       ${p.details ? `<p class="note" style="margin-top:8px;white-space:pre-line">${esc(p.details)}</p>` : ''}
