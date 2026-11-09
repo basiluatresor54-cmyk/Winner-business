@@ -193,6 +193,8 @@ details summary{cursor:pointer}
 textarea.code{width:100%;min-height:90px;font:12px/1.4 ui-monospace,Menlo,monospace;padding:10px;border:1.5px solid var(--line);border-radius:11px}
 
 .tb .num{white-space:nowrap}
+/* photos produits */
+.ic.pic{padding:0;overflow:hidden;background:#fff;border:1px solid var(--line);display:grid;place-items:center;font-size:22px}.ic.pic img{width:100%;height:100%;object-fit:cover}
 /* vente rapide / rapport du jour */
 .quickbtn{font-size:18px;padding:16px;margin:4px 0 10px}
 .daycard{display:flex;justify-content:space-between;align-items:center;width:100%;text-align:left;margin-bottom:10px;gap:8px}
@@ -281,7 +283,7 @@ const ICON = {
 };
 const ico = (n, cls='i') => `<svg class="${cls}" viewBox="0 0 24 24">${ICON[n]}</svg>`;
 const STATUS = {attente:'À livrer', encours:'En cours', livre:'Livré', annule:'Annulé'};
-const MOTIFS = ['Cassé / abîmé','Périmé','Perdu / volé','Cadeau / échantillon','Usage interne','Autre'];
+const MOTIFS = ['Cassé / abîmé','Périmé','Perdu / volé','Écart inventaire','Cadeau / échantillon','Usage interne','Autre'];
 const DEPCATS = ['Transport','Expédition colis (vers une ville)','Publicité Facebook','Boutique / loyer','Emballage','Crédit / internet','Salaire / aide','Autre'];
 const CITIES = ['Kinshasa','Lubumbashi','Bukavu','Kolwezi','Goma','Kisangani','Matadi','Mbuji-Mayi','Kananga'];
 const COLORS = ['#8A3B12','#0F766E','#1D4ED8','#7C3AED','#BE185D','#DC2626','#EA580C','#CA8A04','#15803D','#111827'];
@@ -343,6 +345,7 @@ const locName = loc => loc ? 'chez ' + lname(loc) : 'au dépôt';
 const byName = (a,b) => a.name.localeCompare(b.name, 'fr');
 const isKit = p => !!(p && p.kit && p.kit.length);
 const sortMoves = arr => arr.sort((a,b) => (b.date||'').localeCompare(a.date||'') || (b.ts||0) - (a.ts||0));
+const pic = (p, cls) => p && p.photo ? `<div class="ic pic"><img src="${p.photo}" alt=""></div>` : `<div class="ic ${cls||'c-brand'}">${esc(initials(p ? p.name : '?'))}</div>`;
 const initials = s => (s||'?').trim().split(/\s+/).slice(0,2).map(w => w[0]).join('').toUpperCase();
 const priceTxt = p => amt(p.sell||0, p.cur);
 function hexRgb(h){ h = (h||'#0F766E').replace('#',''); if(h.length===3) h = h.split('').map(c=>c+c).join(''); const n = parseInt(h,16); return [n>>16&255, n>>8&255, n&255]; }
@@ -372,6 +375,7 @@ function stockAt(moves = S.moves){
       else if(m.type === 'retour'){ add(m.liv, pid, -q); add('', pid, q); }
       else if(isOutSale(m)) add(m.liv||'', pid, -q);
       else if(m.type === 'perte') add(m.loc||'', pid, -q);
+      else if(m.type === 'ajust') add(m.loc||'', pid, q);
     }
   }
   return st;
@@ -442,6 +446,7 @@ function livStats(id){
       if(m.type === 'envoi'){ r.got += q; P(pid).got += q; }
       else if(m.type === 'retour'){ r.back += q; P(pid).back += q; }
       else if(m.type === 'perte'){ r.lost += q; P(pid).lost += q; }
+      else if(m.type === 'ajust'){ r.got += q; P(pid).got += q; }
       else if(m.type === 'vente' && m.status === 'livre'){ r.sold += q; P(pid).sold += q; }
       else if(m.type === 'vente' && m.status !== 'annule'){ r.pend += q; P(pid).pend += q; }
     }
@@ -572,7 +577,9 @@ function vStock(){
   return `<input class="search" type="search" placeholder="Rechercher un produit…" value="${esc(stockQ)}" oninput="stockQ=this.value;refreshList('stock')">
   <div id="lst">${stockRows()}</div>
   <div class="btns" style="margin-top:12px"><button class="btn" data-a="new:entree">+ Entrée de stock</button><button class="btn" data-a="new:envoi">Envoyer à un livreur</button></div>
-  <div style="margin-top:8px"><button class="btn block" data-a="new:produit">+ Nouveau produit</button></div>`;
+  <div style="margin-top:8px"><button class="btn block" data-a="new:produit">+ Nouveau produit</button></div>
+  <div style="margin-top:8px"><button class="btn block" data-a="invform:">📋 Contrôle de stock du dépôt</button></div>
+  ${invHistHTML('')}`;
 }
 function stockRows(){
   if(!S.products.length) return `<div class="list"><div class="empty"><b>Aucun produit</b>Ajoutez votre premier produit.</div></div>`;
@@ -583,10 +590,10 @@ function stockRows(){
   let units = 0, dep = 0, hand = 0;
   S.products.filter(p => !isKit(p)).forEach(p => { units += totalOf(st,p.id); dep += qAt(st,'',p.id); hand += inHands(st,p.id); });
   const row = p => { const tot = totalOf(st,p.id), cls = tot<=0 ? 'qty-zero' : tot<=(p.alert||0) ? 'qty-low' : '';
-    return `<button class="it" data-a="prod:${p.id}"><div class="ic c-brand">${esc(initials(p.name))}</div>
+    return `<button class="it" data-a="prod:${p.id}">${pic(p)}
       <div class="m"><div class="t">${esc(p.name)}</div><div class="d">Dépôt <b>${qAt(st,'',p.id)}</b> · Chez livreurs <b>${inHands(st,p.id)}</b></div><div class="d">${priceTxt(p)} · achat ${num(p.buy)>0 ? amt(p.buy, p.cur) : '?'} · commission ${commTxt(p)}${num(p.buy)>0?'':' · <span class="red">prix d\'achat ?</span>'}</div></div>
       <div class="r"><div class="big num ${cls}">${tot}</div><div class="sm">total</div></div></button>`; };
-  const krow = p => `<button class="it" data-a="prod:${p.id}"><div class="ic c-send">${ico('tag')}</div>
+  const krow = p => `<button class="it" data-a="prod:${p.id}">${p.photo ? pic(p) : `<div class="ic c-send">${ico('tag')}</div>`}
       <div class="m"><div class="t">${esc(p.name)}</div><div class="d">Pack : ${p.kit.map(c => c.q + ' × ' + esc(pname(c.pid))).join(' + ')}</div><div class="d">${priceTxt(p)} · commission ${commTxt(p)}</div></div>
       <div class="r"><div class="big num">${avail(st,'',p.id)}</div><div class="sm">possibles<br>au dépôt</div></div></button>`;
   return `<div class="kpis" style="margin-bottom:14px">
@@ -637,6 +644,8 @@ function vLivreurs(){
     <div class="kpi"><div class="l">Argent à verser</div><div class="v num ${remit>0.009?'neg':''}">${money(remit)}</div><div class="s">encaissé, pas encore versé</div></div>
     <div class="kpi"><div class="l">Commissions à payer</div><div class="v num">${money(topay)}</div><div class="s">dont cette semaine : ${money(week)}</div></div>
   </div>`;
+  h += `<button class="btn primary block" style="margin-top:12px" data-a="soir">🌙 Point du soir (message WhatsApp à chaque livreur)</button>`;
+  h += rankHTML();
   const ranked = S.livreurs.slice().sort((a,b) => S2[b.id].week - S2[a.id].week || S2[b.id].weekN - S2[a.id].weekN);
   h += `<div class="sec"><h2>Gains de la semaine (lun–sam)</h2><span class="note">depuis ${fmtDate(weekStart())}</span></div>
     <div class="card tbw"><table class="tb"><tr><th>Livreur</th><th class="rt">Livrées</th><th class="rt">Gagné</th><th class="rt">Si en cours livrées</th></tr>
@@ -708,6 +717,8 @@ function livSheet(id){
       <button class="btn" data-a="editliv:${id}">Modifier</button>
     </div>
     <a class="btn wa block" href="${waLink(l.phone, report)}" target="_blank" rel="noopener">${ico('wa')} Envoyer le point à ${esc(l.name)}</a>
+    <button class="btn block" style="margin-top:8px" data-a="invform:${id}">📋 Contrôle de stock (compter ce qu'il a en main)</button>
+    ${(() => { const t = taux(id, 'tout'); return t.done + t.ko ? `<div class="card" style="margin-top:10px"><div class="dl"><span>Taux de réussite (depuis le début)</span><span class="num"><b>${t.pct} %</b></span></div><p class="note">${t.done} livrée(s) · ${t.ko} annulée(s)${t.pend ? ' · ' + t.pend + ' en cours' : ''}</p></div>` : ''; })()}
     <button class="btn primary block" style="margin-top:8px" data-a="releve:${id}">📄 Relevé de la semaine (commissions · PDF)</button>
     ${Object.keys(s.weekByProd).length ? `<div class="sec"><h2>Cette semaine, produit par produit</h2></div><div class="card tbw"><table class="tb"><tr><th>Produit</th><th class="rt">Pièces</th><th class="rt">Ventes</th><th class="rt">${l.pay==='salaire'?'':'Commission'}</th></tr>
       ${Object.entries(s.weekByProd).map(([pid,v]) => `<tr><td>${esc(pname(pid))}</td><td class="rt num">${v.q}</td><td class="rt num">${money(v.a)}</td><td class="rt num">${l.pay==='salaire'?'':money(v.c)}</td></tr>`).join('')}</table></div>` : ''}
@@ -715,6 +726,8 @@ function livSheet(id){
     ${rows.length ? `<div class="card tbw"><table class="tb"><tr><th>Produit</th><th class="rt">Reçu</th><th class="rt">Livré</th><th class="rt">En cours</th><th class="rt">Reste</th></tr>
       ${rows.map(([pid,v,q]) => `<tr><td>${esc(pname(pid))}</td><td class="rt num">${v.got - v.back}</td><td class="rt num">${v.sold}</td><td class="rt num">${v.pend}</td><td class="rt num"><b>${q}</b></td></tr>`).join('')}</table>
       <p class="note" style="margin-top:6px">« Reste » = pièces en main non réservées. Reçu = envoyé − retourné.</p></div>` : `<div class="card empty">Aucun stock confié pour le moment.</div>`}
+    ${flowHTML(id)}
+    ${invHistHTML(id)}
     <div class="sec"><h2>Historique</h2></div>
     <div class="list">${hist.length ? hist.map(rowMove).join('') : '<div class="empty">Aucune opération</div>'}</div>`);
 }
@@ -736,7 +749,7 @@ function vPlus(){
   ];
   return `<div class="list menu">${items.map(([v,c,i,t,d]) => `<button class="it" data-a="nav:${v}"><div class="ic ${c}">${ico(i)}</div><div class="m"><div class="t">${t}</div><div class="d" style="white-space:normal">${d}</div></div>${ico('chev')}</button>`).join('')}</div>
   <div class="sec"><h2>Raccourcis</h2></div>
-  <div class="btns"><button class="btn" data-a="money:depense">+ Dépense</button><button class="btn" data-a="money:versement">+ Versement livreur</button><button class="btn" data-a="new:perte">− Sortie / perte</button><button class="btn" data-a="backup">Sauvegarde</button></div>
+  <div class="btns"><button class="btn" data-a="money:depense">+ Dépense</button><button class="btn" data-a="money:versement">+ Versement livreur</button><button class="btn" data-a="new:perte">− Sortie / perte</button><button class="btn" data-a="backup">Sauvegarde</button><button class="btn" data-a="soir">🌙 Point du soir</button></div>
   <div style="margin-top:8px"><button class="btn block" data-a="tpl">📋 Modèle de commande pour WhatsApp</button></div>`;
 }
 
@@ -756,7 +769,7 @@ function vDepenses(){
 const BOOKTYPES = [['all','Tout'],['entree','Entrées'],['envoi','Envois livreurs'],['vente','Ventes'],['sortie','Retours / pertes'],['argent','Argent']];
 function bookMatch(m){
   if(bookType === 'all') return true;
-  if(bookType === 'sortie') return m.type === 'retour' || m.type === 'perte';
+  if(bookType === 'sortie') return m.type === 'retour' || m.type === 'perte' || m.type === 'ajust' || m.type === 'inventaire';
   if(bookType === 'argent') return ['versement','paiecomm','depense'].includes(m.type);
   return m.type === bookType;
 }
@@ -789,6 +802,9 @@ function rowMove(m){
     case 'perte': return R('move', 'c-loss', 'out', esc(pname(m.pid)), `Sortie · ${esc(m.motif||'Autre')} · ${m.loc ? esc(lname(m.loc)) : 'dépôt'}`, '−'+m.qty, 'var(--warn)', money(m.qty*num(m.costU)));
     case 'versement': return R('money', 'c-money', 'cash', 'Versement de ' + esc(lname(m.liv)), m.note ? esc(m.note) : 'Argent reçu (Mobile Money…)', '+'+amt(m.amount, m.cur), 'var(--ok)', '');
     case 'paiecomm': return R('money', 'c-send', 'coin', 'Commission payée à ' + esc(lname(m.liv)), m.note ? esc(m.note) : 'Paiement des commissions', '−'+money(num(m.amount)), 'var(--vio)', '');
+    case 'inventaire': { const L = m.lines || [], miss = L.reduce((t,x) => t + Math.max(0, x.exp - x.real), 0), plus = L.reduce((t,x) => t + Math.max(0, x.real - x.exp), 0);
+      return R('inv', 'c-x', 'box', 'Contrôle de stock · ' + (m.loc ? esc(lname(m.loc)) : 'dépôt'), miss || plus ? `${miss ? miss + ' manquante(s)' : ''}${miss && plus ? ' · ' : ''}${plus ? plus + ' en trop' : ''}` : 'Tout est juste ✅', miss ? '−' + miss : '✓', miss ? 'var(--bad)' : 'var(--ok)', ''); }
+    case 'ajust': return R('inv', 'c-in', 'in', esc(pname(m.pid)), 'Écart inventaire (en trop) · ' + (m.loc ? esc(lname(m.loc)) : 'dépôt'), '+' + m.qty, 'var(--ok)', '');
     case 'depense': return R('money', 'c-loss', 'receipt', esc(m.cat||'Dépense'), (m.liv ? esc(lname(m.liv)) + ' · ' : '') + (m.note ? esc(m.note) : 'Dépense'), '−'+amt(m.amount, m.cur), 'var(--warn)', m.cur==='FC' ? money(moneyUSD(m)) : '');
   }
   return '';
@@ -1091,6 +1107,127 @@ function stockBilanCard(){
   </div>`;
 }
 
+/* ---------- Photo : réduire une image (produits) ---------- */
+function smallImage(file, size, q){
+  return new Promise((res, rej) => { const r = new FileReader(); r.onerror = rej;
+    r.onload = () => { const img = new Image(); img.onerror = rej; img.onload = () => {
+      const c = document.createElement('canvas'); c.width = c.height = size;
+      const x = c.getContext('2d'), k = Math.max(size/img.width, size/img.height), w = img.width*k, h = img.height*k;
+      x.fillStyle = '#fff'; x.fillRect(0,0,size,size); x.drawImage(img, (size-w)/2, (size-h)/2, w, h);
+      res(c.toDataURL('image/jpeg', q)); }; img.src = r.result; };
+    r.readAsDataURL(file); });
+}
+
+/* ---------- Contrôle de stock (inventaire) ---------- */
+function pendingAt(loc, pid){ let q = 0; for(const m of S.moves) if(m.type === 'vente' && (m.liv||'') === loc && (m.status === 'attente' || m.status === 'encours')) for(const [x, n] of lines(m.pid, m.qty)) if(x === pid) q += n; return q; }
+function invForm(loc){
+  const st = stockAt(), name = loc ? lname(loc) : 'Dépôt (chez vous)', L = liv(loc);
+  const rows = S.products.filter(p => !isKit(p)).map(p => [p, qAt(st, loc, p.id) + pendingAt(loc, p.id)]).filter(([p, e]) => e || S.moves.some(m => m.pid === p.id && (m.liv === loc || m.loc === loc) && loc)).sort((a,b) => byName(a[0], b[0]));
+  if(!rows.length){ toast(loc ? 'Ce livreur n\'a aucun stock à contrôler' : 'Aucun stock au dépôt'); return; }
+  sheet('📋 Contrôle de stock · ' + name, `<p class="note" style="margin-bottom:10px">Comptez les pièces réellement en main${loc ? ' (demandez à ' + esc(L ? L.name : 'votre livreur') + ' de compter, y compris les commandes pas encore livrées)' : ''}, puis tapez le nombre compté. Les écarts sont enregistrés automatiquement.</p>
+    <form id="invf"><div class="card tbw"><table class="tb"><tr><th>Produit</th><th class="rt">Attendu</th><th class="rt" style="width:90px">Compté</th></tr>
+    ${rows.map(([p,e]) => `<tr><td>${esc(p.name)}</td><td class="rt num"><b>${e}</b></td><td class="rt"><input name="c_${p.id}" type="number" min="0" step="1" value="${e}" style="width:80px;text-align:right" data-exp="${e}"></td></tr>`).join('')}</table></div>
+    <div id="invDiff" class="note" style="margin:10px 0"></div>
+    <div class="row2">${field('Date du contrôle', `<input name="date" type="date" value="${today()}" max="${today()}">`)}${field('Note', `<input name="note" placeholder="Optionnel">`)}</div>
+    <button class="btn primary block">Enregistrer le contrôle</button></form>`);
+  const f = $('#invf'), E = f.elements;
+  const diff = () => { const out = []; rows.forEach(([p,e]) => { const v = Math.round(num(E['c_' + p.id].value)); if(v !== e) out.push(`${esc(p.name)} : <b class="${v < e ? 'red' : 'green'}">${v - e > 0 ? '+' : ''}${v - e}</b>`); }); $('#invDiff').innerHTML = out.length ? '⚠️ Écarts : ' + out.join(' · ') : '✅ Aucun écart pour le moment'; };
+  f.oninput = diff; diff();
+  f.onsubmit = e => { e.preventDefault();
+    const date = E.date.value || today(), note = E.note.value.trim(), id = uid(), ts = Date.now(), lns = [], add = [];
+    rows.forEach(([p,ex]) => { const real = Math.max(0, Math.round(num(E['c_' + p.id].value))); lns.push({pid:p.id, exp:ex, real});
+      if(real < ex) add.push({id:uid(), ts:ts+1, type:'perte', pid:p.id, qty:ex - real, loc, motif:'Écart inventaire', costU:unitCostUSD(p), date, note:'Contrôle de stock : attendu ' + ex + ', compté ' + real, inv:id});
+      if(real > ex) add.push({id:uid(), ts:ts+1, type:'ajust', pid:p.id, qty:real - ex, loc, date, note:'Contrôle de stock : attendu ' + ex + ', compté ' + real, inv:id}); });
+    S.moves.push({id, ts, type:'inventaire', loc, date, lines:lns, note});
+    S.moves.push(...add); save(); render(); invSheet(id, true);
+  };
+}
+function invText(m){
+  const L = m.lines || [], bad = L.filter(x => x.real !== x.exp);
+  const val = L.reduce((t,x) => t + Math.max(0, x.exp - x.real) * unitCostUSD(prod(x.pid)), 0);
+  return `*${S.settings.shop} — Contrôle de stock*\n${m.loc ? lname(m.loc) : 'Dépôt'} · ${dAbs(m.date, 1)}\n\n${L.map(x => `• ${pname(x.pid)} : attendu ${x.exp}, compté ${x.real}${x.real < x.exp ? ' ❌ manque ' + (x.exp - x.real) : x.real > x.exp ? ' ➕ ' + (x.real - x.exp) + ' en trop' : ' ✅'}`).join('\n')}\n\n${bad.length ? `*Écart : ${L.reduce((t,x) => t + Math.max(0, x.exp - x.real), 0)} pièce(s) manquante(s)${val ? ' (' + money(val) + ' au prix d\'achat)' : ''}*` : '*Tout est juste ✅ Merci !*'}`;
+}
+function invSheet(id, fresh){
+  const m0 = S.moves.find(x => x.id === id); if(!m0) return;
+  const m = m0.type === 'inventaire' ? m0 : S.moves.find(x => x.id === m0.inv && x.type === 'inventaire'); if(!m) return;
+  const L = liv(m.loc), txt = invText(m), miss = (m.lines||[]).reduce((t,x) => t + Math.max(0, x.exp - x.real), 0);
+  sheet(fresh ? 'Contrôle enregistré ✅' : 'Contrôle de stock', `<div class="card" style="margin-bottom:12px"><b>${m.loc ? esc(lname(m.loc)) : 'Dépôt'}</b> · ${dAbs(m.date, 1)}${m.note ? `<br><span class="note">${esc(m.note)}</span>` : ''}</div>
+    <div class="card tbw"><table class="tb"><tr><th>Produit</th><th class="rt">Attendu</th><th class="rt">Compté</th><th class="rt">Écart</th></tr>
+    ${(m.lines||[]).map(x => `<tr><td>${esc(pname(x.pid))}</td><td class="rt num">${x.exp}</td><td class="rt num">${x.real}</td><td class="rt num"><b class="${x.real < x.exp ? 'red' : x.real > x.exp ? 'green' : ''}">${x.real === x.exp ? '✓' : (x.real - x.exp > 0 ? '+' : '') + (x.real - x.exp)}</b></td></tr>`).join('')}</table></div>
+    <p class="note" style="margin:10px 0">${miss ? `Les ${miss} pièce(s) manquante(s) sont enregistrées en « Sortie · Écart inventaire » (comptées dans les pertes). Si elles sont retrouvées, supprimez ce contrôle et refaites-le.` : 'Aucune pièce manquante.'}</p>
+    <div class="stack">${m.loc ? `<a class="btn wa block" href="${waLink(L && L.phone, txt)}" target="_blank" rel="noopener">${ico('wa')} Envoyer le résultat à ${esc(L ? L.name : 'livreur')}</a>` : ''}
+    <button class="btn ghost-bad block" data-a="invdel:${m.id}">Supprimer ce contrôle (et ses écarts)</button></div>`);
+}
+function invHistHTML(loc){
+  const L = sortMoves(S.moves.filter(m => m.type === 'inventaire' && (m.loc||'') === loc)).slice(0, 6);
+  return L.length ? `<div class="sec"><h2>Contrôles de stock</h2></div><div class="list">${L.map(rowMove).join('')}</div>` : '';
+}
+
+/* ---------- Stock reçu / rendu par un livreur (historique daté) ---------- */
+function flowRows(lid){
+  return sortMoves(S.moves.filter(m => ['envoi','retour','perte','ajust'].includes(m.type) && (m.liv === lid || m.loc === lid)));
+}
+function flowHTML(lid, limit){
+  const L = flowRows(lid).slice(0, limit || 30); if(!L.length) return '';
+  const lab = m => m.type === 'envoi' ? ['Reçu', '+' + m.qty, 'green'] : m.type === 'retour' ? ['Rendu au dépôt', '−' + m.qty, ''] : m.type === 'ajust' ? ['Écart (en trop)', '+' + m.qty, 'green'] : [m.motif === 'Écart inventaire' ? 'Manquant (contrôle)' : 'Sortie · ' + (m.motif || 'perte'), '−' + m.qty, 'red'];
+  return `<div class="sec"><h2>Stock reçu / rendu</h2></div><div class="card tbw"><table class="tb"><tr><th>Date</th><th>Produit</th><th>Opération</th><th class="rt">Qté</th></tr>
+    ${L.map(m => { const [t, q, c] = lab(m); return `<tr><td style="white-space:nowrap">${dAbs(m.date)}</td><td>${esc(pname(m.pid))}</td><td>${t}</td><td class="rt num"><b class="${c}">${q}</b></td></tr>`; }).join('')}</table></div>`;
+}
+
+/* ---------- Taux de réussite & classement ---------- */
+let rankPer = 'sem';
+function taux(lid, per){
+  const r = {done:0, ko:0, pend:0, ca:0, comm:0};
+  for(const m of S.moves) if(m.type === 'vente' && m.liv === lid && inPer(m.date, per)){
+    if(m.status === 'livre'){ r.done++; r.ca += saleUSD(m); r.comm += m.qty * num(m.commU); }
+    else if(m.status === 'annule') r.ko++; else r.pend++;
+  }
+  r.pct = r.done + r.ko ? Math.round(r.done / (r.done + r.ko) * 100) : 0;
+  return r;
+}
+function rankHTML(){
+  const rows = S.livreurs.map(l => [l, taux(l.id, rankPer)]).sort((a,b) => b[1].ca - a[1].ca || b[1].done - a[1].done);
+  const med = ['🥇','🥈','🥉'];
+  return `<div class="sec"><h2>Classement & taux de réussite</h2></div>
+  <div class="chips">${[['sem','Cette semaine'],['mois','Ce mois'],['tout','Tout']].map(([k,t]) => `<button class="chip ${rankPer===k?'on':''}" data-a="rankper:${k}">${t}</button>`).join('')}</div>
+  <div class="card tbw" style="margin-top:8px"><table class="tb"><tr><th>Livreur</th><th class="rt">Livrées</th><th class="rt">Annulées</th><th class="rt">Réussite</th><th class="rt">Ventes</th></tr>
+  ${rows.map(([l,t], i) => `<tr data-a="liv:${l.id}" style="cursor:pointer"><td>${t.done && i < 3 ? med[i] + ' ' : ''}<b>${esc(l.name)}</b><br><span class="note">${esc(l.city||'')}${t.pend ? ' · ' + t.pend + ' en cours' : ''}</span></td><td class="rt num">${t.done}</td><td class="rt num ${t.ko ? 'red' : ''}">${t.ko}</td><td class="rt num"><b class="${t.done + t.ko ? (t.pct >= 80 ? 'green' : t.pct < 60 ? 'red' : '') : ''}">${t.done + t.ko ? t.pct + ' %' : '—'}</b></td><td class="rt num">${money(t.ca)}</td></tr>`).join('')}</table>
+  <p class="note" style="margin-top:6px">Réussite = livrées ÷ (livrées + annulées). Une commande annulée = client absent, refus, retour…</p></div>`;
+}
+
+/* ---------- Point du soir ---------- */
+let soirDate = '';
+function soirData(lid, d){
+  const r = {sold:{}, n:0, ca:0, comm:0, vers:0, pend:0};
+  for(const m of S.moves){
+    if(m.type === 'vente' && m.liv === lid){
+      if(m.status === 'livre' && m.date === d){ r.n++; r.ca += saleUSD(m); r.comm += m.qty * num(m.commU); r.sold[m.pid] = (r.sold[m.pid] || 0) + m.qty; }
+      if(m.status === 'attente' || m.status === 'encours') r.pend++;
+    } else if(m.type === 'versement' && m.liv === lid && m.date === d) r.vers += moneyUSD(m);
+  }
+  r.s = livStats(lid);
+  return r;
+}
+function soirText(l, r, d){
+  const st = stockAt(), stock = S.products.filter(p => !isKit(p)).map(p => [p, qAt(st, l.id, p.id) + pendingAt(l.id, p.id)]).filter(x => x[1] > 0);
+  const fc = r.s.toRemit > 0.009 ? ' (≈ ' + fmt(Math.round(r.s.toRemit * rate() / 50) * 50) + ' ' + LC() + ')' : '';
+  return `*${S.settings.shop} — Point du soir* 🌙\n${l.name} · ${dAbs(d, 1)}\n\n*Livré ${d === today() ? "aujourd'hui" : 'ce jour'} :*\n${Object.entries(r.sold).map(([pid,q]) => `• ${pname(pid)} × ${q}`).join('\n') || '• aucune livraison'}\nTotal : ${money(r.ca)}${l.pay === 'salaire' ? '' : '\nVotre commission : ' + money(r.comm)}${r.vers ? '\nDéjà reçu ce jour : ' + money(r.vers) : ''}\n\n*Montant à envoyer par Mobile Money : ${money(Math.max(0, r.s.toRemit))}*${fc}\n${r.pend ? '\nCommandes encore à livrer : ' + r.pend : ''}\n*Stock en main :*\n${stock.map(([p,q]) => `• ${p.name} : ${q}`).join('\n') || '• aucun'}\n\nMerci de vérifier et de répondre « OK » 🙏`;
+}
+function soirSheet(){
+  const d = soirDate || today();
+  const items = S.livreurs.map(l => [l, soirData(l.id, d)]).sort((a,b) => (b[1].n + (b[1].s.toRemit > .009)) - (a[1].n + (a[1].s.toRemit > .009)) || byName(a[0], b[0]));
+  const tot = items.reduce((t,[,r]) => ({ca:t.ca + r.ca, rem:t.rem + Math.max(0, r.s.toRemit)}), {ca:0, rem:0});
+  sheet('🌙 Point du soir', `<div class="chips"><button class="chip ${d===today()?'on':''}" data-a="soirday:${today()}">Aujourd'hui</button><button class="chip ${d===addDays(today(),-1)?'on':''}" data-a="soirday:${addDays(today(),-1)}">Hier</button></div>
+    <div class="card" style="margin:10px 0"><div class="dl"><span>Livré par tous les livreurs</span><span class="num"><b>${money(tot.ca)}</b></span></div><div class="dl strong"><span>Total encore à recevoir</span><span class="num ${tot.rem > .009 ? 'red' : 'green'}">${money(tot.rem)}</span></div></div>
+    ${items.map(([l,r]) => `<div class="card" style="margin-bottom:10px">
+      <div style="display:flex;justify-content:space-between;gap:8px"><b>${esc(l.name)}</b><span class="note">${esc(l.city||'')}</span></div>
+      <div class="dl"><span>Livré ce jour</span><span class="num">${r.n} vente(s) · ${money(r.ca)}</span></div>
+      <div class="dl strong"><span>À envoyer (total dû)</span><span class="num ${r.s.toRemit > .009 ? 'red' : 'green'}">${money(Math.max(0, r.s.toRemit))}</span></div>
+      ${r.pend ? `<div class="dl"><span>Encore à livrer</span><span class="num">${r.pend}</span></div>` : ''}
+      <a class="btn wa block" style="margin-top:8px" href="${waLink(l.phone, soirText(l, r, d))}" target="_blank" rel="noopener">${ico('wa')} Envoyer le point à ${esc(l.name)}</a></div>`).join('')}
+    <p class="note">Chaque message contient : ce qu'il a livré, sa commission, le montant à envoyer par Mobile Money (en $ et en ${esc(LC())}) et le stock qui lui reste.</p>`);
+}
+
 /* ---------- Vente rapide (boutique / sur place) ---------- */
 const PAYS = ['', 'Cash', 'Mobile Money', 'Carte / autre'];
 let lastQuick = null;
@@ -1309,6 +1446,10 @@ function productForm(id){
   const kit = (p?.kit || []).concat([{},{},{}]).slice(0,3);
   sheet(p ? 'Modifier le produit' : 'Nouveau produit', `<form id="pf">
     ${field('Nom du produit *', `<input name="name" required maxlength="70" value="${esc(p?.name)}" placeholder="Ex : Sac de poitrine">`)}
+    <div class="f"><span>Photo du produit (optionnel)</span><div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+      <div class="ic pic" id="pfPrev" style="width:64px;height:64px">${p && p.photo ? `<img src="${p.photo}" alt="">` : '📷'}</div>
+      <label class="btn sm" style="cursor:pointer">Choisir une photo<input type="file" accept="image/*" id="pfPhoto" hidden></label>
+      <button type="button" class="btn sm" id="pfNoPhoto" ${p && p.photo ? '' : 'hidden'}>Retirer</button></div></div>
     ${field('Détails', `<textarea name="details" placeholder="Description, taille, couleur, contenance…">${esc(p?.details)}</textarea>`)}
     <div class="row2">${field('Catégorie', `<input name="cat" list="catl" value="${esc(p?.cat)}" placeholder="Ex : Beauté"><datalist id="catl">${cats.map(c => `<option value="${esc(c)}">`).join('')}</datalist>`)}
       ${field('Devise du prix', `<select name="cur"><option value="$" ${p?.cur!=='FC'?'selected':''}>Dollar ($)</option><option value="FC" ${p?.cur==='FC'?'selected':''}>Monnaie locale (${esc(LC())})</option></select>`)}</div>
@@ -1326,6 +1467,9 @@ function productForm(id){
     <button class="btn primary block" style="margin-top:6px">${p ? 'Enregistrer' : 'Ajouter le produit'}</button>
     ${p ? `<button type="button" class="btn ghost-bad block" style="margin-top:8px" data-a="delprod:${p.id}">Supprimer ce produit</button>` : ''}</form>`);
   const f = $('#pf'), E = f.elements;
+  let photo = (p && p.photo) || '';
+  $('#pfPhoto').onchange = e => { const file = e.target.files[0]; if(!file) return; smallImage(file, 240, .72).then(u => { photo = u; $('#pfPrev').innerHTML = `<img src="${u}" alt="">`; $('#pfNoPhoto').hidden = false; }).catch(() => toast('Image illisible')); };
+  $('#pfNoPhoto').onclick = () => { photo = ''; $('#pfPrev').textContent = '📷'; $('#pfNoPhoto').hidden = true; };
   E.iskit.onchange = () => { $('#kitw').hidden = !E.iskit.checked; if($('#initw')) $('#initw').hidden = E.iskit.checked; E.buy.required = !E.iskit.checked; };
   E.buy.required = !E.iskit.checked;
   const ch = () => { $('#commHint').textContent = E.commMode.value === 'pct' ? '% du prix de vente' : '$ par pièce livrée'; $('#cityUnit').textContent = E.commMode.value === 'pct' ? 'Valeurs en %.' : 'Valeurs en $ par pièce.'; };
@@ -1342,7 +1486,7 @@ function productForm(id){
     }
     if(p && S.moves.some(m => m.pid === p.id) && JSON.stringify(kitv) !== JSON.stringify(isKit(p) ? p.kit : null)){
       toast(isKit(p) ? 'Ce pack a déjà des ventes : sa composition ne peut plus changer' : 'Ce produit a déjà du stock : créez plutôt un nouveau pack'); return; }
-    const data = {name, details:E.details.value.trim(), cat:E.cat.value.trim(), cur:E.cur.value, sell:num(E.sell.value), buy:num(E.buy.value), comm:num(E.comm.value), commMode:E.commMode.value, commCity:readCityComm(f), alert:Math.max(0, Math.round(num(E.alert.value))), kit:kitv};
+    const data = {name, details:E.details.value.trim(), cat:E.cat.value.trim(), cur:E.cur.value, sell:num(E.sell.value), buy:num(E.buy.value), comm:num(E.comm.value), commMode:E.commMode.value, commCity:readCityComm(f), alert:Math.max(0, Math.round(num(E.alert.value))), kit:kitv, photo};
     if(p){ Object.assign(p, data); toast('Produit modifié'); }
     else {
       const np = Object.assign({id:uid()}, data); S.products.push(np);
@@ -1373,7 +1517,7 @@ function prodSheet(id){
   const cu = unitCostUSD(p), su = toUSD(num(p.sell), p.cur), cm = commUFor(p, {pay:'produit'}, su), marge = su - cu - cm;
   const hist = sortMoves(S.moves.filter(m => m.pid === id || (!kit && m.pid && isKit(prod(m.pid)) && prod(m.pid).kit.some(c => c.pid === id)))).slice(0,15);
   const locs = S.livreurs.map(l => [l, kit ? avail(st, l.id, id) : qAt(st, l.id, id)]).filter(x => x[1]);
-  sheet(p.name, `
+  sheet(p.name, `${p.photo ? `<img src="${p.photo}" alt="" style="width:100%;max-height:240px;object-fit:cover;border-radius:14px;margin-bottom:12px">` : ''}
     ${kit ? `<div class="warnbox" style="background:var(--vio-soft);color:var(--vio)">Pack : ${p.kit.map(c => c.q + ' × ' + esc(pname(c.pid))).join(' + ')}. Les quantités ci-dessous = nombre de packs possibles.</div>` : ''}
     <div class="kv"><div><b class="num">${kit ? avail(st,'',id) : qAt(st,'',id)}</b><span>Au dépôt</span></div><div><b class="num">${kit ? locs.reduce((s,x)=>s+x[1],0) : inHands(st,id)}</b><span>Chez livreurs</span></div><div><b class="num">${kit ? '—' : totalOf(st,id)}</b><span>Total</span></div></div>
     ${locs.length ? `<div class="card" style="margin-bottom:12px">${locs.map(([l,q]) => `<div class="dl"><span>${esc(l.name)} · ${esc(l.city||'')}</span><span class="num">${q}</span></div>`).join('')}</div>` : ''}
@@ -1754,6 +1898,12 @@ const A = {
   rweek: v => { rapWeek = +v; render(); },
   relweek: v => { relWeek = +v; render(); },
   quick: () => quickSale(),
+  invform: v => invForm(v || ''),
+  inv: id => invSheet(id),
+  invdel: async id => { if(!await ask('Supprimer ce contrôle de stock et les écarts enregistrés ?', 'Supprimer')) return; S.moves = S.moves.filter(m => m.id !== id && m.inv !== id); save(); closeSheet(); render(); toast('Contrôle supprimé'); },
+  rankper: v => { rankPer = v; render(); },
+  soir: () => { soirDate = ''; soirSheet(); },
+  soirday: v => { soirDate = v; soirSheet(); },
   jourset: v => { jourDate = v > today() ? today() : v; closeSheet(); view = 'jour'; render(); window.scrollTo(0,0); },
   jourcopy: () => copyText(jourText(dayReport(jourDate || today()))),
   releve: id => { relLiv = id; relWeek = 0; closeSheet(); view = 'releve'; render(); window.scrollTo(0,0); },
