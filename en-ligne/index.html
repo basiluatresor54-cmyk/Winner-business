@@ -212,6 +212,7 @@ body.livmode{padding-bottom:24px}
 @media (min-width:900px){body.livmode{padding-left:0}}
 textarea.code{width:100%;min-height:90px;font:12px/1.4 ui-monospace,Menlo,monospace;padding:10px;border:1.5px solid var(--line);border-radius:11px}
 
+@media print{ .top, nav.nav, .fab, .back, .noprint, #toast{display:none!important} body{padding:0!important;background:#fff} main{max-width:none;padding:0} .card,.kpi,.list{box-shadow:none;border:1px solid #ddd} }
 @media (min-width:900px){
   body{padding-bottom:24px;padding-left:220px}
   .top{padding-left:24px}
@@ -478,8 +479,8 @@ function stats(p){
 let view = 'home', period = 'mois', saleTab = 'attente', saleCity = '', bookType = 'all', bookPeriod = 'mois', depPeriod = 'mois';
 let stockQ = '', saleQ = '', bookQ = '';
 const NAV = [['home','Accueil','home'],['stock','Stock','box'],['ventes','Ventes','truck'],['livreurs','Livreurs','user'],['plus','Plus','more']];
-const SUB = {home:'Tableau de bord', stock:'Stock par produit', ventes:'Ventes & livraisons', livreurs:'Livreurs par ville', plus:'Plus', depenses:'Dépenses', livre:'Le Livre — toutes les opérations', reglages:'Réglages'};
-const PARENT = {depenses:'plus', livre:'plus', reglages:'plus'};
+const SUB = {home:'Tableau de bord', stock:'Stock par produit', ventes:'Ventes & livraisons', livreurs:'Livreurs par ville', plus:'Plus', depenses:'Dépenses', livre:'Le Livre — toutes les opérations', reglages:'Réglages', clients:'Clients', rapport:'Rapport de la semaine'};
+const PARENT = {depenses:'plus', livre:'plus', reglages:'plus', clients:'plus', rapport:'plus'};
 
 function applyBrand(){
   const c = S.settings.color || '#0F766E';
@@ -499,7 +500,7 @@ function render(){
     <div class="grow"><h1>${esc(st.shop || 'Ma Boutique')}</h1><p>${SUB[view]}</p></div>`;
   $('#nav').innerHTML = NAV.map(([k,l,i]) => `<button data-a="nav:${k}" class="${nv===k?'on':''}">${ico(i)}<span>${l}</span></button>`).join('');
   $('#fab').style.display = (view === 'reglages' || view === 'plus') ? 'none' : '';
-  const V = {home:vHome, stock:vStock, ventes:vVentes, livreurs:vLivreurs, plus:vPlus, depenses:vDepenses, livre:vLivre, reglages:vReglages};
+  const V = {home:vHome, stock:vStock, ventes:vVentes, livreurs:vLivreurs, plus:vPlus, depenses:vDepenses, livre:vLivre, reglages:vReglages, clients:vClients, rapport:vRapport};
   $('#main').innerHTML = (PARENT[view] ? `<button class="back" data-a="nav:plus">‹ Retour</button>` : '') + V[view]();
 }
 function periodChips(cur, act){
@@ -527,7 +528,7 @@ function vHome(){
   for(let k=13; k>=0; k--){ const d = addDays(t,-k); const v = r.days[d]||0; mx = Math.max(mx, v); days.push([d,v]); }
   const top = Object.entries(r.byProd).sort((a,b) => b[1].a - a[1].a).slice(0,6), tmax = top[0]?.[1].a || 1;
   const cityRows = Object.entries(r.byCity).sort((a,b) => b[1].a - a[1].a);
-  return `${periodChips(period,'per')}
+  return `${alertsCard(st, low)}${periodChips(period,'per')}
   ${noBuy.length ? `<button class="warnbox" style="margin-top:10px" data-a="nav:stock">⚠️ ${noBuy.length} produit${noBuy.length>1?'s':''} sans prix d'achat : le bénéfice affiché est trop élevé. Touchez ici pour les compléter.</button>` : ''}
   <div class="kpis" style="margin-top:10px">
     <div class="kpi hero"><div class="l">Bénéfice net ${per}</div><div class="v num ${r.net<0?'neg':''}">${money(r.net)}</div><div class="s">sur ${money(r.ca)} de ventes livrées (${r.nv})</div></div>
@@ -715,6 +716,8 @@ function livReport(l, s, rows){
 function vPlus(){
   const r = stats('mois');
   const items = [
+    ['clients','c-out','user','Clients',"Historique d'achat de chaque client et relance par WhatsApp"],
+    ['rapport','c-in','receipt','Rapport de la semaine',"Résumé lundi → samedi à envoyer par WhatsApp ou imprimer en PDF"],
     ['depenses','c-loss','receipt','Dépenses',`Transport, expédition, Facebook… · ce mois ${money(r.dep)}`],
     ['livre','c-brand','book','Le Livre',"Toutes les entrées, envois, ventes et sorties, jour par jour"],
     ['reglages','c-x','set','Réglages',"Boutique, logo, couleur, taux du dollar, sauvegarde"]
@@ -783,6 +786,7 @@ function refreshList(v){
   if(v === 'stock') el.innerHTML = stockRows();
   if(v === 'ventes') el.innerHTML = saleRows();
   if(v === 'livre') el.innerHTML = bookRows();
+  if(v === 'clients') el.innerHTML = clientRows();
 }
 
 /* ---------- Réglages ---------- */
@@ -821,7 +825,7 @@ function vReglages(){
     <button class="btn ghost-bad block" data-a="reset">Tout effacer</button>
   </div>
   <p class="note" style="text-align:center;margin:18px 0 6px">${S.products.length} produits · ${S.livreurs.length} livreurs · ${S.moves.length} opérations</p>
-  <p class="note" style="text-align:center;margin-bottom:6px">Stock & Livreurs — conçu par <b>BASILUA TECH</b></p>`;
+  <p class="note" style="text-align:center;margin-bottom:6px">Stock & Livreurs — conçu par <b>BASILUA TECH</b> · <a class="link" href="https://wa.me/243851507510" target="_blank" rel="noopener">WhatsApp +243 851 507 510</a></p>`;
 }
 
 function countryFields(st){
@@ -890,6 +894,120 @@ function receiptClient(m){
 function receiptLivreur(m){
   const st = S.settings, fee = feeTxt();
   return `*BON DE LIVRAISON — ${st.shop}* 🛵\n\n📅 ${whenTxt(m)}\n👤 Client : ${m.client || '-'}\n📞 Téléphone : ${m.phone || '-'}\n📍 Adresse : ${m.addr || '-'}\n\n📦 Produit : ${pname(m.pid)} × ${m.qty}\n*💵 Montant à encaisser : ${amt(m.qty*m.price, m.cur)}*${fee ? '\n🛵 Frais de livraison (pour vous) : ' + fee : ''}${num(m.commU) ? '\n💰 Votre commission : ' + money(m.qty*num(m.commU)) : ''}${m.note ? '\n📝 Note : ' + m.note : ''}\n\nMerci de confirmer la livraison et de verser la recette ce soir par Mobile Money 🙏`;
+}
+
+/* ---------- Alertes « À surveiller » (accueil) ---------- */
+function alertsCard(st, low){
+  const t = today(), y = addDays(t, -1), out = [];
+  const late = S.moves.filter(m => m.type === 'vente' && (m.status === 'attente' || m.status === 'encours') && (m.ddate || m.date) < t);
+  if(late.length) out.push(['nav:ventes', `🕒 ${late.length} livraison(s) en retard (date passée, pas encore livrée)`]);
+  S.livreurs.forEach(l => {
+    const s = livStats(l.id); if(s.toRemit <= 0.5) return;
+    const lastV = S.moves.filter(m => m.type === 'versement' && m.liv === l.id).reduce((a,m) => m.date > a ? m.date : a, '');
+    const oldSale = S.moves.some(m => m.type === 'vente' && m.status === 'livre' && m.liv === l.id && m.date <= y && m.date > lastV);
+    if(oldSale) out.push([`liv:${l.id}`, `💰 ${esc(l.name)} n'a pas versé ${money(s.toRemit)} (ventes d'avant aujourd'hui)`]);
+  });
+  if(low.length) out.push(['nav:stock', `📦 ${low.length} produit(s) en stock bas ou en rupture`]);
+  if(!out.length) return '';
+  return `<div class="card" style="margin-bottom:12px;border-left:4px solid var(--warn)"><b>⚠️ À surveiller</b>${out.map(([a,txt]) => `<button class="link" style="display:block;text-align:left;margin-top:7px;font-weight:600;color:var(--ink)" data-a="${a}">${txt} ›</button>`).join('')}</div>`;
+}
+
+/* ---------- Clients : historique et relance WhatsApp ---------- */
+let clientTab = 'tous', clientQ = '';
+function clientsList(){
+  const map = new Map();
+  for(const m of S.moves){
+    if(m.type !== 'vente' || m.status === 'annule') continue;
+    const key = phoneNorm(m.phone) || norm0(m.client); if(!key) continue;
+    const c = map.get(key) || {key, name:'', phone:'', addr:'', n:0, q:0, total:0, last:'', lastPid:'', prods:{}, moves:[]};
+    c.n++; c.q += m.qty; if(m.status === 'livre') c.total += saleUSD(m);
+    if((m.date || '') >= c.last){ c.last = m.date || ''; c.name = m.client || c.name; c.addr = m.addr || c.addr; c.phone = m.phone || c.phone; c.lastPid = m.pid; }
+    c.prods[m.pid] = (c.prods[m.pid] || 0) + m.qty; c.moves.push(m.id);
+    map.set(key, c);
+  }
+  return [...map.values()];
+}
+const daysSince = iso => iso ? Math.round((new Date(today() + 'T12:00:00') - new Date(iso + 'T12:00:00')) / 864e5) : 999;
+function vClients(){
+  const all = clientsList(), q = norm0(clientQ);
+  const tabs = [['tous','Tous',() => true],['relancer','À relancer (+30 j)',c => daysSince(c.last) > 30],['fideles','Fidèles (2 achats et +)',c => c.n >= 2]];
+  const f = (tabs.find(x => x[0] === clientTab) || tabs[0])[2];
+  const list = all.filter(f).filter(c => !q || norm0(c.name + ' ' + c.phone + ' ' + c.addr).includes(q)).sort((a,b) => b.last.localeCompare(a.last));
+  const tot = all.reduce((s,c) => s + c.total, 0);
+  return `<div class="kpis"><div class="kpi"><div class="l">Clients</div><div class="v num">${all.length}</div><div class="s">${all.filter(c => c.n >= 2).length} fidèle(s)</div></div><div class="kpi"><div class="l">Panier moyen</div><div class="v num">${money(all.length ? tot / Math.max(1, all.reduce((s,c) => s + c.n, 0)) : 0)}</div><div class="s">par achat livré</div></div></div>
+  <div class="chips" style="margin-top:12px">${tabs.map(([k,l]) => `<button class="chip ${clientTab===k?'on':''}" data-a="ctab:${k}">${l}<b>${all.filter((tabs.find(x => x[0]===k))[2]).length}</b></button>`).join('')}</div>
+  <div style="height:10px"></div>
+  <input class="search" type="search" placeholder="Rechercher un client, un numéro, une commune…" value="${esc(clientQ)}" oninput="clientQ=this.value;refreshList('clients')">
+  <div class="list" id="lst">${clientRows(list)}</div>`;
+}
+function clientRows(list){
+  if(!list){ const all = clientsList(), q = norm0(clientQ); list = all.filter(c => !q || norm0(c.name + ' ' + c.phone + ' ' + c.addr).includes(q)).sort((a,b) => b.last.localeCompare(a.last)); }
+  if(!list.length) return `<div class="empty"><b>Aucun client</b>Les clients apparaissent automatiquement avec vos ventes.</div>`;
+  return list.slice(0, 300).map(c => { const d = daysSince(c.last); return `<button class="it" data-a="client:${esc(c.key)}"><div class="ic c-out">${esc(initials(c.name || '?'))}</div><div class="m"><div class="t">${esc(c.name || 'Sans nom')}</div><div class="d">${esc(c.phone || '—')}${c.addr ? ' · ' + esc(c.addr.split('\n')[0]) : ''}</div><div class="d">${c.n} achat(s) · dernier ${d === 0 ? "aujourd'hui" : 'il y a ' + d + ' j'}</div></div><div class="r"><b class="num">${money(c.total)}</b>${d > 30 ? '<div><span class="pill p-attente">À relancer</span></div>' : ''}</div></button>`; }).join('');
+}
+function relanceText(c){
+  const p = pname(c.lastPid);
+  return `Bonjour ${c.name || ''} 👋\nC'est ${S.settings.shop}. Merci encore pour votre achat${p && p !== 'Produit supprimé' ? ' (' + p + ')' : ''} !\nNous avons du nouveau stock et nous livrons rapidement. Voulez-vous passer une nouvelle commande ? 😊`;
+}
+function clientSheet(key){
+  const c = clientsList().find(x => x.key === key); if(!c) return;
+  const moves = sortMoves(S.moves.filter(m => c.moves.includes(m.id)));
+  sheet(c.name || 'Client', `
+    <div class="kv"><div><b class="num">${c.n}</b><span>Achats</span></div><div><b class="num">${c.q}</b><span>Pièces</span></div><div><b class="num">${money(c.total)}</b><span>Total livré</span></div></div>
+    <div class="card" style="margin-bottom:12px">
+      <div class="dl"><span>Téléphone</span><span>${esc(c.phone || '—')}</span></div>
+      <div class="dl"><span>Adresse</span><span style="white-space:pre-line">${esc(c.addr || '—')}</span></div>
+      <div class="dl"><span>Dernier achat</span><span>${fmtDate(c.last, true)}</span></div>
+      <div class="dl"><span>Produits achetés</span><span>${Object.entries(c.prods).map(([pid,q]) => esc(pname(pid)) + ' × ' + q).join('<br>')}</span></div>
+    </div>
+    ${field('Message de relance', `<textarea id="relTx" style="min-height:120px">${esc(relanceText(c))}</textarea>`)}
+    <div class="stack"><a class="btn wa block" id="relGo" href="${waLink(c.phone, relanceText(c))}" target="_blank" rel="noopener">${ico('wa')} Relancer par WhatsApp</a>
+    <button class="btn primary block" data-a="clientsale:${esc(c.key)}">+ Nouvelle vente pour ce client</button></div>
+    <div class="sec"><h2>Historique</h2></div><div class="list">${moves.map(rowMove).join('')}</div>`);
+  $('#relTx').oninput = e => $('#relGo').href = waLink(c.phone, e.target.value);
+}
+
+/* ---------- Rapport de la semaine ---------- */
+let rapWeek = 0;
+function weekRange(k){ const s = addDays(weekStart(), -7 * k); return [s, addDays(s, 6)]; }
+function weekReport(a, b){
+  const inR = d => d >= a && d <= b;
+  const r = {ca:0, nv:0, cost:0, comm:0, dep:0, loss:0, byLiv:{}, byProd:{}, decl:0};
+  for(const m of S.moves){
+    if(m.type === 'vente' && m.status === 'livre' && inR(m.date)){
+      const u = saleUSD(m), c = m.liv ? m.qty * num(m.commU) : 0;
+      r.ca += u; r.nv++; r.cost += m.qty * num(m.costU); r.comm += c;
+      const P = r.byProd[m.pid] = r.byProd[m.pid] || {q:0, a:0}; P.q += m.qty; P.a += u;
+      if(m.liv){ const L = r.byLiv[m.liv] = r.byLiv[m.liv] || {n:0, a:0, c:0, v:0}; L.n++; L.a += u; L.c += c; }
+    } else if(m.type === 'versement' && inR(m.date)){ const L = r.byLiv[m.liv] = r.byLiv[m.liv] || {n:0, a:0, c:0, v:0}; L.v += moneyUSD(m); }
+    else if(m.type === 'depense' && inR(m.date)) r.dep += moneyUSD(m);
+    else if(m.type === 'perte' && inR(m.date)) r.loss += m.qty * num(m.costU);
+  }
+  r.net = r.ca - r.cost - r.comm - r.dep - r.loss;
+  return r;
+}
+function rapportText(a, b, r){
+  const L = Object.entries(r.byLiv).map(([id,v]) => `• ${lname(id)} : ${v.n} livrée(s), ${money(v.a)} encaissé, ${money(v.v)} versé, commission ${money(v.c)} — reste à verser ${money(livStats(id).toRemit)}`).join('\n');
+  const P = Object.entries(r.byProd).sort((x,y) => y[1].a - x[1].a).slice(0, 5).map(([id,v]) => `• ${pname(id)} : ${v.q} pièce(s), ${money(v.a)}`).join('\n');
+  return `*${S.settings.shop} — Rapport de la semaine*\nDu ${fmtDate(a, true)} au ${fmtDate(b, true)}\n\nVentes livrées : ${r.nv} — ${money(r.ca)}\nCoût des produits : ${money(r.cost)}\nCommissions livreurs : ${money(r.comm)}\nDépenses : ${money(r.dep)}${r.loss ? '\nPertes : ' + money(r.loss) : ''}\n*Bénéfice net : ${money(r.net)}*\n\n*Livreurs*\n${L || '• aucune livraison'}\n\n*Meilleurs produits*\n${P || '• —'}`;
+}
+function vRapport(){
+  const [a, b] = weekRange(rapWeek), r = weekReport(a, b), txt = rapportText(a, b, r);
+  return `<div class="chips noprint"><button class="chip ${rapWeek===0?'on':''}" data-a="rweek:0">Cette semaine</button><button class="chip ${rapWeek===1?'on':''}" data-a="rweek:1">Semaine dernière</button><button class="chip ${rapWeek===2?'on':''}" data-a="rweek:2">Il y a 2 semaines</button></div>
+  <div class="card" style="margin-top:10px"><b>${esc(S.settings.shop)}</b><br><span class="note">Du ${fmtDate(a, true)} au ${fmtDate(b, true)}</span></div>
+  <div class="kpis" style="margin-top:10px">
+    <div class="kpi hero"><div class="l">Bénéfice net</div><div class="v num ${r.net<0?'neg':''}">${money(r.net)}</div><div class="s">${r.nv} vente(s) livrée(s) · ${money(r.ca)}</div></div>
+    <div class="kpi"><div class="l">Commissions</div><div class="v num">${money(r.comm)}</div><div class="s">livreurs</div></div>
+    <div class="kpi"><div class="l">Dépenses</div><div class="v num">${money(r.dep)}</div><div class="s">transport, pub…</div></div>
+  </div>
+  <div class="sec"><h2>Livreurs</h2></div>
+  <div class="card tbw"><table class="tb"><tr><th>Livreur</th><th class="rt">Livrées</th><th class="rt">Encaissé</th><th class="rt">Versé</th><th class="rt">Commission</th></tr>${Object.entries(r.byLiv).map(([id,v]) => `<tr><td>${esc(lname(id))}</td><td class="rt num">${v.n}</td><td class="rt num">${money(v.a)}</td><td class="rt num">${money(v.v)}</td><td class="rt num">${money(v.c)}</td></tr>`).join('') || '<tr><td colspan="5" class="note">Aucune livraison</td></tr>'}</table></div>
+  <div class="sec"><h2>Meilleurs produits</h2></div>
+  <div class="card">${Object.entries(r.byProd).sort((x,y) => y[1].a - x[1].a).slice(0, 8).map(([id,v]) => `<div class="dl"><span>${esc(pname(id))}</span><span class="num">${v.q} · ${money(v.a)}</span></div>`).join('') || '<p class="note">Aucune vente livrée</p>'}</div>
+  <div class="stack noprint" style="margin-top:14px">
+    <a class="btn wa block" href="${waLink('', txt)}" target="_blank" rel="noopener">${ico('wa')} Envoyer le rapport par WhatsApp</a>
+    <div class="btns"><button class="btn" data-a="rcopy">Copier le texte</button><button class="btn" data-a="rprint">Imprimer / PDF</button></div>
+  </div>`;
 }
 
 /* ---------- Fenêtres ---------- */
@@ -1064,6 +1182,7 @@ function moveForm(type, opt = {}){
   sheet(T[0], h);
 
   const f = $('#mf'), E = f.elements;
+  if(!m && type === 'vente' && opt.client){ E.client.value = opt.client.name || ''; E.phone.value = opt.client.phone || ''; E.addr.value = opt.client.addr || ''; const d = f.querySelector('details.paste'); if(d) d.open = false; }
   let status = m?.status || (liv0 ? 'attente' : 'livre');
   const paintSeg = () => { if($('#segS')) [...$('#segS').children].forEach(b => b.classList.toggle('on', b.dataset.s === status)); };
   paintSeg();
@@ -1375,6 +1494,12 @@ const A = {
   csv: () => csvSheet(),
   demo: async () => { if(S.moves.length && !await ask('Remplacer vos données par des exemples ?', 'Remplacer')) return; seedDemo(); },
   preset: () => loadPreset(),
+  ctab: v => { clientTab = v; render(); },
+  client: k => clientSheet(k),
+  clientsale: k => { const c = clientsList().find(x => x.key === k); moveForm('vente', {client:c}); },
+  rweek: v => { rapWeek = +v; render(); },
+  rcopy: () => { const [a,b] = weekRange(rapWeek); copyText(rapportText(a, b, weekReport(a, b))); },
+  rprint: () => { try{ window.print(); }catch(e){ toast("Impression impossible ici : utilisez « Copier le texte »"); } },
   tpl: () => tplSheet(),
   startempty: () => setupSheet(),
   reset: async () => {
@@ -1456,6 +1581,8 @@ const SB_URL = 'https://anzzqgmzqweuznhoikhb.supabase.co';
 const SB_KEY = 'sb_publishable_oIoBboy476yBdoPRBN3gfA_B-gJ1m7s';
 const AUTH_DOMAIN = 'tel.stock-livreurs.app'; // identifiant interne : <numéro>@tel.stock-livreurs.app (aucun email n'est envoyé)
 const LAST_KEY = 'stock_online_last';
+const SUPPORT = '243851507510'; // WhatsApp BASILUA TECH (support, abonnements, mots de passe)
+const supportLink = msg => 'https://wa.me/' + SUPPORT + '?text=' + encodeURIComponent(msg);
 const sb = (window.supabase && window.supabase.createClient)
   ? window.supabase.createClient(SB_URL, SB_KEY, {auth:{persistSession:true, autoRefreshToken:true, storageKey:'stock_online_auth'}})
   : null;
@@ -1523,7 +1650,7 @@ function showAuth(mode = 'login', msg = ''){
       <button class="btn primary block" id="authGo">${login ? 'Se connecter' : 'Créer mon compte'}</button>
     </form>
     <p class="note" style="margin-top:10px">${login ? '' : 'En créant un compte, vous acceptez les <a href="conditions.html" target="_blank" rel="noopener" class="link">conditions d\'utilisation</a>.'}</p>
-    <p class="note" style="margin-top:14px">${login ? 'Mot de passe oublié ? Contactez BASILUA TECH pour le réinitialiser.' : 'Votre numéro sert d\'identifiant. Aucun SMS n\'est envoyé.'}</p>`);
+    <p class="note" style="margin-top:14px">${login ? `Mot de passe oublié ? <a class="link" href="${supportLink('Bonjour BASILUA TECH, j\'ai oublié mon mot de passe Stock & Livreurs. Mon numéro de compte : ')}" target="_blank" rel="noopener">Contactez BASILUA TECH sur WhatsApp</a>` : 'Votre numéro sert d\'identifiant. Aucun SMS n\'est envoyé.'}</p>`);
   el.querySelectorAll('[data-auth]').forEach(b => b.onclick = () => showAuth(b.dataset.auth));
   $('#authf').onsubmit = async e => {
     e.preventDefault();
@@ -1691,7 +1818,7 @@ render = function(){
     else main.insertAdjacentHTML('afterbegin', `<div class="card" style="margin-bottom:12px"><b>Vous avez déjà des données dans WB Stock ?</b><p class="note" style="margin:4px 0 10px">Dans l'ancienne application : Plus → Réglages → Exporter une sauvegarde → « Copier ». Puis ici : Plus → Réglages → Restaurer une sauvegarde → coller le texte.</p><button class="btn block" data-a="restore">Restaurer une sauvegarde maintenant</button></div>`);
   }
   if(view === 'home' && si && si.cls !== 'ok'){
-    main.insertAdjacentHTML('afterbegin', `<div class="subban ${si.cls}">${esc(si.txt)}${ONLINE.offline ? '<br><b>Hors ligne</b>' : ''}</div>`);
+    main.insertAdjacentHTML('afterbegin', `<div class="subban ${si.cls}">${esc(si.txt)}${ONLINE.offline ? '<br><b>Hors ligne</b>' : ''}${ONLINE.role === 'proprietaire' ? `<br><a class="btn sm wa" style="margin-top:8px" href="${supportLink(`Bonjour BASILUA TECH, je veux ${si.cls === 'bad' ? 'renouveler' : 'activer'} mon abonnement Stock & Livreurs pour la boutique « ${ONLINE.shop.name} ».`)}" target="_blank" rel="noopener">${ico('wa')} ${si.cls === 'bad' ? 'Renouveler' : 'Activer'} mon abonnement</a>` : ''}</div>`);
   }
   if(view === 'reglages'){
     const meta = (ONLINE.user && ONLINE.user.user_metadata) || {};
@@ -1703,6 +1830,7 @@ render = function(){
         <div class="dl"><span>Rôle</span><span>${ROLE_TXT[ONLINE.role] || '—'}</span></div>
         <div class="dl"><span>Abonnement</span><span>${si ? esc(si.short) : '—'}</span></div>
         <p class="note" style="margin:8px 0 12px">${si ? esc(si.txt) : ''}</p>
+        <a class="btn wa block" style="margin-bottom:8px" href="${supportLink('Bonjour BASILUA TECH, j\'ai besoin d\'aide avec Stock & Livreurs (boutique « ' + ONLINE.shop.name + ' »).')}" target="_blank" rel="noopener">${ico('wa')} Contacter BASILUA TECH (aide, abonnement)</a>
         <div class="btns">${ONLINE.shops.length > 1 ? '<button class="btn" data-a="switchshop">Changer de boutique</button>' : '<button class="btn" data-a="newshop">+ Autre boutique</button>'}<button class="btn ghost-bad" data-a="logout">Se déconnecter</button></div>
       </div>`);
   }
@@ -2086,7 +2214,7 @@ function declPendingUSD(lid){ return declsOf(lid).filter(d => d.status === 'atte
 const DSTAT = {attente:['En attente','p-attente'], confirme:['Confirmé','p-livre'], refuse:['Refusé','p-annule']};
 function declRow(d, owner){
   const st = DSTAT[d.status] || DSTAT.attente;
-  return `<div class="it"><div class="ic c-money">${ico('cash')}</div><div class="m"><div class="t">${amt(num(d.amount), d.cur)}${owner ? ' · ' + esc(lname(d.liv)) : ''}</div><div class="d">${esc(d.method || '')}${d.ref ? ' · réf ' + esc(d.ref) : ''} · ${fmtDate(d.date)}</div>${d.note ? `<div class="d">📝 ${esc(d.note)}</div>` : ''}${d.status === 'refuse' && d.reason ? `<div class="d red">Motif : ${esc(d.reason)}</div>` : ''}</div>
+  return `<div class="it"><div class="ic c-money">${ico('cash')}</div><div class="m"><div class="t">${amt(num(d.amount), d.cur)}${owner ? ' · ' + esc(lname(d.liv)) : ''}</div><div class="d">${esc(d.method || '')}${d.ref ? ' · réf ' + esc(d.ref) : ''} · ${fmtDate(d.date)}</div>${d.note ? `<div class="d">📝 ${esc(d.note)}</div>` : ''}${d.photo ? `<div><button class="link" style="font-size:13px" data-a="declphoto:${d.id}">📷 Voir la capture</button></div>` : ''}${d.status === 'refuse' && d.reason ? `<div class="d red">Motif : ${esc(d.reason)}</div>` : ''}</div>
     <div class="r">${owner && d.status === 'attente' ? `<button class="btn sm primary" data-a="declok:${d.id}">Confirmer</button><br><button class="btn sm ghost-bad" style="margin-top:4px" data-a="declko:${d.id}">Refuser</button>` : `<span class="pill ${st[1]}" style="${d.status === 'refuse' ? 'background:var(--bad-soft);color:var(--bad)' : ''}">${st[0]}</span>`}</div></div>`;
 }
 // Livreur : « J'ai envoyé l'argent »
@@ -2099,19 +2227,53 @@ A.decl = () => {
     ${field('Moyen', `<select name="method">${METHODS.map(m => `<option>${m}</option>`).join('')}</select>`)}
     ${field('Référence de la transaction', `<input name="ref" maxlength="80" placeholder="Ex : numéro du message M-Pesa">`, 'Le patron vérifiera avec ce numéro')}
     ${field('Note', `<input name="note" maxlength="200" placeholder="Optionnel">`)}
+    <div class="f"><span>Capture du message Mobile Money (photo)</span><label class="btn block" style="cursor:pointer">📷 Ajouter la capture<input type="file" accept="image/*" id="declPhoto" hidden></label><div id="declPrev" style="margin-top:8px"></div></div>
     <p class="auth-msg" id="declMsg"></p>
     <button class="btn primary block">Déclarer ce versement</button></form>`);
   const f = $('#declf'), E = f.elements;
   E.cur.onchange = () => { if(E.cur.value === 'FC' && due) E.amount.value = Math.round(due * rate()); if(E.cur.value === '$' && due) E.amount.value = r2(due); };
+  let photoBlob = null;
+  $('#declPhoto').onchange = async e => {
+    const file = e.target.files[0]; if(!file) return;
+    try{ photoBlob = await shrinkImage(file); $('#declPrev').innerHTML = `<img src="${URL.createObjectURL(photoBlob)}" style="max-width:100%;max-height:220px;border-radius:10px">`; }
+    catch(_){ photoBlob = null; $('#declMsg').textContent = 'Image illisible, essayez une autre capture.'; }
+  };
   f.onsubmit = async e => {
     e.preventDefault();
     const a = num(E.amount.value); if(!(a > 0)){ $('#declMsg').textContent = 'Montant invalide.'; return; }
-    const id = 'decl_' + uid();
-    const {error} = await sb.rpc('livreur_declare_versement', {p_shop:ONLINE.shop.id, p_id:id, p_amount:a, p_cur:E.cur.value, p_method:E.method.value, p_ref:E.ref.value.trim(), p_note:E.note.value.trim()});
-    if(error){ $('#declMsg').textContent = rpcErr(error); return; }
-    S.moves.push({id, type:'decl', liv:ONLINE.shop.livreur_id, amount:a, cur:E.cur.value, rate:rate(), method:E.method.value, ref:E.ref.value.trim(), note:E.note.value.trim(), status:'attente', date:today(), ts:Date.now()});
+    const id = 'decl_' + uid(), go = f.querySelector('button.primary');
+    go.disabled = true; go.textContent = 'Envoi…';
+    let photo = null;
+    if(photoBlob){
+      photo = ONLINE.shop.id + '/' + id + '.jpg';
+      const up = await sb.storage.from('captures').upload(photo, photoBlob, {contentType:'image/jpeg', upsert:false});
+      if(up.error){ go.disabled = false; go.textContent = 'Déclarer ce versement'; $('#declMsg').textContent = 'Photo non envoyée : ' + rpcErr(up.error); return; }
+    }
+    const {error} = await sb.rpc('livreur_declare_versement', {p_shop:ONLINE.shop.id, p_id:id, p_amount:a, p_cur:E.cur.value, p_method:E.method.value, p_ref:E.ref.value.trim(), p_note:E.note.value.trim(), p_photo:photo});
+    if(error){ go.disabled = false; go.textContent = 'Déclarer ce versement'; $('#declMsg').textContent = rpcErr(error); return; }
+    S.moves.push({id, type:'decl', liv:ONLINE.shop.livreur_id, amount:a, cur:E.cur.value, rate:rate(), method:E.method.value, ref:E.ref.value.trim(), note:E.note.value.trim(), photo, status:'attente', date:today(), ts:Date.now()});
     rawSave(); closeSheet(); render(); toast('Versement déclaré ✅ Votre patron va le confirmer'); syncNow();
   };
+};
+// Réduit la photo (≈ 1280 px, JPEG) avant l'envoi : rapide même avec une petite connexion
+function shrinkImage(file){
+  return new Promise((ok, ko) => {
+    const img = new Image(), url = URL.createObjectURL(file);
+    img.onload = () => {
+      const k = Math.min(1, 1280 / Math.max(img.width, img.height)), c = document.createElement('canvas');
+      c.width = Math.round(img.width * k); c.height = Math.round(img.height * k);
+      c.getContext('2d').drawImage(img, 0, 0, c.width, c.height); URL.revokeObjectURL(url);
+      c.toBlob(b => b ? ok(b) : ko(new Error('image')), 'image/jpeg', 0.72);
+    };
+    img.onerror = () => ko(new Error('image')); img.src = url;
+  });
+}
+A.declphoto = async (id) => {
+  const d = S.moves.find(m => m.id === id); if(!d || !d.photo) return;
+  const {data, error} = await sb.storage.from('captures').createSignedUrl(d.photo, 3600);
+  if(error || !data) return toast('Capture indisponible : ' + rpcErr(error));
+  sheet('Capture du versement', `<p class="note" style="margin-bottom:8px">${amt(num(d.amount), d.cur)} · ${esc(lname(d.liv))} · ${esc(d.method || '')}${d.ref ? ' · réf ' + esc(d.ref) : ''}</p><img src="${data.signedUrl}" alt="Capture" style="width:100%;border-radius:12px;background:#fff">
+    ${d.status === 'attente' && ONLINE.role !== 'livreur' ? `<div class="btns" style="margin-top:12px"><button class="btn primary" data-a="declok:${d.id}">Confirmer</button><button class="btn ghost-bad" data-a="declko:${d.id}">Refuser</button></div>` : ''}`);
 };
 // Propriétaire / gérant : confirmer ou refuser
 A.decllist = () => {
