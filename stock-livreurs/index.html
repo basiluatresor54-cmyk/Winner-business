@@ -258,7 +258,7 @@ const MOTIFS = ['Cassé / abîmé','Périmé','Perdu / volé','Cadeau / échanti
 const DEPCATS = ['Transport','Expédition colis (vers une ville)','Publicité Facebook','Boutique / loyer','Emballage','Crédit / internet','Salaire / aide','Autre'];
 const CITIES = ['Kinshasa','Lubumbashi','Bukavu','Kolwezi','Goma','Kisangani','Matadi','Mbuji-Mayi','Kananga'];
 const COLORS = ['#8A3B12','#0F766E','#1D4ED8','#7C3AED','#BE185D','#DC2626','#EA580C','#CA8A04','#15803D','#111827'];
-const COUNTRIES = [['RDC','FC','243',2300],['Congo-Brazzaville','XAF','242',570],['Cameroun','XAF','237',570],['Gabon','XAF','241',570],['Tchad','XAF','235',570],['Centrafrique','XAF','236',570],["Côte d'Ivoire",'XOF','225',570],['Sénégal','XOF','221',570],['Mali','XOF','223',570],['Burkina Faso','XOF','226',570],['Bénin','XOF','229',570],['Togo','XOF','228',570],['Niger','XOF','227',570],['Guinée','GNF','224',8650],['Burundi','BIF','257',2950],['Rwanda','RWF','250',1450],['Madagascar','MGA','261',4500],['Autre pays','','','']];
+const COUNTRIES = [['RDC','FC','243',2300],['Congo-Brazzaville','XAF','242',570],['Cameroun','XAF','237',570],['Gabon','XAF','241',570],['Tchad','XAF','235',570],['Centrafrique','XAF','236',570],["Côte d'Ivoire",'XOF','225',570],['Sénégal','XOF','221',570],['Mali','XOF','223',570],['Burkina Faso','XOF','226',570],['Bénin','XOF','229',570],['Togo','XOF','228',570],['Niger','XOF','227',570],['Guinée','GNF','224',8650],['Burundi','BIF','257',2950],['Rwanda','RWF','250',1450],['Madagascar','MGA','261',4500],['Guinée équatoriale','XAF','240',570],['Comores','KMF','269',''],['Djibouti','DJF','253',''],['Maroc','MAD','212',''],['Algérie','DZD','213',''],['Tunisie','TND','216',''],['Mauritanie','MRU','222',''],['Haïti','HTG','509',''],['France','EUR','33',''],['Belgique','EUR','32',''],['Suisse','CHF','41',''],['Canada','CAD','1',''],['Autre pays','','','']];
 const SPLITC = {cost:'#94a3b8', comm:'#6d28d9', dep:'#ea580c', loss:'#b45309', net:'#15803d'};
 
 /* ---------- Données ---------- */
@@ -1396,7 +1396,7 @@ document.addEventListener('change', e => {
   if(e.target.name === 'color' && e.target.closest('#setf')){ S.settings.color = e.target.value; applyBrand(); }
   if(e.target.name === 'country' && e.target.form){
     const c = COUNTRIES.find(x => x[0] === e.target.value), E = e.target.form.elements;
-    if(c && c[1]){ E.lc.value = c[1]; E.rate.value = c[3]; if(E.cc) E.cc.value = c[2]; if($('#rateHint')) $('#rateHint').textContent = 'en ' + c[1]; toast('Vérifiez le taux du jour pour ' + c[1]); }
+    if(c && c[1]){ E.lc.value = c[1]; E.rate.value = c[3]; if(!c[3]) E.rate.focus(); if(E.cc) E.cc.value = c[2]; if($('#rateHint')) $('#rateHint').textContent = 'en ' + c[1]; toast('Vérifiez le taux du jour pour ' + c[1]); }
   }
   if(e.target.name === 'lc' && $('#rateHint')) $('#rateHint').textContent = 'en ' + e.target.value;
 });
