@@ -1547,7 +1547,7 @@ function showShopChooser(){
 function showCreateShop(){
   const meta = (ONLINE.user && ONLINE.user.user_metadata) || {};
   const st = Object.assign(defaults().settings, {shop:'', color:'#0F766E'});
-  const el = authShell(`<h2 style="font-size:17px;margin-bottom:4px">Créez votre boutique</h2><p class="note" style="margin-bottom:14px">Essai gratuit de 14 jours.</p>
+  const el = authShell(`<h2 style="font-size:17px;margin-bottom:4px">Créez votre boutique</h2><p class="note" style="margin-bottom:14px">Essai gratuit de 7 jours.</p>
     <form id="csf" style="text-align:left">
       ${field("Nom de l'entreprise *", `<input name="shop" required maxlength="60" placeholder="Ex : Boutique Mbuyi">`)}
       <div class="f"><span>Couleur</span><div class="colors" id="cscol">${COLORS.map(c => `<button type="button" style="background:${c}" data-c="${c}" class="${c===st.color?'on':''}"></button>`).join('')}</div></div>
@@ -1569,7 +1569,7 @@ function showCreateShop(){
     const {data, error} = await sb.rpc('create_shop', {p_name:E.shop.value.trim(), p_settings:settings, p_owner_name:meta.name || null, p_phone:meta.phone || null});
     if(error){ m.textContent = authErr(error); go.disabled = false; go.textContent = 'Créer ma boutique'; return; }
     try{ localStorage.setItem(LAST_KEY, JSON.stringify({user:ONLINE.user.id, shop:{id:data}})); }catch(_){}
-    toast('Boutique créée ✅ Essai gratuit de 14 jours');
+    toast('Boutique créée ✅ Essai gratuit de 7 jours');
     await afterLogin();
   };
 }
