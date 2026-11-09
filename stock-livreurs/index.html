@@ -1027,6 +1027,32 @@ function stockBilan(){
   r.netNow = r.ca - r.soldCost - r.comm - r.dep - r.lossCost;
   return r;
 }
+// Historique jour par jour : stock ajouté (date, produits, valeur), ventes, dépenses, cumuls
+function stockHistory(){
+  const days = {}, D = d => days[d] = days[d] || {d, addQ:0, addV:0, adds:{}, ca:0, n:0, dep:0, net:0};
+  for(const m of S.moves){
+    if(!m.date) continue;
+    if(m.type === 'entree'){ const p = prod(m.pid), c = num(m.cost) > 0 ? toUSD(num(m.cost), p && p.cur) : unitCostUSD(p), x = D(m.date);
+      x.addQ += m.qty; x.addV += m.qty * c; x.adds[m.pid] = (x.adds[m.pid] || 0) + m.qty; }
+    else if(m.type === 'vente' && m.status === 'livre'){ const x = D(m.date), u = saleUSD(m); x.ca += u; x.n++; x.net += u - m.qty * num(m.costU) - (m.liv ? m.qty * num(m.commU) : 0); }
+    else if(m.type === 'depense'){ const x = D(m.date), v = moneyUSD(m); x.dep += v; x.net -= v; }
+    else if(m.type === 'perte'){ const x = D(m.date); x.net -= m.qty * num(m.costU); }
+  }
+  let inv = 0, ca = 0, net = 0;
+  const list = Object.values(days).sort((a,b) => a.d.localeCompare(b.d));
+  list.forEach(x => { inv += x.addV; ca += x.ca; net += x.net; x.inv = inv; x.cumCa = ca; x.cumNet = net; });
+  return list.reverse();
+}
+function stockHistoryHTML(){
+  const h = stockHistory(); if(!h.length) return '';
+  return `<details style="margin-top:8px" open><summary class="note"><b>Historique jour par jour</b> — ajouts de stock, ventes, cumuls</summary>
+    <div class="tbw"><table class="tb" style="margin-top:6px"><tr><th>Date</th><th class="rt">Stock ajouté</th><th class="rt">Ventes</th><th class="rt">Total investi</th><th class="rt">Total vendu</th></tr>
+    ${h.map(x => `<tr data-a="jourset:${x.d}" style="cursor:pointer"><td style="white-space:nowrap">${dAbs(x.d)}${x.dep ? `<br><span class="note">dép. ${money(x.dep)}</span>` : ''}</td>
+      <td class="rt">${x.addQ ? `<b class="num">+${fmt(x.addQ)}</b><br><span class="num note">${money(x.addV)}</span>` : '—'}</td>
+      <td class="rt num">${x.n ? money(x.ca) : '—'}</td><td class="rt num">${money(x.inv)}</td><td class="rt num"><b>${money(x.cumCa)}</b></td></tr>
+      ${x.addQ ? `<tr data-a="jourset:${x.d}" style="cursor:pointer"><td colspan="5" class="note" style="padding-top:0">➕ ${Object.entries(x.adds).map(([pid,q]) => esc(pname(pid)) + ' <b>' + q + '</b>').join(' · ')}</td></tr>` : ''}`).join('')}</table></div>
+    <p class="note" style="margin-top:6px">Touchez une date pour voir le rapport complet de ce jour (bénéfice, détail des ventes).</p></details>`;
+}
 function stockBilanCard(){
   if(!S.moves.some(m => m.type === 'entree')) return '';
   const r = stockBilan(), pct = Math.min(100, r.recup);
@@ -1040,6 +1066,7 @@ function stockBilanCard(){
     <div class="dl"><span>Valeur du reste au prix d'achat</span><span class="num">${money(r.restBuy)}</span></div>
     <div class="dl strong"><span>Valeur du reste si tout est vendu</span><span class="num">${money(r.restSell)}</span></div>
     <div class="dl"><span>Bénéfice net réalisé jusqu'ici</span><span class="num ${r.netNow < 0 ? 'red' : 'green'}">${money(r.netNow)}</span></div>
+    ${stockHistoryHTML()}
     <details style="margin-top:8px"><summary class="note"><b>Détail par produit</b></summary>
       <table class="tb" style="margin-top:6px"><tr><th>Produit</th><th class="rt">Reste</th><th class="rt">Achat</th><th class="rt">Vente</th></tr>
       ${r.byProd.sort((a,b) => b[3] - a[3]).map(([p,q,b,v]) => `<tr><td>${esc(p.name)}</td><td class="rt num">${q}</td><td class="rt num">${money(b)}</td><td class="rt num">${money(v)}</td></tr>`).join('')}</table>
