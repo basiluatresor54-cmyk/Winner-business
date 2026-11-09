@@ -1501,7 +1501,7 @@ function authShell(inner){
   let el = $('#auth');
   if(!el){ el = document.createElement('div'); el.id = 'auth'; document.body.appendChild(el); }
   el.hidden = false; document.body.classList.add('authon');
-  el.innerHTML = `<div class="auth-box"><div class="auth-logo">${ico('box')}</div><h1>Stock &amp; Livreurs</h1><p class="note" style="margin-bottom:18px">Stock, ventes, livreurs et bénéfices — en ligne</p>${inner}<p class="note" style="margin-top:22px">Conçu par <b>BASILUA TECH</b></p></div>`;
+  el.innerHTML = `<div class="auth-box"><div class="auth-logo">${ico('box')}</div><h1>Stock &amp; Livreurs</h1><p class="note" style="margin-bottom:18px">Stock, ventes, livreurs et bénéfices — en ligne</p>${inner}<p class="note" style="margin-top:22px"><a class="link" href="guide.html" target="_blank" rel="noopener">Guide d'utilisation</a> · Conçu par <b>BASILUA TECH</b></p></div>`;
   return el;
 }
 function hideAuth(){ const el = $('#auth'); if(el){ el.hidden = true; el.innerHTML = ''; } document.body.classList.remove('authon'); }
@@ -1677,6 +1677,7 @@ render = function(){
     const extra = (ONLINE.role === 'proprietaire' ? `<button class="it" data-a="nav:equipe"><div class="ic c-send">${ico('user')}</div><div class="m"><div class="t">Équipe</div><div class="d" style="white-space:normal">Inviter un gérant ou vos livreurs sur l'application</div></div>${ico('chev')}</button>` : '')
       + (ONLINE.admin ? `<button class="it" data-a="nav:admin"><div class="ic" style="background:#111827;color:#fff">${ico('set')}</div><div class="m"><div class="t">Espace BASILUA TECH</div><div class="d" style="white-space:normal">Clients, abonnements, mots de passe, sauvegarde globale</div></div>${ico('chev')}</button>` : '');
     if(extra) $('#main').insertAdjacentHTML('afterbegin', `<div class="list menu" style="margin-bottom:12px">${extra}</div>`);
+    $('#main').insertAdjacentHTML('beforeend', `<div class="list menu" style="margin-top:12px"><a class="it" href="guide.html" target="_blank" rel="noopener" style="text-decoration:none"><div class="ic c-in">${ico('book')}</div><div class="m"><div class="t">Guide d'utilisation</div><div class="d">Comment utiliser l'application, pas à pas</div></div>${ico('chev')}</a></div>`);
   }
   const si = subInfo(ONLINE.shop), main = $('#main');
   $('#top').insertAdjacentHTML('beforeend', `<button class="syncpill" id="syncpill" data-a="syncnow"></button>`); paintSync();
