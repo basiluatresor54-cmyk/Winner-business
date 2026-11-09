@@ -185,6 +185,11 @@ nav.nav button.on svg{stroke-width:2.3}
 .act .ic{width:42px;height:42px;border-radius:12px;display:grid;place-items:center;flex:none}
 .act b{display:block}
 .act small{color:var(--muted);font-size:12.5px}
+.paste summary{cursor:pointer;list-style:none;margin-bottom:8px}
+.paste summary::-webkit-details-marker{display:none}
+.paste textarea{width:100%;min-height:110px;padding:10px 12px;border:1.5px dashed var(--brand);border-radius:11px;background:#fff;font-size:15px;margin-bottom:8px}
+pre.msg{white-space:pre-wrap;font:13px/1.45 -apple-system,Roboto,sans-serif;background:#eafbe7;border-radius:10px;padding:10px;margin-top:4px}
+details summary{cursor:pointer}
 textarea.code{width:100%;min-height:90px;font:12px/1.4 ui-monospace,Menlo,monospace;padding:10px;border:1.5px solid var(--line);border-radius:11px}
 
 @media (min-width:900px){
@@ -221,7 +226,7 @@ textarea.code{width:100%;min-height:90px;font:12px/1.4 ui-monospace,Menlo,monosp
    ================================================================= */
 const KEY = 'stock_livreurs_vierge_v1';
 
-const PRESET = null; // version vierge à revendre : aucun catalogue pré-rempli
+const PRESET = null; // version vierge à revendre
 const GENERIC = {
   products:[['g1','Sac antivol','Accessoires','$',15,2],['g2','Crème visage','Beauté','$',10,2],['g3','Savon naturel','Beauté','FC',15000,1],['g4','Coffret crème + savon','Beauté','$',22,3,[['g2',1],['g3',1]]]],
   livreurs:[['Patrick','','Kinshasa'],['Grâce','','Kinshasa'],['Aimé','','Lubumbashi']]
@@ -568,6 +573,7 @@ function saleRows(){
   const q = saleQ.trim().toLowerCase();
   const list = sortMoves(S.moves.filter(m => m.type === 'vente' && m.status === saleTab && (!saleCity || cityOfSale(m) === saleCity) &&
     (!q || [pname(m.pid), m.client, m.phone, m.addr, lname(m.liv)].join(' ').toLowerCase().includes(q))));
+  if(saleTab === 'attente' || saleTab === 'encours') list.sort((a,b) => ((a.ddate||a.date) + (a.dtime||'99')).localeCompare((b.ddate||b.date) + (b.dtime||'99')));
   if(!list.length) return `<div class="empty"><b>Aucune vente « ${STATUS[saleTab]} »</b>${saleTab==='attente'?'Les commandes à livrer apparaîtront ici.':''}</div>`;
   const tot = list.reduce((s,m) => s + saleUSD(m), 0);
   return `<div class="it" style="background:#fafbfc"><div class="m"><div class="d">${list.length} vente${list.length>1?'s':''}</div></div><div class="r"><b class="num">${money(tot)}</b></div></div>` + list.map(rowSale).join('');
@@ -577,7 +583,7 @@ function rowSale(m){
   return `<button class="it" data-a="sale:${m.id}"><div class="ic c-out">${ico('cart')}</div>
     <div class="m"><div class="t">${esc(pname(m.pid))} × ${m.qty}</div>
     <div class="d">${esc(m.client || 'Client')}${m.addr ? ' · ' + esc(m.addr) : ''}</div>
-    <div class="d">${fmtDate(m.date)} · ${L ? '🛵 ' + esc(L.name) + ' (' + esc(L.city||'') + ')' : 'Vente directe'}</div></div>
+    <div class="d">📅 ${fmtDate(m.ddate || m.date)}${m.dtime ? ' ' + m.dtime.replace(':','h') : ''} · ${L ? '🛵 ' + esc(L.name) + ' (' + esc(L.city||'') + ')' : 'Vente directe'}</div></div>
     <div class="r"><div class="num ${m.status==='annule'?'strike':''}" style="font-weight:700">${amt(m.qty*m.price, m.cur)}</div><span class="pill p-${m.status}">${STATUS[m.status]}</span></div></button>`;
 }
 
@@ -686,7 +692,8 @@ function vPlus(){
   ];
   return `<div class="list menu">${items.map(([v,c,i,t,d]) => `<button class="it" data-a="nav:${v}"><div class="ic ${c}">${ico(i)}</div><div class="m"><div class="t">${t}</div><div class="d" style="white-space:normal">${d}</div></div>${ico('chev')}</button>`).join('')}</div>
   <div class="sec"><h2>Raccourcis</h2></div>
-  <div class="btns"><button class="btn" data-a="money:depense">+ Dépense</button><button class="btn" data-a="money:versement">+ Versement livreur</button><button class="btn" data-a="new:perte">− Sortie / perte</button><button class="btn" data-a="backup">Sauvegarde</button></div>`;
+  <div class="btns"><button class="btn" data-a="money:depense">+ Dépense</button><button class="btn" data-a="money:versement">+ Versement livreur</button><button class="btn" data-a="new:perte">− Sortie / perte</button><button class="btn" data-a="backup">Sauvegarde</button></div>
+  <div style="margin-top:8px"><button class="btn block" data-a="tpl">📋 Modèle de commande pour WhatsApp</button></div>`;
 }
 
 /* ---------- Dépenses ---------- */
@@ -792,6 +799,68 @@ function countryFields(st){
   return `${field('Pays', `<select name="country">${COUNTRIES.map(c => `<option ${c[0]===st.country?'selected':''}>${esc(c[0])}</option>`).join('')}${COUNTRIES.some(c => c[0]===st.country) ? '' : `<option selected>${esc(st.country||'')}</option>`}</select>`, 'Remplit la monnaie, le taux et l\'indicatif. Vérifiez le taux du jour.')}
     <div class="row2">${field('Monnaie locale', `<input name="lc" maxlength="6" required value="${esc(st.lc||'FC')}" placeholder="FC">`)}${field('Taux : 1 $ =', `<input name="rate" type="number" step="any" min="0.0001" required value="${esc(st.rate)}">`, '<span id="rateHint">en ' + esc(st.lc||'FC') + '</span>')}</div>
     <p class="note" style="margin:-4px 0 12px">Le taux sert à convertir les prix en monnaie locale en dollars. Mettez-le à jour quand il change.</p>`;
+}
+
+/* ---------- Commande WhatsApp : lecture automatique d'un message collé ---------- */
+const norm = t => String(t||'').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'');
+function bestProduct(text){
+  const T = ' ' + norm(text).replace(/[^a-z0-9]+/g,' ') + ' ';
+  let best = null, bs = 0;
+  for(const p of S.products){
+    const words = norm(p.name).replace(/[^a-z0-9]+/g,' ').split(' ').filter(w => w.length >= 3 && !['pour','avec','des','les','une','piece','pieces'].includes(w));
+    if(!words.length) continue;
+    const hit = words.filter(w => T.includes(' ' + w + ' ') || T.includes(' ' + w + 's ')).length;
+    const sc = hit * 10 - (words.length - hit);
+    if(hit && sc > bs){ bs = sc; best = p.id; }
+  }
+  return best;
+}
+function parseOrder(txt){
+  const lines = txt.replace(/\r/g,'').split('\n').map(l => l.replace(/^[\s*•\-–📍📞👤📦🕒⏰📅]+/u,'').replace(/\*/g,'').trim()).filter(Boolean);
+  const lab = re => { for(const l of lines){ const x = l.match(re); if(x && x[1] && x[1].trim()) return x[1].trim(); } return ''; };
+  const o = {};
+  o.client = lab(/^(?:nom(?:\s+(?:et\s+)?(?:complet|pr[ée]nom))?|client(?:e)?|name)\s*[:=\-–]\s*(.+)$/i);
+  o.phone = lab(/^(?:t[ée]l[ée]?(?:phone)?|num[ée]ro|contact|whatsapp|phone)\s*[:=\-–]\s*(.+)$/i);
+  if(!o.phone){ const x = txt.match(/(\+?\d[\d .\-]{7,}\d)/); if(x) o.phone = x[1].trim(); }
+  const city = lab(/^ville\s*[:=\-–]\s*(.+)$/i);
+  o.addr = lab(/^(?:adresse(?:\s+(?:compl[èe]te|de\s+livraison))?|address|lieu|localisation|domicile)\s*[:=\-–]\s*(.+)$/i);
+  const extra = ['commune','quartier','avenue','av','r[ée]f[ée]rence','rep[èe]re'].map(k => lab(new RegExp('^' + k + '\\.?\\s*[:=\\-–]\\s*(.+)$','i'))).filter(Boolean);
+  o.addr = [o.addr].concat(extra).filter(Boolean).join(', ');
+  if(city && !norm(o.addr).includes(norm(city))) o.addr = o.addr ? o.addr + ', ' + city : city;
+  const pl = lab(/^(?:produits?|articles?|commande)\s*[:=\-–]\s*(.+)$/i);
+  o.pid = bestProduct(pl) || bestProduct(txt);
+  const q = lab(/^(?:quantit[ée]|qt[ée]|nombre|nbr?)\s*[:=\-–]\s*(\d+)/i) || ((pl || '').match(/(?:x\s*(\d+)|(\d+)\s*(?:x|pi[eè]ces?|pcs?|bo[iî]tes?|flacons?)\b)/i) || []).slice(1).find(Boolean);
+  if(q) o.qty = parseInt(q, 10);
+  if(!o.qty && o.pid){ const ws = norm(prod(o.pid).name).split(/[^a-z0-9]+/).filter(w => w.length >= 3); const x = ws.length && norm(txt).match(new RegExp('\\b(\\d{1,2})\\s*(?:x\\s*)?(?:' + ws.join('|') + ')')); if(x) o.qty = parseInt(x[1], 10); }
+  o.when = lab(/^(?:heure|horaire|jour|date|livraison|quand)[^:=]*[:=]\s*(.+)$/i);
+  const src = o.when || txt;
+  const h = src.match(/\b(\d{1,2})\s*(?:h|:)\s*(\d{2})?\b/i);
+  if(h && +h[1] < 24) o.dtime = String(h[1]).padStart(2,'0') + ':' + (h[2] || '00');
+  if(/apr[eè]s[- ]demain/i.test(src)) o.ddate = addDays(today(), 2);
+  else if(/demain/i.test(src)) o.ddate = addDays(today(), 1);
+  else if(/aujourd/i.test(src)) o.ddate = today();
+  const all = norm(city + ' ' + o.addr + ' ' + txt);
+  const L = S.livreurs.find(l => l.city && city && norm(l.city) === norm(city)) || S.livreurs.find(l => l.city && all.includes(norm(l.city)));
+  if(L){ o.liv = L.id; o.city = L.city; }
+  return o;
+}
+const orderTemplate = () => `Bonjour 👋 Merci pour votre intérêt !\nPour commander, répondez avec :\n\nNom :\nTéléphone :\nVille :\nAdresse complète (commune, quartier, avenue, n°, repère) :\nProduit :\nQuantité :\nJour et heure de livraison :\n\n${S.settings.shop || ''}`;
+function tplSheet(){
+  const t = orderTemplate();
+  sheet('Modèle de commande', `<p class="note" style="margin-bottom:10px">Envoyez ce message aux clients qui répondent à vos publicités. Quand ils le renvoient rempli, collez-le dans « Nouvelle vente » : tout se remplit seul.</p>
+    <textarea class="code" readonly id="tplTx" style="min-height:220px">${esc(t)}</textarea>
+    <div class="stack" style="margin-top:10px"><button class="btn primary block" id="tplCp">Copier le modèle</button>
+    <a class="btn wa block" href="https://wa.me/?text=${encodeURIComponent(t)}" target="_blank" rel="noopener">${ico('wa')} Ouvrir dans WhatsApp</a></div>`);
+  $('#tplCp').onclick = () => { $('#tplTx').select(); copyText(t); };
+}
+function whenTxt(m){ const d = m.ddate || m.date; return fmtDate(d, true) + (m.dtime ? ' à ' + m.dtime.replace(':','h') : ''); }
+function receiptClient(m){
+  const st = S.settings, L = liv(m.liv), fee = L && feeTxt() ? feeTxt() : '', done = m.status === 'livre';
+  return `*${st.shop}* 🧾\n*${done ? 'REÇU DE PAIEMENT' : 'CONFIRMATION DE COMMANDE'}*\n\nBonjour ${m.client || ''} 👋\n${done ? 'Merci pour votre achat !' : 'Votre commande est bien enregistrée.'}\n\n📦 Produit : ${pname(m.pid)}\n🔢 Quantité : ${m.qty}\n💵 Prix unitaire : ${amt(m.price, m.cur)}\n*${done ? 'Total payé' : 'Total à payer'} : ${amt(m.qty*m.price, m.cur)}*${fee ? '\n🛵 Frais de livraison : ' + fee + ' (à remettre au livreur)' : ''}\n\n📅 Livraison : ${whenTxt(m)}\n📍 Adresse : ${m.addr || '-'}${L ? '\n🛵 Livreur : ' + L.name + (L.phone ? ' — ' + L.phone : '') : ''}\n\nMerci pour votre confiance 🙏\n${st.shop}${st.wa ? ' · ' + st.wa : ''}`;
+}
+function receiptLivreur(m){
+  const st = S.settings, fee = feeTxt();
+  return `*BON DE LIVRAISON — ${st.shop}* 🛵\n\n📅 ${whenTxt(m)}\n👤 Client : ${m.client || '-'}\n📞 Téléphone : ${m.phone || '-'}\n📍 Adresse : ${m.addr || '-'}\n\n📦 Produit : ${pname(m.pid)} × ${m.qty}\n*💵 Montant à encaisser : ${amt(m.qty*m.price, m.cur)}*${fee ? '\n🛵 Frais de livraison (pour vous) : ' + fee : ''}${num(m.commU) ? '\n💰 Votre commission : ' + money(m.qty*num(m.commU)) : ''}${m.note ? '\n📝 Note : ' + m.note : ''}\n\nMerci de confirmer la livraison et de verser la recette ce soir par Mobile Money 🙏`;
 }
 
 /* ---------- Fenêtres ---------- */
@@ -922,6 +991,10 @@ function moveForm(type, opt = {}){
              vente:[m ? 'Modifier la vente' : 'Nouvelle vente', m ? 'Enregistrer' : 'Enregistrer la vente'], perte:['Sortie / perte de stock','Enregistrer la sortie']}[type];
   const livOpts = (withDepot, label) => (withDepot ? `<option value="">${label}</option>` : '') + cities().map(c => `<optgroup label="${esc(c)}">${S.livreurs.filter(l => (l.city||'Sans ville') === c).sort(byName).map(l => `<option value="${l.id}" ${l.id===liv0?'selected':''}>${esc(l.name)}</option>`).join('')}</optgroup>`).join('');
   let h = `<form id="mf">`;
+  if(type === 'vente' && !m) h += `<details class="card paste" style="margin-bottom:14px" open><summary><b>📋 Coller une commande WhatsApp</b><span class="note"> — remplit le formulaire</span></summary>
+      <textarea id="pasteTx" placeholder="Copiez le message du client sur WhatsApp et collez-le ici…"></textarea>
+      <div class="btns"><button type="button" class="btn primary sm" id="pasteGo">Remplir automatiquement</button><button type="button" class="btn sm" data-a="tpl">Modèle à envoyer aux clients</button></div>
+      <p class="note" id="pasteMsg" style="margin-top:6px"></p></details>`;
   if(type === 'envoi' || type === 'retour') h += field('Livreur *', `<select name="loc" required>${liv0 ? '' : '<option value="">Choisir un livreur…</option>'}${livOpts(false)}</select>`);
   if(type === 'perte') h += field('Où se trouve le produit ?', `<select name="loc">${livOpts(true, 'Au dépôt')}</select>`);
   if(type === 'vente') h += field('Livré par', `<select name="loc">${livOpts(true, 'Vente directe (depuis le dépôt)')}</select>`);
@@ -931,10 +1004,12 @@ function moveForm(type, opt = {}){
   else if(type === 'perte') h += field('Motif', `<select name="motif">${MOTIFS.map(x => `<option ${m?.motif===x?'selected':''}>${x}</option>`).join('')}</select>`) + `</div>`;
   else if(type === 'vente') h += field('Prix unitaire', `<input name="price" type="number" step="any" min="0" value="${m ? m.price : ''}">`, '<span id="curl"></span>') + `</div><div class="tot" id="tot"></div>
       ${field('Nom du client', `<input name="client" value="${esc(m?.client)}" placeholder="Ex : Mme Nsimba">`)}
-      <div class="row2">${field('Téléphone client', `<input name="phone" type="tel" value="${esc(m?.phone)}" placeholder="08…">`)}${field('Adresse / commune', `<input name="addr" value="${esc(m?.addr)}" placeholder="Ex : Gombe">`)}</div>
+      ${field('Téléphone client (WhatsApp)', `<input name="phone" type="tel" value="${esc(m?.phone)}" placeholder="08… ou +243…">`)}
+      ${field('Adresse complète de livraison', `<textarea name="addr" placeholder="Commune, quartier, avenue, n°, point de repère…">${esc(m?.addr)}</textarea>`)}
+      <div class="row2">${field('Jour de livraison', `<input name="ddate" type="date" value="${m ? (m.ddate || m.date) : today()}">`)}${field('Heure de livraison', `<input name="dtime" type="time" value="${esc(m?.dtime || '')}">`)}</div>
       <div class="f"><span>Statut</span><div class="seg" id="segS">${Object.entries(STATUS).map(([k,l]) => `<button type="button" data-s="${k}">${l}</button>`).join('')}</div></div>`;
   else h += `<div></div></div>`;
-  h += `<div class="row2">${field('Date', `<input name="date" type="date" required value="${m ? m.date : today()}">`)}${field('Note', `<input name="note" value="${esc(m?.note)}" placeholder="${type==='entree'?'Fournisseur…':'Optionnel'}">`)}</div>
+  h += `<div class="row2">${field(type === 'vente' ? 'Date de la commande' : 'Date', `<input name="date" type="date" required value="${m ? m.date : today()}">`)}${field('Note', `<input name="note" value="${esc(m?.note)}" placeholder="${type==='entree'?'Fournisseur…':'Optionnel'}">`)}</div>
     <button class="btn primary block">${T[1]}</button>
     ${m ? `<button type="button" class="btn ghost-bad block" style="margin-top:8px" data-a="delmove:${m.id}">Supprimer cette opération</button>` : ''}</form>`;
   sheet(T[0], h);
@@ -959,6 +1034,20 @@ function moveForm(type, opt = {}){
   if(E.loc) E.loc.onchange = () => { if(type === 'vente' && !m){ status = E.loc.value ? 'attente' : 'livre'; paintSeg(); } upd(); };
   E.qty.oninput = upd; if(E.price) E.price.oninput = upd;
   if(!m && pid0) E.pid.onchange(); else upd();
+  if($('#pasteGo')) $('#pasteGo').onclick = () => {
+    const txt = $('#pasteTx').value.trim(); if(!txt){ toast('Collez d\'abord le message du client'); return; }
+    const o = parseOrder(txt), got = [], miss = [];
+    const set = (n, v, lab) => { if(v){ E[n].value = v; got.push(lab); } else miss.push(lab); };
+    if(o.pid){ E.pid.value = o.pid; E.pid.onchange(); got.push('produit'); } else miss.push('produit');
+    if(o.qty) E.qty.value = o.qty;
+    set('client', o.client, 'nom'); set('phone', o.phone, 'téléphone'); set('addr', o.addr, 'adresse');
+    if(o.ddate) E.ddate.value = o.ddate;
+    set('dtime', o.dtime, 'heure');
+    if(o.liv && E.loc){ E.loc.value = o.liv; E.loc.onchange(); got.push('livreur (' + o.city + ')'); }
+    if(o.when && !o.dtime) E.note.value = (E.note.value ? E.note.value + ' · ' : '') + 'Livraison : ' + o.when;
+    upd();
+    $('#pasteMsg').innerHTML = (got.length ? '✅ Rempli : ' + got.join(', ') + '. ' : '') + (miss.length ? '<span class="red">À compléter : ' + miss.join(', ') + '.</span>' : '') + ' Vérifiez avant d\'enregistrer.';
+  };
 
   f.onsubmit = e => {
     e.preventDefault();
@@ -975,6 +1064,7 @@ function moveForm(type, opt = {}){
       if(!m || m.pid !== p.id || m.liv !== rec.liv || m.price !== rec.price) rec.commU = commUFor(p, liv(rec.liv), toUSD(rec.price, p.cur, m && m.cur === p.cur ? m.rate : rate()));
       if(!m || m.pid !== p.id || m.cur !== p.cur) rec.rate = rate();
       rec.client = E.client.value.trim(); rec.phone = E.phone.value.trim(); rec.addr = E.addr.value.trim(); rec.status = status;
+      rec.ddate = E.ddate.value || rec.date; rec.dtime = E.dtime.value;
     }
     const next = m ? S.moves.map(x => x.id === m.id ? rec : x) : S.moves.concat([rec]);
     const err = checkStock(next, [p.id].concat(m ? [m.pid] : []));
@@ -983,7 +1073,7 @@ function moveForm(type, opt = {}){
     if(type === 'entree' && !m && rec.cost > 0) p.buy = rec.cost;
     S.settings.setup = true; save();
     toast(m ? 'Modification enregistrée' : {entree:'Entrée ajoutée au dépôt', envoi:'Stock envoyé au livreur', retour:'Retour enregistré', vente:'Vente enregistrée', perte:'Sortie enregistrée'}[type]);
-    if(type === 'vente' && !m){ saleTab = status; render(); saleSheet(rec.id); }
+    if(type === 'vente' && !m){ saleTab = status; render(); saleSheet(rec.id, true); }
     else if((type === 'envoi' || type === 'retour') && opt.liv){ render(); livSheet(opt.liv); }
     else { closeSheet(); render(); }
   };
@@ -1030,31 +1120,35 @@ function moneyForm(type, opt = {}){
 }
 
 /* ----- Détail d'une vente ----- */
-function saleSheet(id){
+function saleSheet(id, fresh){
   const m = S.moves.find(x => x.id === id); if(!m) return;
-  const L = liv(m.liv), st = S.settings, total = amt(m.qty*m.price, m.cur), u = saleUSD(m);
-  const fee = L && feeTxt() ? feeTxt() : '';
-  const receipt = `*${st.shop}*\nReçu de vente\n\nProduit : ${pname(m.pid)}\nQuantité : ${m.qty}\nPrix unitaire : ${amt(m.price, m.cur)}\n*Total produit : ${total}*${fee ? '\nFrais de livraison : ' + fee + ' (à remettre au livreur)' : ''}\nDate : ${fmtDate(m.date, true)}\nStatut : ${STATUS[m.status]}\n\nMerci pour votre confiance !${st.wa ? '\nContact : ' + st.wa : ''}`;
-  const order = `*Livraison — ${st.shop}*\n\nProduit : ${pname(m.pid)}\nQuantité : ${m.qty}\nClient : ${m.client || '-'}\nTéléphone : ${m.phone || '-'}\nAdresse : ${m.addr || '-'}\n\n*Montant produit à encaisser : ${total}*${fee ? '\nFrais de livraison (pour vous) : ' + fee : ''}${num(m.commU) ? '\nVotre commission : ' + money(m.qty*num(m.commU)) : ''}${m.note ? '\nNote : ' + m.note : ''}\n\nMerci de verser la recette ce soir par Mobile Money 🙏`;
-  sheet('Vente', `
+  const L = liv(m.liv), total = amt(m.qty*m.price, m.cur), u = saleUSD(m);
+  const rc = receiptClient(m), rl = receiptLivreur(m);
+  sheet(fresh ? 'Vente enregistrée ✅' : 'Vente', `
     <div class="card" style="margin-bottom:12px">
-      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;margin-bottom:6px"><div><div style="font-weight:700;font-size:16px">${esc(pname(m.pid))} × ${m.qty}</div><div class="note">${fmtDate(m.date, true)}</div></div><span class="pill p-${m.status}">${STATUS[m.status]}</span></div>
-      <div class="dl"><span>Total client</span><span class="num" style="font-size:17px">${total}</span></div>
-      ${m.cur === 'FC' ? `<div class="dl"><span>En dollars</span><span class="num">≈ ${money(u)}</span></div>` : ''}
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px"><div><div style="font-weight:700;font-size:16px">${esc(pname(m.pid))} × ${m.qty} · ${total}</div><div class="note">${esc(m.client || 'Client')} · 📅 ${whenTxt(m)}</div></div><span class="pill p-${m.status}">${STATUS[m.status]}</span></div>
+    </div>
+    <div class="sec" style="margin-top:4px"><h2>Envoyer les reçus par WhatsApp</h2></div>
+    <div class="stack" style="margin-bottom:6px">
+      ${L ? `<a class="btn wa block" href="${waLink(L.phone, rl)}" target="_blank" rel="noopener">${ico('wa')} 1. Bon de livraison → ${esc(L.name)}${L.phone ? '' : ' (choisir le contact)'}</a>` : ''}
+      <a class="btn wa block" href="${waLink(m.phone, rc)}" target="_blank" rel="noopener">${ico('wa')} ${L ? '2. ' : ''}Reçu → ${esc(m.client || 'client')}${m.phone ? '' : ' (choisir le contact)'}</a>
+    </div>
+    <details class="card" style="margin:10px 0 12px"><summary class="note"><b>Voir les messages qui seront envoyés</b></summary>
+      ${L ? `<p class="note" style="margin-top:8px"><b>Au livreur :</b></p><pre class="msg">${esc(rl)}</pre>` : ''}
+      <p class="note" style="margin-top:8px"><b>Au client :</b></p><pre class="msg">${esc(rc)}</pre></details>
+    <div class="f"><span>Statut</span><div class="seg">${Object.entries(STATUS).map(([k,l]) => `<button type="button" class="${m.status===k?'on':''}" data-a="status:${k}" data-id="${m.id}">${l}</button>`).join('')}</div></div>
+    <div class="card" style="margin-bottom:12px">
+      <div class="dl"><span>Total client</span><span class="num">${total}${m.cur === 'FC' ? ' ≈ ' + money(u) : ''}</span></div>
       <div class="dl"><span>Commission livreur</span><span class="num">${m.liv ? money(m.qty*num(m.commU)) : '—'}</span></div>
       <div class="dl"><span>Bénéfice sur cette vente</span><span class="num">${money(u - m.qty*num(m.costU) - (m.liv ? m.qty*num(m.commU) : 0))}</span></div>
-      <div class="dl"><span>Livreur</span><span>${L ? esc(L.name) + ' · ' + esc(L.city||'') : 'Vente directe (dépôt)'}</span></div>
-      <div class="dl"><span>Client</span><span>${esc(m.client || '—')}</span></div>
-      ${m.phone ? `<div class="dl"><span>Téléphone</span><span>${esc(m.phone)}</span></div>` : ''}
-      ${m.addr ? `<div class="dl"><span>Adresse</span><span>${esc(m.addr)}</span></div>` : ''}
+      <div class="dl"><span>Livreur</span><span>${L ? esc(L.name) + ' · ' + esc(L.city||'') + (L.phone ? '<br>' + esc(L.phone) : '') : 'Vente directe (dépôt)'}</span></div>
+      <div class="dl"><span>Client</span><span>${esc(m.client || '—')}${m.phone ? '<br>' + esc(m.phone) : ''}</span></div>
+      <div class="dl"><span>Adresse</span><span style="white-space:pre-line">${esc(m.addr || '—')}</span></div>
+      <div class="dl"><span>Livraison</span><span>${whenTxt(m)}</span></div>
+      <div class="dl"><span>Commande du</span><span>${fmtDate(m.date, true)}</span></div>
       ${m.note ? `<div class="dl"><span>Note</span><span>${esc(m.note)}</span></div>` : ''}
     </div>
-    <div class="f"><span>Changer le statut</span><div class="seg">${Object.entries(STATUS).map(([k,l]) => `<button type="button" class="${m.status===k?'on':''}" data-a="status:${k}" data-id="${m.id}">${l}</button>`).join('')}</div></div>
-    <div class="stack">
-      ${L ? `<a class="btn wa block" href="${waLink(L.phone, order)}" target="_blank" rel="noopener">${ico('wa')} Envoyer la commande à ${esc(L.name)}</a>` : ''}
-      <a class="btn wa block" href="${waLink(m.phone, receipt)}" target="_blank" rel="noopener">${ico('wa')} Envoyer le reçu ${m.phone ? 'au client' : 'par WhatsApp'}</a>
-      <div class="btns"><button class="btn" data-a="editsale:${m.id}">Modifier</button><button class="btn ghost-bad" data-a="delmove:${m.id}">Supprimer</button></div>
-    </div>`);
+    <div class="btns"><button class="btn" data-a="editsale:${m.id}">Modifier</button><button class="btn ghost-bad" data-a="delmove:${m.id}">Supprimer</button></div>`);
 }
 function setStatus(id, st){
   const m = S.moves.find(x => x.id === id); if(!m || m.status === st) return;
@@ -1105,9 +1199,9 @@ function restoreSheet(){
 }
 function csvSheet(){
   const q = v => { const s = String(v ?? ''); return /[;"\n]/.test(s) ? '"' + s.replace(/"/g,'""') + '"' : s; };
-  const rows = [['Date','Produit','Quantité','Prix unitaire','Devise','Total','Total ($)','Commission livreur ($)','Bénéfice ($)','Livreur','Ville','Client','Téléphone','Adresse','Statut','Note']];
+  const rows = [['Date commande','Livraison','Heure','Produit','Quantité','Prix unitaire','Devise','Total','Total ($)','Commission livreur ($)','Bénéfice ($)','Livreur','Ville','Client','Téléphone','Adresse','Statut','Note']];
   sortMoves(S.moves.filter(m => m.type === 'vente')).forEach(m => { const u = saleUSD(m), c = m.liv ? m.qty*num(m.commU) : 0;
-    rows.push([m.date, pname(m.pid), m.qty, m.price, m.cur, m.qty*m.price, r2(u), r2(c), r2(u - m.qty*num(m.costU) - c), m.liv ? lname(m.liv) : 'Dépôt', m.liv ? liv(m.liv)?.city || '' : '', m.client, m.phone, m.addr, STATUS[m.status], m.note]); });
+    rows.push([m.date, m.ddate || m.date, m.dtime || '', pname(m.pid), m.qty, m.price, m.cur, m.qty*m.price, r2(u), r2(c), r2(u - m.qty*num(m.costU) - c), m.liv ? lname(m.liv) : 'Dépôt', m.liv ? liv(m.liv)?.city || '' : '', m.client, m.phone, m.addr, STATUS[m.status], m.note]); });
   const csv = '﻿' + rows.map(r => r.map(q).join(';')).join('\n');
   sheet('Exporter les ventes', `<p class="note" style="margin-bottom:12px">${rows.length-1} ventes. Le fichier s'ouvre dans Excel, Google Sheets ou WPS Office.</p>
     <div class="stack"><button class="btn primary block" id="cdl">Télécharger (CSV)</button><button class="btn block" id="ccp">Copier le tableau</button></div>`);
@@ -1232,6 +1326,7 @@ const A = {
   csv: () => csvSheet(),
   demo: async () => { if(S.moves.length && !await ask('Remplacer vos données par des exemples ?', 'Remplacer')) return; seedDemo(); },
   preset: () => loadPreset(),
+  tpl: () => tplSheet(),
   startempty: () => setupSheet(),
   reset: async () => {
     if(!await ask('Effacer TOUTES les données (produits, livreurs, ventes, livre) ? Pensez à exporter une sauvegarde avant.', 'Tout effacer')) return;
