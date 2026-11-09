@@ -1,0 +1,1329 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#8A3B12">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" type="image/png" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-180.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="WB Stock">
+<title>Gestion de Stock & Livreurs</title>
+<style>
+:root{
+  --brand:#0F766E;--brand-ink:#fff;--brand-soft:rgba(15,118,110,.12);
+  --bg:#f4f5f7;--card:#fff;--ink:#16181d;--muted:#6b7280;--line:#e7e9ee;
+  --ok:#15803d;--ok-soft:#e7f6ec;--warn:#b45309;--warn-soft:#fdf2e1;
+  --bad:#b91c1c;--bad-soft:#fdeaea;--info:#1d4ed8;--info-soft:#e8eefc;--vio:#6d28d9;--vio-soft:#f1eafd;
+  --r:16px;--shadow:0 1px 2px rgba(16,24,40,.05),0 1px 3px rgba(16,24,40,.06);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+[hidden]{display:none!important}
+html,body{background:var(--bg);color:var(--ink);font:15px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;-webkit-tap-highlight-color:transparent;-webkit-text-size-adjust:100%}
+body{padding-bottom:calc(84px + env(safe-area-inset-bottom))}
+body.lock{overflow:hidden}
+button,input,select,textarea{font:inherit;color:inherit}
+button{cursor:pointer;border:0;background:none}
+a{color:inherit}
+svg.i{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round;flex:none}
+.num{font-variant-numeric:tabular-nums}
+
+.top{position:sticky;top:0;z-index:20;background:var(--brand);color:var(--brand-ink);padding:calc(12px + env(safe-area-inset-top)) 16px 14px;display:flex;align-items:center;gap:12px}
+.logo{width:40px;height:40px;border-radius:12px;background:rgba(255,255,255,.18);display:grid;place-items:center;font-weight:700;overflow:hidden;flex:none}
+.logo img{width:100%;height:100%;object-fit:cover;background:#fff}
+.top h1{font-size:17px;font-weight:700;line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.top p{font-size:12.5px;opacity:.85}
+.top .grow{min-width:0;flex:1}
+
+main{max-width:980px;margin:0 auto;padding:16px}
+.sec{margin:22px 0 10px;display:flex;align-items:center;justify-content:space-between;gap:8px}
+.sec h2{font-size:15px;font-weight:700}
+.link{font-size:13px;color:var(--brand);font-weight:650;text-decoration:none}
+.back{display:inline-flex;align-items:center;gap:6px;font-weight:650;color:var(--brand);margin-bottom:12px;font-size:14px}
+
+.card{background:var(--card);border-radius:var(--r);box-shadow:var(--shadow);padding:14px}
+.kpis{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.kpi{background:var(--card);border-radius:var(--r);box-shadow:var(--shadow);padding:14px;min-width:0;text-align:left}
+.kpi .l{font-size:12.5px;color:var(--muted);font-weight:600}
+.kpi .v{font-size:21px;font-weight:750;margin-top:4px;letter-spacing:-.01em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.kpi .s{font-size:12px;color:var(--muted);margin-top:2px}
+.kpi.hero{grid-column:1/-1;background:var(--brand);color:var(--brand-ink)}
+.kpi.hero .l,.kpi.hero .s{color:inherit;opacity:.88}
+.kpi.hero .v{font-size:28px}
+.v.pos{color:var(--ok)}.v.neg{color:var(--bad)}
+.kpi.hero .v.neg{color:#fecaca}
+
+.chips{display:flex;gap:8px;overflow-x:auto;padding:2px 0 4px;scrollbar-width:none}
+.chips::-webkit-scrollbar{display:none}
+.chip{padding:8px 14px;border-radius:999px;background:var(--card);box-shadow:var(--shadow);font-size:13.5px;font-weight:600;white-space:nowrap;color:var(--muted)}
+.chip.on{background:var(--brand);color:var(--brand-ink)}
+.chip b{font-weight:700;margin-left:4px;opacity:.8}
+
+.list{background:var(--card);border-radius:var(--r);box-shadow:var(--shadow);overflow:hidden}
+.it{display:flex;align-items:center;gap:12px;padding:12px 14px;border-bottom:1px solid var(--line);width:100%;text-align:left}
+.it:last-child{border-bottom:0}
+button.it:active{background:#f7f8fa}
+.it .ic{width:38px;height:38px;border-radius:11px;display:grid;place-items:center;flex:none;font-weight:700;font-size:13px}
+.it .m{flex:1;min-width:0}
+.it .t{font-weight:650;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.it .d{font-size:12.5px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.it .r{text-align:right;flex:none}
+.it .big{font-size:20px;font-weight:750;line-height:1.1}
+.it .sm{font-size:11.5px;color:var(--muted)}
+.c-in{background:var(--ok-soft);color:var(--ok)}
+.c-out{background:var(--info-soft);color:var(--info)}
+.c-loss{background:var(--warn-soft);color:var(--warn)}
+.c-send{background:var(--vio-soft);color:var(--vio)}
+.c-money{background:#e9f7f4;color:#0f766e}
+.c-x{background:#f0f1f4;color:var(--muted)}
+.c-brand{background:var(--brand-soft);color:var(--brand)}
+.empty{padding:26px 18px;text-align:center;color:var(--muted);font-size:14px}
+.empty b{display:block;color:var(--ink);font-size:15px;margin-bottom:4px}
+
+.pill{display:inline-block;padding:2px 8px;border-radius:999px;font-size:11.5px;font-weight:700;white-space:nowrap}
+.p-attente{background:var(--warn-soft);color:var(--warn)}
+.p-encours{background:var(--info-soft);color:var(--info)}
+.p-livre{background:var(--ok-soft);color:var(--ok)}
+.p-annule{background:#f0f1f4;color:var(--muted)}
+.qty-low{color:var(--warn)}.qty-zero{color:var(--bad)}
+.strike{text-decoration:line-through;opacity:.6}
+.red{color:var(--bad)}.green{color:var(--ok)}
+
+.bars{display:flex;align-items:flex-end;gap:4px;height:110px;padding-top:6px}
+.bars div{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:100%;gap:4px;min-width:0}
+.bars i{display:block;width:100%;max-width:26px;border-radius:5px 5px 2px 2px;background:var(--brand);min-height:2px}
+.bars i.z{background:var(--line)}
+.bars span{font-size:10px;color:var(--muted)}
+.hb{display:flex;align-items:center;gap:10px;padding:8px 0}
+.hb .n{width:40%;font-size:13.5px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.hb .tr{flex:1;height:10px;background:var(--brand-soft);border-radius:6px;overflow:hidden}
+.hb .tr i{display:block;height:100%;background:var(--brand);border-radius:6px}
+.hb .q{font-size:12.5px;color:var(--muted);width:78px;text-align:right}
+.split{display:flex;height:16px;border-radius:8px;overflow:hidden;background:var(--line);margin:4px 0 12px}
+.split i{display:block;height:100%}
+.leg{display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:1px solid var(--line);font-size:14px}
+.leg:last-child{border-bottom:0}
+.leg .dot{width:10px;height:10px;border-radius:3px;flex:none}
+.leg .n{flex:1;color:var(--muted)}
+.leg .a{font-weight:650}
+.leg .p{width:46px;text-align:right;font-size:12px;color:var(--muted)}
+
+table.tb{width:100%;border-collapse:collapse;font-size:13.5px}
+.tb th{text-align:left;color:var(--muted);font-weight:600;font-size:12px;padding:6px 4px;border-bottom:1px solid var(--line)}
+.tb td{padding:9px 4px;border-bottom:1px solid var(--line)}
+.tb tr:last-child td{border-bottom:0}
+.tb .rt{text-align:right}
+.tbw{overflow-x:auto}
+
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;padding:12px 16px;border-radius:12px;font-weight:650;background:#eef0f3;color:var(--ink);min-height:46px;text-decoration:none;font-size:14.5px;text-align:center}
+.btn.primary{background:var(--brand);color:var(--brand-ink)}
+.btn.wa{background:#1fa855;color:#fff}
+.btn.danger{background:var(--bad);color:#fff}
+.btn.ghost-bad{background:var(--bad-soft);color:var(--bad)}
+.btn.block{width:100%}
+.btn.sm{min-height:36px;padding:7px 12px;font-size:13px;border-radius:10px}
+.btns{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.stack>*+*{margin-top:10px}
+.f{display:block;margin-bottom:12px}
+.f>span{display:block;font-size:13px;font-weight:650;margin-bottom:5px}
+.f small{display:block;color:var(--muted);font-size:12px;margin-top:4px}
+.f input,.f select,.f textarea,.search{width:100%;padding:11px 12px;border:1.5px solid var(--line);border-radius:11px;background:#fff;min-height:46px;font-size:16px;outline:none}
+.f textarea{min-height:70px;resize:vertical}
+.f input:focus,.f select:focus,.f textarea:focus,.search:focus{border-color:var(--brand)}
+.f input[type=color]{padding:4px;height:46px}
+.row2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.row3{display:grid;grid-template-columns:2fr 1fr;gap:10px}
+.search{margin-bottom:12px;background:var(--card)}
+.tot{background:var(--brand-soft);border-radius:12px;padding:10px 12px;margin-bottom:12px;font-size:14px;display:flex;justify-content:space-between;gap:4px 8px;flex-wrap:wrap}
+.tot b{font-size:17px}
+.tot small{width:100%;font-size:12.5px;color:var(--muted)}
+.note{font-size:12.5px;color:var(--muted);line-height:1.5}
+.warnbox{background:var(--warn-soft);color:var(--warn);border-radius:12px;padding:10px 12px;font-size:13px;font-weight:600;margin-bottom:12px;display:block;text-align:left;width:100%}
+.seg{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-bottom:12px}
+.seg button{padding:10px 4px;border-radius:10px;background:#f0f1f4;font-size:12.5px;font-weight:650;color:var(--muted)}
+.seg button.on{background:var(--brand);color:var(--brand-ink)}
+.seg2{grid-template-columns:1fr 1fr}
+.colors{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px}
+.colors button{width:34px;height:34px;border-radius:50%;box-shadow:inset 0 0 0 2px rgba(0,0,0,.08)}
+.colors button.on{box-shadow:0 0 0 3px #fff,0 0 0 5px var(--ink)}
+.kv{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:12px}
+.kv div{background:#fff;border-radius:12px;padding:10px 6px;text-align:center;box-shadow:var(--shadow)}
+.kv b{display:block;font-size:19px}
+.kv span{font-size:11.5px;color:var(--muted)}
+.dl{display:flex;justify-content:space-between;gap:10px;padding:8px 0;border-bottom:1px solid var(--line);font-size:14px}
+.dl:last-child{border-bottom:0}
+.dl>span:first-child{color:var(--muted)}
+.dl>span:last-child{text-align:right;font-weight:650}
+.dl.strong>span{color:var(--ink)!important;font-weight:750}
+.kitrow{display:grid;grid-template-columns:1fr 80px;gap:8px;margin-bottom:8px}
+.kitrow select,.kitrow input{width:100%;padding:10px;border:1.5px solid var(--line);border-radius:11px;background:#fff;min-height:44px;font-size:15px}
+.city{font-size:12px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin:18px 0 8px}
+.menu .it .ic{width:42px;height:42px}
+
+nav.nav{position:fixed;left:0;right:0;bottom:0;z-index:30;background:rgba(255,255,255,.97);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);border-top:1px solid var(--line);display:grid;grid-template-columns:repeat(5,1fr);padding:6px 4px calc(6px + env(safe-area-inset-bottom))}
+nav.nav button{display:flex;flex-direction:column;align-items:center;gap:2px;padding:6px 0;font-size:11px;font-weight:600;color:var(--muted);border-radius:12px}
+nav.nav button.on{color:var(--brand)}
+nav.nav button.on svg{stroke-width:2.3}
+.fab{position:fixed;right:16px;bottom:calc(82px + env(safe-area-inset-bottom));z-index:31;width:58px;height:58px;border-radius:18px;background:var(--brand);color:var(--brand-ink);display:grid;place-items:center;box-shadow:0 8px 20px rgba(0,0,0,.18)}
+.fab svg{width:28px;height:28px}
+
+.ov{position:fixed;inset:0;z-index:50;background:rgba(15,18,25,.45);display:flex;align-items:flex-end;justify-content:center;opacity:0;transition:opacity .18s}
+.ov.on{opacity:1}
+.sh{background:var(--bg);width:100%;max-width:560px;max-height:92vh;border-radius:22px 22px 0 0;display:flex;flex-direction:column;transform:translateY(30px);transition:transform .2s}
+.ov.on .sh{transform:none}
+.sh-h{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:16px 18px 8px}
+.sh-h h3{font-size:18px;line-height:1.25}
+.x{width:36px;height:36px;border-radius:50%;background:#e7e9ee;font-size:22px;line-height:1;color:var(--muted);flex:none}
+.sh-b{overflow-y:auto;padding:6px 18px calc(22px + env(safe-area-inset-bottom));-webkit-overflow-scrolling:touch}
+.dlg{position:fixed;inset:0;z-index:60;background:rgba(15,18,25,.5);display:grid;place-items:center;padding:24px}
+.dlg .card{max-width:380px;width:100%;padding:20px}
+.dlg p{margin-bottom:16px;font-size:15px}
+.toast{position:fixed;left:50%;bottom:calc(150px + env(safe-area-inset-bottom));transform:translateX(-50%);background:#16181d;color:#fff;padding:11px 16px;border-radius:12px;font-size:14px;z-index:70;max-width:90vw;text-align:center;box-shadow:0 8px 24px rgba(0,0,0,.25)}
+.act{display:flex;align-items:center;gap:14px;width:100%;padding:12px 14px;background:var(--card);border-radius:14px;box-shadow:var(--shadow);text-align:left;margin-bottom:8px}
+.act .ic{width:42px;height:42px;border-radius:12px;display:grid;place-items:center;flex:none}
+.act b{display:block}
+.act small{color:var(--muted);font-size:12.5px}
+textarea.code{width:100%;min-height:90px;font:12px/1.4 ui-monospace,Menlo,monospace;padding:10px;border:1.5px solid var(--line);border-radius:11px}
+
+@media (min-width:900px){
+  body{padding-bottom:24px;padding-left:220px}
+  .top{padding-left:24px}
+  nav.nav{top:0;bottom:0;right:auto;width:220px;display:flex;flex-direction:column;gap:4px;padding:84px 12px 12px;border-top:0;border-right:1px solid var(--line)}
+  nav.nav button{flex-direction:row;gap:12px;padding:12px 14px;font-size:14.5px}
+  nav.nav button.on{background:var(--brand-soft)}
+  .fab{bottom:28px;right:28px}
+  .kpis{grid-template-columns:repeat(3,1fr)}
+  .kpi.hero{grid-column:auto}
+  .ov{align-items:center}
+  .sh{border-radius:22px;max-height:88vh}
+  .toast{bottom:40px}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:0 16px}
+}
+</style>
+</head>
+<body>
+<header class="top" id="top"></header>
+<main id="main"></main>
+<button class="fab" data-a="fab" aria-label="Nouvelle opération" id="fab"><svg class="i" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></button>
+<nav class="nav" id="nav"></nav>
+<div class="ov" id="ov" hidden><div class="sh" role="dialog" aria-modal="true"><div class="sh-h"><h3 id="sht"></h3><button class="x" data-a="close" aria-label="Fermer">×</button></div><div class="sh-b" id="shb"></div></div></div>
+<div id="dlg"></div>
+<div id="toast" class="toast" hidden></div>
+
+<script>
+/* =================================================================
+   Gestion de Stock & Livreurs — application web autonome (1 fichier)
+   Produits · Stock (dépôt + livreurs) · Ventes · Livreurs par ville
+   Commissions · Versements · Dépenses · Bénéfice final
+   Données enregistrées sur l'appareil (localStorage).
+   ================================================================= */
+const KEY = 'gestion_stock_livreurs_v2';
+
+/* Catalogue de départ proposé à l'ouverture (mettre PRESET = null pour une version vierge à revendre) */
+const PRESET = {
+  label:'Winner Business', shop:'Winner Business', color:'#8A3B12', country:'RDC', lc:'FC', rate:2300, fee:8000, feeCur:'FC',
+  // [code, nom, catégorie, devise, prix de vente, commission livreur ($), composition du pack]
+  products:[
+    ['p1','Sac de poitrine','Accessoires','$',10,2],
+    ['p2','Huile Adeline Golden Hair','Golden Hair','$',10,2],
+    ['p3','Pommade Adeline Golden Hair','Golden Hair','$',10,2],
+    ['p4','Gamme complète Golden Hair (Huile + Pommade)','Golden Hair','$',15,3,[['p2',1],['p3',1]]],
+    ['p5','Concombre Munu','Santé','FC',50000,3],
+    ['p6','Winner Pesa Elengi','Santé','FC',30000,3],
+    ['p7','Anti Hémorroïdes','Santé','FC',30000,3],
+    ['p8','Crème à lèvres Rose (1 pièce)','Beauté','$',7,2],
+    ['p9','Crème à lèvres Rose (Pack de 2 pièces)','Beauté','$',15,3,[['p8',2]]],
+    ['p10','Savon Noir du Nigéria','Beauté','FC',15000,1.5]
+  ],
+  livreurs:[['Ghislaine','+243 965 733 274','Kolwezi'],['Marla','','Kinshasa'],['James','','Kinshasa'],['Enisse','','Lubumbashi']]
+};
+const GENERIC = {
+  products:[['g1','Sac antivol','Accessoires','$',15,2],['g2','Crème visage','Beauté','$',10,2],['g3','Savon naturel','Beauté','FC',15000,1],['g4','Coffret crème + savon','Beauté','$',22,3,[['g2',1],['g3',1]]]],
+  livreurs:[['Patrick','','Kinshasa'],['Grâce','','Kinshasa'],['Aimé','','Lubumbashi']]
+};
+
+const ICON = {
+  home:'<path d="M3 11l9-7 9 7v9a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/>',
+  box:'<path d="M21 8l-9-5-9 5v8l9 5 9-5z"/><path d="M3 8l9 5 9-5M12 13v8"/>',
+  truck:'<path d="M2 6h12v10H2zM14 9h4.5L22 12.5V16h-8"/><circle cx="6.5" cy="17.5" r="1.8"/><circle cx="17.5" cy="17.5" r="1.8"/>',
+  user:'<circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0M16 4.5a3.5 3.5 0 0 1 0 7M18 14.5a6 6 0 0 1 3.5 5.5"/>',
+  more:'<circle cx="5" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="19" cy="12" r="1.6"/>',
+  book:'<path d="M5 4h11a3 3 0 0 1 3 3v13H8a3 3 0 0 1-3-3z"/><path d="M5 17a3 3 0 0 1 3-3h11"/>',
+  set:'<path d="M4 6h9M17 6h3M4 12h3M11 12h9M4 18h11M19 18h1"/><circle cx="15" cy="6" r="2"/><circle cx="9" cy="12" r="2"/><circle cx="17" cy="18" r="2"/>',
+  in:'<path d="M12 4v12M6 10l6 6 6-6M5 20h14"/>',
+  out:'<path d="M12 20V8M6 14l6-6 6 6M5 4h14"/>',
+  send:'<path d="M4 12h13M12 6l6 6-6 6"/><path d="M20 5v14"/>',
+  back:'<path d="M20 12H7M12 6l-6 6 6 6"/><path d="M4 5v14"/>',
+  cart:'<path d="M3 4h2l2.4 11h11L21 7H6.2"/><circle cx="9" cy="19" r="1.5"/><circle cx="18" cy="19" r="1.5"/>',
+  tag:'<path d="M3 12V4h8l10 10-8 8z"/><circle cx="7.5" cy="7.5" r="1.5"/>',
+  cash:'<rect x="2.5" y="6" width="19" height="12" rx="2"/><circle cx="12" cy="12" r="2.5"/><path d="M6 9v.01M18 15v.01"/>',
+  coin:'<circle cx="12" cy="12" r="8.5"/><path d="M14.5 9.3c-.5-.8-1.4-1.3-2.5-1.3-1.5 0-2.6.8-2.6 2s1.1 1.7 2.6 2 2.6.8 2.6 2-1.1 2-2.6 2c-1.1 0-2-.5-2.5-1.3M12 6.5v1.5M12 16v1.5"/>',
+  receipt:'<path d="M6 3h12v18l-3-2-3 2-3-2-3 2z"/><path d="M9 8h6M9 12h6"/>',
+  wa:'<path d="M4 20l1.3-4A8 8 0 1 1 8 18.7z"/><path d="M9 9.5c0 3 2.5 5.5 5.5 5.5l1-1.5-2-1-1 .8a4 4 0 0 1-1.8-1.8l.8-1-1-2z"/>',
+  chev:'<path d="M9 6l6 6-6 6"/>'
+};
+const ico = (n, cls='i') => `<svg class="${cls}" viewBox="0 0 24 24">${ICON[n]}</svg>`;
+const STATUS = {attente:'À livrer', encours:'En cours', livre:'Livré', annule:'Annulé'};
+const MOTIFS = ['Cassé / abîmé','Périmé','Perdu / volé','Cadeau / échantillon','Usage interne','Autre'];
+const DEPCATS = ['Transport','Expédition colis (vers une ville)','Publicité Facebook','Boutique / loyer','Emballage','Crédit / internet','Salaire / aide','Autre'];
+const CITIES = ['Kinshasa','Lubumbashi','Bukavu','Kolwezi','Goma','Kisangani','Matadi','Mbuji-Mayi','Kananga'];
+const COLORS = ['#8A3B12','#0F766E','#1D4ED8','#7C3AED','#BE185D','#DC2626','#EA580C','#CA8A04','#15803D','#111827'];
+const COUNTRIES = [['RDC','FC','243',2300],['Congo-Brazzaville','XAF','242',570],['Cameroun','XAF','237',570],['Gabon','XAF','241',570],['Tchad','XAF','235',570],['Centrafrique','XAF','236',570],["Côte d'Ivoire",'XOF','225',570],['Sénégal','XOF','221',570],['Mali','XOF','223',570],['Burkina Faso','XOF','226',570],['Bénin','XOF','229',570],['Togo','XOF','228',570],['Niger','XOF','227',570],['Guinée','GNF','224',8650],['Burundi','BIF','257',2950],['Rwanda','RWF','250',1450],['Madagascar','MGA','261',4500],['Autre pays','','','']];
+const SPLITC = {cost:'#94a3b8', comm:'#6d28d9', dep:'#ea580c', loss:'#b45309', net:'#15803d'};
+
+/* ---------- Données ---------- */
+function defaults(){
+  return {settings:{shop:'Ma Boutique', logo:'', color:'#0F766E', country:'RDC', lc:'FC', rate:2300, cc:'243', wa:'', fee:8000, feeCur:'FC', setup:false},
+          products:[], livreurs:[], moves:[]};
+}
+let storageOK = true;
+function normalize(d){
+  const b = defaults();
+  return {settings:Object.assign(b.settings, d.settings||{}), products:d.products||[], livreurs:d.livreurs||[], moves:d.moves||[]};
+}
+function load(){
+  try{ const t = localStorage.getItem(KEY); if(t) return normalize(JSON.parse(t)); }
+  catch(e){ storageOK = false; }
+  return defaults();
+}
+let S = load();
+function save(){
+  try{ localStorage.setItem(KEY, JSON.stringify(S)); storageOK = true; }
+  catch(e){ storageOK = false; toast("Attention : l'enregistrement a échoué sur cet appareil. Faites une sauvegarde."); }
+}
+
+/* ---------- Utilitaires ---------- */
+const $ = s => document.querySelector(s);
+const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2,7);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const num = v => { const n = parseFloat(String(v ?? '').replace(/\s/g,'').replace(',', '.')); return isFinite(n) ? n : 0; };
+const r2 = n => { const v = Math.round((n||0)*100)/100; return v === 0 ? 0 : v; };
+const fmt = n => r2(n).toLocaleString('fr-FR', {maximumFractionDigits:2});
+const money = usd => fmt(usd) + ' $';
+const LC = () => S.settings.lc || 'FC'; // monnaie locale (code interne « FC »)
+const amt = (a, cur) => fmt(a) + (cur === 'FC' ? ' ' + LC() : ' $');
+const rate = () => num(S.settings.rate) || 1;
+const toUSD = (a, cur, rt) => cur === 'FC' ? a / (num(rt) || rate()) : a;
+const fcOf = usd => fmt(Math.round(usd * rate())) + ' ' + LC();
+const iso10 = d => d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+const today = () => iso10(new Date());
+const addDays = (iso, k) => { const d = new Date(iso + 'T12:00:00'); d.setDate(d.getDate()+k); return iso10(d); };
+const weekStart = () => { const d = new Date(); return addDays(today(), -((d.getDay()+6)%7)); };
+function fmtDate(iso, long){
+  if(!iso) return '';
+  const d = new Date(iso + 'T12:00:00'), t = today();
+  if(iso === t) return "Aujourd'hui";
+  if(iso === addDays(t,-1)) return 'Hier';
+  const o = {weekday: long ? 'long' : undefined, day:'numeric', month: long ? 'long' : 'short'};
+  if(d.getFullYear() !== new Date().getFullYear()) o.year = 'numeric';
+  return d.toLocaleDateString('fr-FR', o);
+}
+const prod = id => S.products.find(p => p.id === id);
+const pname = id => prod(id)?.name || 'Produit supprimé';
+const liv = id => S.livreurs.find(l => l.id === id);
+const lname = id => id ? (liv(id)?.name || 'Livreur supprimé') : 'Dépôt';
+const locName = loc => loc ? 'chez ' + lname(loc) : 'au dépôt';
+const byName = (a,b) => a.name.localeCompare(b.name, 'fr');
+const isKit = p => !!(p && p.kit && p.kit.length);
+const sortMoves = arr => arr.sort((a,b) => (b.date||'').localeCompare(a.date||'') || (b.ts||0) - (a.ts||0));
+const initials = s => (s||'?').trim().split(/\s+/).slice(0,2).map(w => w[0]).join('').toUpperCase();
+const priceTxt = p => amt(p.sell||0, p.cur);
+function hexRgb(h){ h = (h||'#0F766E').replace('#',''); if(h.length===3) h = h.split('').map(c=>c+c).join(''); const n = parseInt(h,16); return [n>>16&255, n>>8&255, n&255]; }
+function phoneNorm(p){
+  let d = String(p||'').replace(/\D/g,'');
+  if(!d) return '';
+  if(d.startsWith('00')) d = d.slice(2);
+  else if(d.startsWith('0')) d = (S.settings.cc || '') + d.slice(1);
+  return d;
+}
+const waLink = (phone, text) => 'https://wa.me/' + phoneNorm(phone) + '?text=' + encodeURIComponent(text);
+const cities = () => [...new Set(S.livreurs.map(l => l.city || 'Sans ville'))].sort((a,b) => a.localeCompare(b,'fr'));
+const feeTxt = () => num(S.settings.fee) ? amt(num(S.settings.fee), S.settings.feeCur) : '';
+
+/* ---------- Calculs : stock ---------- */
+// Un pack (kit) se décompose en ses produits ; le stock est tenu sur les produits simples.
+function lines(pid, qty){ const p = prod(pid); return isKit(p) ? p.kit.map(c => [c.pid, c.q*qty]) : [[pid, qty]]; }
+const isOutSale = m => m.type === 'vente' && m.status !== 'annule';
+function stockAt(moves = S.moves){
+  const st = {};
+  const add = (loc, pid, q) => { const L = st[loc] = st[loc] || {}; L[pid] = (L[pid]||0) + q; };
+  for(const m of moves){
+    if(!m.pid) continue;
+    for(const [pid, q] of lines(m.pid, m.qty)){
+      if(m.type === 'entree') add('', pid, q);
+      else if(m.type === 'envoi'){ add('', pid, -q); add(m.liv, pid, q); }
+      else if(m.type === 'retour'){ add(m.liv, pid, -q); add('', pid, q); }
+      else if(isOutSale(m)) add(m.liv||'', pid, -q);
+      else if(m.type === 'perte') add(m.loc||'', pid, -q);
+    }
+  }
+  return st;
+}
+const qAt = (st, loc, pid) => (st[loc] && st[loc][pid]) || 0;
+function avail(st, loc, pid){ // quantité disponible (packs : nombre de packs possibles)
+  const p = prod(pid);
+  if(isKit(p)) return Math.max(0, Math.min(...p.kit.map(c => Math.floor(qAt(st, loc, c.pid) / c.q))));
+  return qAt(st, loc, pid);
+}
+function totalOf(st, pid){ let t = 0; for(const loc in st) t += st[loc][pid]||0; return t; }
+function inHands(st, pid){ let t = 0; for(const loc in st) if(loc) t += st[loc][pid]||0; return t; }
+// Vérifie qu'aucun stock ne devient négatif après une modification
+function checkStock(newMoves, pids){
+  const st = stockAt(newMoves);
+  const set = new Set(); pids.forEach(id => lines(id, 1).forEach(([p]) => set.add(p)));
+  for(const loc in st) for(const pid of set) if((st[loc][pid]||0) < 0)
+    return `Stock insuffisant : ${pname(pid)} ${locName(loc)} (il manque ${-st[loc][pid]})`;
+  return '';
+}
+
+/* ---------- Calculs : argent ---------- */
+const saleUSD = m => toUSD(m.qty * m.price, m.cur, m.rate);
+const moneyUSD = m => toUSD(m.amount, m.cur, m.rate);
+function unitCostUSD(p){
+  if(!p) return 0;
+  if(num(p.buy) > 0) return toUSD(num(p.buy), p.cur);
+  if(isKit(p)) return p.kit.reduce((s,c) => s + unitCostUSD(prod(c.pid)) * c.q, 0);
+  return 0;
+}
+// Commission d'un livreur pour 1 pièce : selon le produit (montant fixe ou %), ou % propre au livreur, ou 0 si salarié
+function commUFor(p, l, unitUSD){
+  if(!p || !l || l.pay === 'salaire') return 0;
+  if(l.pay === 'pct') return unitUSD * num(l.pct) / 100;
+  return p.commMode === 'pct' ? unitUSD * num(p.comm) / 100 : num(p.comm);
+}
+const commTxt = p => p.commMode === 'pct' ? fmt(num(p.comm)) + ' %' : money(num(p.comm));
+const payTxt = l => l.pay === 'salaire' ? 'Salaire ' + money(num(l.salary)) + ' / mois' : l.pay === 'pct' ? fmt(num(l.pct)) + ' % de chaque vente' : 'Commission selon le produit';
+function inPer(date, p){
+  if(p === 'tout') return true;
+  const t = today();
+  if(p === 'jour') return date === t;
+  if(p === 'sem') return date >= weekStart() && date <= t;
+  if(p === 'mois') return (date||'').slice(0,7) === t.slice(0,7);
+  return true;
+}
+function livStats(id){
+  const r = {got:0, back:0, sold:0, pend:0, lost:0, cash:0, paid:0, earned:0, commPaid:0, week:0, weekN:0, weekPot:0, weekByProd:{}, salMonth:0, nLiv:0, nPend:0, byProd:{}};
+  const mo = today().slice(0,7);
+  const ws = weekStart();
+  const P = pid => r.byProd[pid] = r.byProd[pid] || {got:0, sold:0, pend:0, back:0, lost:0};
+  for(const m of S.moves){
+    if(m.liv !== id && m.loc !== id) continue;
+    if(m.type === 'versement'){ r.paid += moneyUSD(m); continue; }
+    if(m.type === 'paiecomm'){ r.commPaid += num(m.amount); continue; }
+    if(m.type === 'depense'){ if(/^Salaire/.test(m.cat||'') && (m.date||'').slice(0,7) === mo) r.salMonth += moneyUSD(m); continue; }
+    if(!m.pid) continue;
+    for(const [pid, q] of lines(m.pid, m.qty)){
+      if(m.type === 'envoi'){ r.got += q; P(pid).got += q; }
+      else if(m.type === 'retour'){ r.back += q; P(pid).back += q; }
+      else if(m.type === 'perte'){ r.lost += q; P(pid).lost += q; }
+      else if(m.type === 'vente' && m.status === 'livre'){ r.sold += q; P(pid).sold += q; }
+      else if(m.type === 'vente' && m.status !== 'annule'){ r.pend += q; P(pid).pend += q; }
+    }
+    if(m.type === 'vente' && m.status === 'livre'){
+      const c = m.qty * num(m.commU);
+      r.cash += saleUSD(m); r.earned += c; r.nLiv++;
+      if(m.date >= ws){ r.week += c; r.weekN++; const W = r.weekByProd[m.pid] = r.weekByProd[m.pid] || {q:0, c:0, a:0}; W.q += m.qty; W.c += c; W.a += saleUSD(m); }
+    }
+    if(m.type === 'vente' && (m.status === 'attente' || m.status === 'encours')){ r.nPend++; r.weekPot += m.qty * num(m.commU); }
+  }
+  r.hand = r.got - r.back - r.sold - r.lost - r.pend; // pièces encore en main (hors commandes en cours)
+  r.handAll = r.hand + r.pend;                       // y compris les commandes en route
+  r.toRemit = r.cash - r.paid;
+  r.toPay = r.earned - r.commPaid;
+  return r;
+}
+function stats(p){
+  const r = {ca:0, nv:0, cost:0, comm:0, loss:0, dep:0, depCat:{}, pending:0, pendingAmt:0, byProd:{}, byCity:{}, days:{}};
+  for(const m of S.moves){
+    if(m.type === 'vente'){
+      const a = saleUSD(m);
+      if(m.status === 'attente' || m.status === 'encours'){ r.pending++; r.pendingAmt += a; }
+      if(m.status === 'livre'){
+        r.days[m.date] = (r.days[m.date]||0) + a;
+        if(inPer(m.date, p)){
+          r.ca += a; r.nv++; r.cost += m.qty * num(m.costU); r.comm += m.liv ? m.qty * num(m.commU) : 0;
+          const P = r.byProd[m.pid] = r.byProd[m.pid] || {q:0, a:0}; P.q += m.qty; P.a += a;
+          const city = m.liv ? (liv(m.liv)?.city || 'Sans ville') : 'Vente directe (dépôt)';
+          const C = r.byCity[city] = r.byCity[city] || {n:0, a:0}; C.n++; C.a += a;
+        }
+      }
+    } else if(m.type === 'perte' && inPer(m.date, p)) r.loss += m.qty * num(m.costU);
+    else if(m.type === 'depense' && inPer(m.date, p)){ const a = moneyUSD(m); r.dep += a; r.depCat[m.cat] = (r.depCat[m.cat]||0) + a; }
+  }
+  r.marge = r.ca - r.cost;
+  r.net = r.ca - r.cost - r.comm - r.loss - r.dep;
+  return r;
+}
+
+/* ---------- Interface ---------- */
+let view = 'home', period = 'mois', saleTab = 'attente', saleCity = '', bookType = 'all', bookPeriod = 'mois', depPeriod = 'mois';
+let stockQ = '', saleQ = '', bookQ = '';
+const NAV = [['home','Accueil','home'],['stock','Stock','box'],['ventes','Ventes','truck'],['livreurs','Livreurs','user'],['plus','Plus','more']];
+const SUB = {home:'Tableau de bord', stock:'Stock par produit', ventes:'Ventes & livraisons', livreurs:'Livreurs par ville', plus:'Plus', depenses:'Dépenses', livre:'Le Livre — toutes les opérations', reglages:'Réglages'};
+const PARENT = {depenses:'plus', livre:'plus', reglages:'plus'};
+
+function applyBrand(){
+  const c = S.settings.color || '#0F766E';
+  const [r,g,b] = hexRgb(c);
+  const lum = (0.299*r + 0.587*g + 0.114*b) / 255;
+  const st = document.documentElement.style;
+  st.setProperty('--brand', c);
+  st.setProperty('--brand-ink', lum > 0.62 ? '#16181d' : '#fff');
+  st.setProperty('--brand-soft', `rgba(${r},${g},${b},.12)`);
+  document.querySelector('meta[name=theme-color]').content = c;
+  document.title = (S.settings.shop || 'Ma Boutique') + ' — Stock & Livreurs';
+}
+function render(){
+  applyBrand();
+  const st = S.settings, nv = PARENT[view] || view;
+  $('#top').innerHTML = `<div class="logo">${st.logo ? `<img src="${st.logo}" alt="">` : esc(initials(st.shop))}</div>
+    <div class="grow"><h1>${esc(st.shop || 'Ma Boutique')}</h1><p>${SUB[view]}</p></div>`;
+  $('#nav').innerHTML = NAV.map(([k,l,i]) => `<button data-a="nav:${k}" class="${nv===k?'on':''}">${ico(i)}<span>${l}</span></button>`).join('');
+  $('#fab').style.display = (view === 'reglages' || view === 'plus') ? 'none' : '';
+  const V = {home:vHome, stock:vStock, ventes:vVentes, livreurs:vLivreurs, plus:vPlus, depenses:vDepenses, livre:vLivre, reglages:vReglages};
+  $('#main').innerHTML = (PARENT[view] ? `<button class="back" data-a="nav:plus">‹ Retour</button>` : '') + V[view]();
+}
+function periodChips(cur, act){
+  return `<div class="chips">${[['jour',"Aujourd'hui"],['sem','Cette semaine'],['mois','Ce mois'],['tout','Tout']].map(([k,l]) => `<button class="chip ${cur===k?'on':''}" data-a="${act}:${k}">${l}</button>`).join('')}</div>`;
+}
+const PERTXT = {jour:"aujourd'hui", sem:'cette semaine', mois:'ce mois', tout:'au total'};
+
+/* ---------- Accueil ---------- */
+function vHome(){
+  if(!S.products.length) return `<div class="card empty" style="margin-top:8px"><b>Bienvenue 👋</b>Ajoutez vos produits pour commencer.
+    <div class="stack" style="margin-top:16px">${PRESET ? `<button class="btn primary block" data-a="preset">Charger le catalogue ${esc(PRESET.label)}</button>` : ''}
+    <button class="btn ${PRESET?'':'primary'} block" data-a="new:produit">Ajouter un produit</button><button class="btn block" data-a="demo">Essayer avec des exemples</button></div></div>`;
+  const r = stats(period), st = stockAt();
+  const per = PERTXT[period];
+  let remit = 0, topay = 0, units = 0, valBuy = 0;
+  S.livreurs.forEach(l => { const s = livStats(l.id); remit += s.toRemit; topay += s.toPay; });
+  S.products.filter(p => !isKit(p)).forEach(p => { const q = Math.max(0, totalOf(st, p.id)); units += q; valBuy += q * unitCostUSD(p); });
+  const noBuy = S.products.filter(p => !isKit(p) && !(num(p.buy) > 0));
+  const low = S.products.filter(p => !isKit(p) && totalOf(st, p.id) <= (p.alert||0));
+  // Répartition de l'argent
+  const parts = [['cost',"Coût d'achat des produits",r.cost],['comm','Commissions livreurs',r.comm],['dep','Dépenses',r.dep],['loss','Pertes / casse',r.loss],['net','Bénéfice net',Math.max(0,r.net)]];
+  const base = Math.max(r.ca, parts.slice(0,4).reduce((s,x) => s + x[2], 0)) || 1;
+  // Graphique 14 jours
+  const t = today(); const days = []; let mx = 0;
+  for(let k=13; k>=0; k--){ const d = addDays(t,-k); const v = r.days[d]||0; mx = Math.max(mx, v); days.push([d,v]); }
+  const top = Object.entries(r.byProd).sort((a,b) => b[1].a - a[1].a).slice(0,6), tmax = top[0]?.[1].a || 1;
+  const cityRows = Object.entries(r.byCity).sort((a,b) => b[1].a - a[1].a);
+  return `${periodChips(period,'per')}
+  ${noBuy.length ? `<button class="warnbox" style="margin-top:10px" data-a="nav:stock">⚠️ ${noBuy.length} produit${noBuy.length>1?'s':''} sans prix d'achat : le bénéfice affiché est trop élevé. Touchez ici pour les compléter.</button>` : ''}
+  <div class="kpis" style="margin-top:10px">
+    <div class="kpi hero"><div class="l">Bénéfice net ${per}</div><div class="v num ${r.net<0?'neg':''}">${money(r.net)}</div><div class="s">sur ${money(r.ca)} de ventes livrées (${r.nv})</div></div>
+    <button class="kpi" data-a="nav:ventes"><div class="l">À livrer</div><div class="v num">${r.pending}</div><div class="s">${money(r.pendingAmt)} en attente</div></button>
+    <button class="kpi" data-a="nav:livreurs"><div class="l">Argent chez les livreurs</div><div class="v num ${remit>0.009?'neg':''}">${money(remit)}</div><div class="s">à verser à la boutique</div></button>
+    <button class="kpi" data-a="nav:livreurs"><div class="l">Commissions à payer</div><div class="v num">${money(topay)}</div><div class="s">aux livreurs</div></button>
+    <button class="kpi" data-a="nav:stock"><div class="l">Stock total</div><div class="v num">${fmt(units)}</div><div class="s">pièces · valeur ${money(valBuy)}</div></button>
+    <button class="kpi" data-a="nav:depenses"><div class="l">Dépenses ${per}</div><div class="v num">${money(r.dep)}</div><div class="s">transport, pub, boutique…</div></button>
+  </div>
+  <div class="grid2"><div>
+  <div class="sec"><h2>Où va l'argent ${per}</h2></div>
+  <div class="card">
+    <div class="dl" style="padding-top:0"><span>Ventes livrées</span><span class="num">${money(r.ca)}</span></div>
+    <div class="split">${parts.map(([k,,v]) => v > 0 ? `<i style="width:${v/base*100}%;background:${SPLITC[k]}"></i>` : '').join('')}</div>
+    ${parts.map(([k,l,v]) => `<div class="leg"><span class="dot" style="background:${SPLITC[k]}"></span><span class="n">${k==='net'?'<b style="color:var(--ink)">'+l+'</b>':l}</span><span class="a num">${k==='net'?money(r.net):'− '+money(v)}</span><span class="p">${r.ca ? Math.round((k==='net'?r.net:v)/r.ca*100)+' %' : ''}</span></div>`).join('')}
+    ${Object.keys(r.depCat).length ? `<p class="note" style="margin-top:8px">Dépenses : ${Object.entries(r.depCat).sort((a,b)=>b[1]-a[1]).map(([c,v]) => esc(c)+' '+money(v)).join(' · ')}</p>` : ''}
+  </div>
+  <div class="sec"><h2>Ventes livrées — 14 derniers jours</h2></div>
+  <div class="card"><div class="bars">${days.map(([d,v]) => `<div title="${fmtDate(d)} : ${money(v)}"><i class="${v?'':'z'}" style="height:${mx ? Math.max(3, v/mx*82) : 3}%"></i><span>${+d.slice(8)}</span></div>`).join('')}</div></div>
+  </div><div>
+  ${cityRows.length ? `<div class="sec"><h2>Ventes par ville ${per}</h2></div><div class="card"><table class="tb"><tr><th>Ville</th><th class="rt">Ventes</th><th class="rt">Montant</th></tr>${cityRows.map(([c,v]) => `<tr><td>${esc(c)}</td><td class="rt num">${v.n}</td><td class="rt num">${money(v.a)}</td></tr>`).join('')}</table></div>` : ''}
+  <div class="sec"><h2>Meilleurs produits ${per}</h2></div>
+  <div class="card">${top.length ? top.map(([id,v]) => `<div class="hb"><div class="n">${esc(pname(id))}</div><div class="tr"><i style="width:${v.a/tmax*100}%"></i></div><div class="q num">${v.q} · ${money(v.a)}</div></div>`).join('') : `<div class="empty" style="padding:12px">Aucune vente livrée ${per}</div>`}</div>
+  <div class="sec"><h2>Alertes stock bas</h2>${low.length?`<span class="pill p-attente">${low.length}</span>`:''}</div>
+  <div class="list">${low.length ? low.sort(byName).map(p => { const q = totalOf(st,p.id); return `<button class="it" data-a="prod:${p.id}"><div class="ic c-loss">${ico('box')}</div><div class="m"><div class="t">${esc(p.name)}</div><div class="d">${q<=0?'Rupture de stock':'Dépôt '+qAt(st,'',p.id)+' · Livreurs '+inHands(st,p.id)}</div></div><div class="r"><div class="big num ${q<=0?'qty-zero':'qty-low'}">${q}</div><div class="sm">total</div></div></button>`; }).join('') : `<div class="empty">Aucun produit en stock bas ✅</div>`}</div>
+  </div></div>`;
+}
+
+/* ---------- Stock ---------- */
+function vStock(){
+  return `<input class="search" type="search" placeholder="Rechercher un produit…" value="${esc(stockQ)}" oninput="stockQ=this.value;refreshList('stock')">
+  <div id="lst">${stockRows()}</div>
+  <div class="btns" style="margin-top:12px"><button class="btn" data-a="new:entree">+ Entrée de stock</button><button class="btn" data-a="new:envoi">Envoyer à un livreur</button></div>
+  <div style="margin-top:8px"><button class="btn block" data-a="new:produit">+ Nouveau produit</button></div>`;
+}
+function stockRows(){
+  if(!S.products.length) return `<div class="list"><div class="empty"><b>Aucun produit</b>Ajoutez votre premier produit.</div></div>`;
+  const st = stockAt(), q = stockQ.trim().toLowerCase();
+  const match = p => !q || (p.name + ' ' + (p.cat||'')).toLowerCase().includes(q);
+  const simple = S.products.filter(p => !isKit(p) && match(p)).sort(byName);
+  const kits = S.products.filter(p => isKit(p) && match(p)).sort(byName);
+  let units = 0, dep = 0, hand = 0;
+  S.products.filter(p => !isKit(p)).forEach(p => { units += totalOf(st,p.id); dep += qAt(st,'',p.id); hand += inHands(st,p.id); });
+  const row = p => { const tot = totalOf(st,p.id), cls = tot<=0 ? 'qty-zero' : tot<=(p.alert||0) ? 'qty-low' : '';
+    return `<button class="it" data-a="prod:${p.id}"><div class="ic c-brand">${esc(initials(p.name))}</div>
+      <div class="m"><div class="t">${esc(p.name)}</div><div class="d">Dépôt <b>${qAt(st,'',p.id)}</b> · Chez livreurs <b>${inHands(st,p.id)}</b></div><div class="d">${priceTxt(p)} · achat ${num(p.buy)>0 ? amt(p.buy, p.cur) : '?'} · commission ${commTxt(p)}${num(p.buy)>0?'':' · <span class="red">prix d\'achat ?</span>'}</div></div>
+      <div class="r"><div class="big num ${cls}">${tot}</div><div class="sm">total</div></div></button>`; };
+  const krow = p => `<button class="it" data-a="prod:${p.id}"><div class="ic c-send">${ico('tag')}</div>
+      <div class="m"><div class="t">${esc(p.name)}</div><div class="d">Pack : ${p.kit.map(c => c.q + ' × ' + esc(pname(c.pid))).join(' + ')}</div><div class="d">${priceTxt(p)} · commission ${commTxt(p)}</div></div>
+      <div class="r"><div class="big num">${avail(st,'',p.id)}</div><div class="sm">possibles<br>au dépôt</div></div></button>`;
+  return `<div class="kpis" style="margin-bottom:14px">
+      <div class="kpi"><div class="l">Au dépôt</div><div class="v num">${fmt(dep)}</div><div class="s">pièces chez vous</div></div>
+      <div class="kpi"><div class="l">Chez les livreurs</div><div class="v num">${fmt(hand)}</div><div class="s">pièces confiées</div></div></div>
+    <div class="list">${simple.length ? simple.map(row).join('') : '<div class="empty">Aucun résultat</div>'}</div>
+    ${kits.length ? `<div class="sec"><h2>Packs</h2><span class="note">le stock vient des produits</span></div><div class="list">${kits.map(krow).join('')}</div>` : ''}`;
+}
+
+/* ---------- Ventes ---------- */
+function vVentes(){
+  const all = S.moves.filter(m => m.type === 'vente' && (!saleCity || cityOfSale(m) === saleCity));
+  const cnt = k => all.filter(m => m.status === k).length;
+  const cs = [...new Set(S.moves.filter(m => m.type === 'vente').map(cityOfSale))].sort();
+  return `<div class="chips">${Object.entries(STATUS).map(([k,l]) => `<button class="chip ${saleTab===k?'on':''}" data-a="stab:${k}">${l}<b>${cnt(k)}</b></button>`).join('')}</div>
+  ${cs.length > 1 ? `<div class="chips" style="margin-top:6px"><button class="chip ${!saleCity?'on':''}" data-a="scity:">Toutes les villes</button>${cs.map(c => `<button class="chip ${saleCity===c?'on':''}" data-a="scity:${esc(c)}">${esc(c)}</button>`).join('')}</div>` : ''}
+  <div style="height:10px"></div>
+  <input class="search" type="search" placeholder="Rechercher client, produit, livreur…" value="${esc(saleQ)}" oninput="saleQ=this.value;refreshList('ventes')">
+  <div class="list" id="lst">${saleRows()}</div>
+  <div style="margin-top:12px"><button class="btn primary block" data-a="new:vente">+ Nouvelle vente</button></div>`;
+}
+const cityOfSale = m => m.liv ? (liv(m.liv)?.city || 'Sans ville') : 'Dépôt';
+function saleRows(){
+  const q = saleQ.trim().toLowerCase();
+  const list = sortMoves(S.moves.filter(m => m.type === 'vente' && m.status === saleTab && (!saleCity || cityOfSale(m) === saleCity) &&
+    (!q || [pname(m.pid), m.client, m.phone, m.addr, lname(m.liv)].join(' ').toLowerCase().includes(q))));
+  if(!list.length) return `<div class="empty"><b>Aucune vente « ${STATUS[saleTab]} »</b>${saleTab==='attente'?'Les commandes à livrer apparaîtront ici.':''}</div>`;
+  const tot = list.reduce((s,m) => s + saleUSD(m), 0);
+  return `<div class="it" style="background:#fafbfc"><div class="m"><div class="d">${list.length} vente${list.length>1?'s':''}</div></div><div class="r"><b class="num">${money(tot)}</b></div></div>` + list.map(rowSale).join('');
+}
+function rowSale(m){
+  const L = liv(m.liv);
+  return `<button class="it" data-a="sale:${m.id}"><div class="ic c-out">${ico('cart')}</div>
+    <div class="m"><div class="t">${esc(pname(m.pid))} × ${m.qty}</div>
+    <div class="d">${esc(m.client || 'Client')}${m.addr ? ' · ' + esc(m.addr) : ''}</div>
+    <div class="d">${fmtDate(m.date)} · ${L ? '🛵 ' + esc(L.name) + ' (' + esc(L.city||'') + ')' : 'Vente directe'}</div></div>
+    <div class="r"><div class="num ${m.status==='annule'?'strike':''}" style="font-weight:700">${amt(m.qty*m.price, m.cur)}</div><span class="pill p-${m.status}">${STATUS[m.status]}</span></div></button>`;
+}
+
+/* ---------- Livreurs ---------- */
+function vLivreurs(){
+  if(!S.livreurs.length) return `<div class="card empty"><b>Aucun livreur</b>Ajoutez vos livreurs et leur ville pour leur confier du stock.<div style="margin-top:14px"><button class="btn primary block" data-a="newliv">+ Ajouter un livreur</button></div></div>`;
+  let remit = 0, topay = 0, hand = 0, week = 0;
+  const S2 = {}; S.livreurs.forEach(l => { const s = S2[l.id] = livStats(l.id); remit += s.toRemit; topay += s.toPay; hand += s.hand; week += s.week; });
+  let h = `<div class="kpis">
+    <div class="kpi"><div class="l">Pièces disponibles chez les livreurs</div><div class="v num">${fmt(hand)}</div><div class="s">${S.livreurs.length} livreur${S.livreurs.length>1?'s':''} · ${cities().length} ville${cities().length>1?'s':''}</div></div>
+    <div class="kpi"><div class="l">Argent à verser</div><div class="v num ${remit>0.009?'neg':''}">${money(remit)}</div><div class="s">encaissé, pas encore versé</div></div>
+    <div class="kpi"><div class="l">Commissions à payer</div><div class="v num">${money(topay)}</div><div class="s">dont cette semaine : ${money(week)}</div></div>
+  </div>`;
+  const ranked = S.livreurs.slice().sort((a,b) => S2[b.id].week - S2[a.id].week || S2[b.id].weekN - S2[a.id].weekN);
+  h += `<div class="sec"><h2>Gains de la semaine (lun–sam)</h2><span class="note">depuis ${fmtDate(weekStart())}</span></div>
+    <div class="card tbw"><table class="tb"><tr><th>Livreur</th><th class="rt">Livrées</th><th class="rt">Gagné</th><th class="rt">Si en cours livrées</th></tr>
+    ${ranked.map(l => { const s = S2[l.id]; return `<tr data-a="liv:${l.id}" style="cursor:pointer"><td><b>${esc(l.name)}</b><br><span class="note">${esc(l.city||'')}</span></td><td class="rt num">${s.weekN}</td><td class="rt num"><b>${l.pay==='salaire' ? 'Salaire' : money(s.week)}</b></td><td class="rt num">${l.pay==='salaire' ? '—' : money(s.week + s.weekPot)}</td></tr>`; }).join('')}</table>
+    <p class="note" style="margin-top:6px">« Gagné » = commissions des ventes livrées depuis lundi. La dernière colonne montre ce qu'il gagnera si ses commandes en cours sont livrées.</p></div>`;
+  for(const c of cities()){
+    const ls = S.livreurs.filter(l => (l.city || 'Sans ville') === c).sort(byName);
+    h += `<div class="city">📍 ${esc(c)} · ${ls.length} livreur${ls.length>1?'s':''}</div><div class="list">` + ls.map(l => { const s = S2[l.id];
+      return `<button class="it" data-a="liv:${l.id}"><div class="ic c-brand">${esc(initials(l.name))}</div>
+        <div class="m"><div class="t">${esc(l.name)}</div><div class="d">En main <b>${s.hand}</b> pièce(s) · livrées ${s.nLiv}${s.nPend ? ' · en cours ' + s.nPend : ''}</div>
+        <div class="d">À verser <b class="${s.toRemit>0.009?'red':''}">${money(s.toRemit)}</b> · ${l.pay==='salaire' ? 'Salaire ' + money(num(l.salary)) + '/mois' : 'Commission due <b>' + money(s.toPay) + '</b>'}</div></div>
+        <div class="r">${ico('chev')}</div></button>`; }).join('') + `</div>`;
+  }
+  return h + `<div style="margin-top:14px"><button class="btn block" data-a="newliv">+ Ajouter un livreur</button></div>`;
+}
+function livForm(id){
+  const l = id ? liv(id) : null;
+  const cs = [...new Set(CITIES.concat(cities()))];
+  sheet(l ? 'Modifier le livreur' : 'Nouveau livreur', `<form id="lf">
+    ${field('Nom *', `<input name="name" required maxlength="40" value="${esc(l?.name)}" placeholder="Ex : Ghislaine">`)}
+    ${field('Téléphone / WhatsApp', `<input name="phone" type="tel" value="${esc(l?.phone)}" placeholder="+243 …">`)}
+    ${field('Ville *', `<input name="city" required list="cityl" value="${esc(l?.city)}" placeholder="Ex : Kinshasa"><datalist id="cityl">${cs.map(c => `<option value="${esc(c)}">`).join('')}</datalist>`)}
+    ${field('Comment est-il payé ?', `<select name="pay"><option value="produit" ${!l||!l.pay||l.pay==='produit'?'selected':''}>Commission selon chaque produit</option><option value="pct" ${l?.pay==='pct'?'selected':''}>Pourcentage fixe sur chaque vente</option><option value="salaire" ${l?.pay==='salaire'?'selected':''}>Salaire fixe (sans commission)</option></select>`)}
+    <div id="payPct">${field('Pourcentage pour ce livreur (%)', `<input name="pct" type="number" step="any" min="0" max="100" value="${esc(l?.pct ?? '')}" placeholder="Ex : 15">`, 'Calculé sur le prix de chaque vente livrée')}</div>
+    <div id="paySal">${field('Salaire par mois ($)', `<input name="salary" type="number" step="any" min="0" value="${esc(l?.salary ?? '')}" placeholder="Ex : 100">`, 'Les paiements de salaire sont comptés dans les dépenses')}</div>
+    <p class="note" style="margin:-4px 0 12px">Un changement s'applique aux nouvelles ventes, pas aux anciennes.</p>
+    <button class="btn primary block">${l ? 'Enregistrer' : 'Ajouter le livreur'}</button>
+    ${l ? `<button type="button" class="btn ghost-bad block" style="margin-top:8px" data-a="delliv:${l.id}">Supprimer ce livreur</button>` : ''}</form>`);
+  const LE = $('#lf').elements, sw = () => { $('#payPct').hidden = LE.pay.value !== 'pct'; $('#paySal').hidden = LE.pay.value !== 'salaire'; LE.pct.required = LE.pay.value === 'pct'; };
+  LE.pay.onchange = sw; sw();
+  $('#lf').onsubmit = e => { e.preventDefault(); const E = e.target.elements;
+    const d = {name:E.name.value.trim(), phone:E.phone.value.trim(), city:E.city.value.trim(), pay:E.pay.value, pct:num(E.pct.value), salary:num(E.salary.value)};
+    if(!d.name || !d.city) return;
+    if(l) Object.assign(l, d); else S.livreurs.push(Object.assign({id:uid()}, d));
+    save(); closeSheet(); render(); toast(l ? 'Livreur modifié' : 'Livreur ajouté'); };
+}
+function livSheet(id){
+  const l = liv(id); if(!l) return;
+  const s = livStats(id), st = stockAt();
+  const rows = Object.entries(s.byProd).map(([pid,v]) => [pid, v, qAt(st, id, pid)]).filter(([,v,q]) => v.got || q).sort((a,b) => pname(a[0]).localeCompare(pname(b[0]),'fr'));
+  const hist = sortMoves(S.moves.filter(m => m.liv === id || m.loc === id)).slice(0,15);
+  const report = livReport(l, s, rows);
+  sheet(`${l.name} · ${l.city||''}`, `
+    <div class="kv"><div><b class="num">${s.hand}</b><span>En main (dispo)</span></div><div><b class="num">${s.sold}</b><span>Pièces livrées</span></div><div><b class="num">${s.pend}</b><span>En cours</span></div></div>
+    <div class="card" style="margin-bottom:12px">
+      <div class="dl"><span>Argent encaissé (ventes livrées)</span><span class="num">${money(s.cash)}</span></div>
+      <div class="dl"><span>Déjà versé à la boutique</span><span class="num">${money(s.paid)}</span></div>
+      <div class="dl strong"><span>Reste à verser</span><span class="num ${s.toRemit>0.009?'red':'green'}">${money(s.toRemit)}</span></div>
+    </div>
+    ${l.pay === 'salaire' ? `<div class="card" style="margin-bottom:12px">
+      <div class="dl"><span>Mode de paiement</span><span>Salaire fixe</span></div>
+      <div class="dl"><span>Salaire du mois</span><span class="num">${money(num(l.salary))}</span></div>
+      <div class="dl"><span>Déjà payé ce mois</span><span class="num">${money(s.salMonth)}</span></div>
+      <div class="dl strong"><span>Reste à payer ce mois</span><span class="num">${money(Math.max(0, num(l.salary) - s.salMonth))}</span></div>
+    </div>` : `<div class="card" style="margin-bottom:12px">
+      <div class="dl"><span>Mode de paiement</span><span>${esc(payTxt(l))}</span></div>
+      <div class="dl strong"><span>Gagné cette semaine (lun–sam)</span><span class="num">${money(s.week)} · ${s.weekN} vente(s)</span></div>
+      <div class="dl"><span>Si les commandes en cours sont livrées</span><span class="num">${money(s.week + s.weekPot)}</span></div>
+      <div class="dl"><span>Commissions gagnées (total)</span><span class="num">${money(s.earned)}</span></div>
+      <div class="dl"><span>Déjà payées</span><span class="num">${money(s.commPaid)}</span></div>
+      <div class="dl strong"><span>Commission à payer</span><span class="num">${money(s.toPay)}</span></div>
+    </div>`}
+    <div class="btns" style="margin-bottom:8px">
+      <button class="btn primary" data-a="new:envoi" data-liv="${id}">Envoyer du stock</button>
+      <button class="btn" data-a="new:vente" data-liv="${id}">Vente</button>
+      <button class="btn" data-a="money:versement" data-liv="${id}">Versement reçu</button>
+      ${l.pay === 'salaire' ? `<button class="btn" data-a="money:depense" data-liv="${id}" data-cat="Salaire / aide">Payer le salaire</button>` : `<button class="btn" data-a="money:paiecomm" data-liv="${id}">Payer commission</button>`}
+      <button class="btn" data-a="new:retour" data-liv="${id}">Retour de stock</button>
+      <button class="btn" data-a="editliv:${id}">Modifier</button>
+    </div>
+    <a class="btn wa block" href="${waLink(l.phone, report)}" target="_blank" rel="noopener">${ico('wa')} Envoyer le point à ${esc(l.name)}</a>
+    ${Object.keys(s.weekByProd).length ? `<div class="sec"><h2>Cette semaine, produit par produit</h2></div><div class="card tbw"><table class="tb"><tr><th>Produit</th><th class="rt">Pièces</th><th class="rt">Ventes</th><th class="rt">${l.pay==='salaire'?'':'Commission'}</th></tr>
+      ${Object.entries(s.weekByProd).map(([pid,v]) => `<tr><td>${esc(pname(pid))}</td><td class="rt num">${v.q}</td><td class="rt num">${money(v.a)}</td><td class="rt num">${l.pay==='salaire'?'':money(v.c)}</td></tr>`).join('')}</table></div>` : ''}
+    <div class="sec"><h2>Stock confié par produit</h2></div>
+    ${rows.length ? `<div class="card tbw"><table class="tb"><tr><th>Produit</th><th class="rt">Reçu</th><th class="rt">Livré</th><th class="rt">En cours</th><th class="rt">Reste</th></tr>
+      ${rows.map(([pid,v,q]) => `<tr><td>${esc(pname(pid))}</td><td class="rt num">${v.got - v.back}</td><td class="rt num">${v.sold}</td><td class="rt num">${v.pend}</td><td class="rt num"><b>${q}</b></td></tr>`).join('')}</table>
+      <p class="note" style="margin-top:6px">« Reste » = pièces en main non réservées. Reçu = envoyé − retourné.</p></div>` : `<div class="card empty">Aucun stock confié pour le moment.</div>`}
+    <div class="sec"><h2>Historique</h2></div>
+    <div class="list">${hist.length ? hist.map(rowMove).join('') : '<div class="empty">Aucune opération</div>'}</div>`);
+}
+function livReport(l, s, rows){
+  const shop = S.settings.shop;
+  return `*${shop} — Point livreur*\n${l.name} (${l.city||''}) · ${fmtDate(today(), true)}\n\n*Stock en main :*\n${rows.filter(r => r[2] > 0 || r[1].pend > 0).map(([pid,v,q]) => `• ${pname(pid)} : ${q + v.pend}${v.pend ? ` (dont ${v.pend} en cours)` : ''}`).join('\n') || '• aucun'}\n\nLivraisons cette semaine : ${s.weekN}\nCommission cette semaine : ${money(s.week)}\nCommission à payer (total) : ${money(s.toPay)}\n\n*Argent à verser à la boutique : ${money(s.toRemit)}*\n\nMerci pour votre travail 🙏`;
+}
+
+/* ---------- Plus ---------- */
+function vPlus(){
+  const r = stats('mois');
+  const items = [
+    ['depenses','c-loss','receipt','Dépenses',`Transport, expédition, Facebook… · ce mois ${money(r.dep)}`],
+    ['livre','c-brand','book','Le Livre',"Toutes les entrées, envois, ventes et sorties, jour par jour"],
+    ['reglages','c-x','set','Réglages',"Boutique, logo, couleur, taux du dollar, sauvegarde"]
+  ];
+  return `<div class="list menu">${items.map(([v,c,i,t,d]) => `<button class="it" data-a="nav:${v}"><div class="ic ${c}">${ico(i)}</div><div class="m"><div class="t">${t}</div><div class="d" style="white-space:normal">${d}</div></div>${ico('chev')}</button>`).join('')}</div>
+  <div class="sec"><h2>Raccourcis</h2></div>
+  <div class="btns"><button class="btn" data-a="money:depense">+ Dépense</button><button class="btn" data-a="money:versement">+ Versement livreur</button><button class="btn" data-a="new:perte">− Sortie / perte</button><button class="btn" data-a="backup">Sauvegarde</button></div>`;
+}
+
+/* ---------- Dépenses ---------- */
+function vDepenses(){
+  const list = sortMoves(S.moves.filter(m => m.type === 'depense' && inPer(m.date, depPeriod)));
+  const r = stats(depPeriod), cats = Object.entries(r.depCat).sort((a,b) => b[1]-a[1]), mx = cats[0]?.[1] || 1;
+  return `${periodChips(depPeriod,'dper')}
+  <div class="kpis" style="margin-top:10px"><div class="kpi hero"><div class="l">Total des dépenses ${PERTXT[depPeriod]}</div><div class="v num">${money(r.dep)}</div><div class="s">${list.length} dépense${list.length>1?'s':''} · ${fcOf(r.dep)}</div></div></div>
+  ${cats.length ? `<div class="sec"><h2>Par catégorie</h2></div><div class="card">${cats.map(([c,v]) => `<div class="hb"><div class="n">${esc(c)}</div><div class="tr"><i style="width:${v/mx*100}%;background:${SPLITC.dep}"></i></div><div class="q num">${money(v)}</div></div>`).join('')}</div>` : ''}
+  <div class="sec"><h2>Détail</h2></div>
+  <div class="list">${list.length ? list.map(rowMove).join('') : `<div class="empty"><b>Aucune dépense</b>Ajoutez le transport, l'envoi de colis, la publicité Facebook…</div>`}</div>
+  <div style="margin-top:12px"><button class="btn primary block" data-a="money:depense">+ Ajouter une dépense</button></div>`;
+}
+
+/* ---------- Le Livre ---------- */
+const BOOKTYPES = [['all','Tout'],['entree','Entrées'],['envoi','Envois livreurs'],['vente','Ventes'],['sortie','Retours / pertes'],['argent','Argent']];
+function bookMatch(m){
+  if(bookType === 'all') return true;
+  if(bookType === 'sortie') return m.type === 'retour' || m.type === 'perte';
+  if(bookType === 'argent') return ['versement','paiecomm','depense'].includes(m.type);
+  return m.type === bookType;
+}
+function vLivre(){
+  return `${periodChips(bookPeriod,'bper')}
+  <div class="chips" style="margin-top:6px">${BOOKTYPES.map(([k,l]) => `<button class="chip ${bookType===k?'on':''}" data-a="btype:${k}">${l}</button>`).join('')}</div>
+  <div style="height:10px"></div>
+  <input class="search" type="search" placeholder="Rechercher dans le livre…" value="${esc(bookQ)}" oninput="bookQ=this.value;refreshList('livre')">
+  <div id="lst">${bookRows()}</div>`;
+}
+function bookRows(){
+  const q = bookQ.trim().toLowerCase();
+  const list = sortMoves(S.moves.filter(m => inPer(m.date, bookPeriod) && bookMatch(m) &&
+    (!q || [m.pid ? pname(m.pid) : '', m.client, m.note, m.motif, m.cat, lname(m.liv||m.loc)].join(' ').toLowerCase().includes(q))));
+  if(!list.length) return `<div class="list"><div class="empty"><b>Aucune opération</b>Rien d'enregistré pour cette période.</div></div>`;
+  let html = '', cur = null, buf = [];
+  const flush = () => { if(buf.length) html += `<div class="sec" style="margin:16px 0 8px"><h2 style="font-size:13px;color:var(--muted)">${fmtDate(cur, true)}</h2></div><div class="list">${buf.join('')}</div>`; buf = []; };
+  list.forEach(m => { if(m.date !== cur){ flush(); cur = m.date; } buf.push(rowMove(m)); });
+  flush();
+  return html;
+}
+function rowMove(m){
+  if(!m) return '';
+  const R = (act, ic, icn, t, d, big, col, sm, strike) => `<button class="it" data-a="${act}:${m.id}"><div class="ic ${ic}">${ico(icn)}</div><div class="m"><div class="t">${t}</div><div class="d">${d}</div></div><div class="r"><div class="big num ${strike?'strike':''}" style="color:${col}">${big}</div><div class="sm num">${sm||''}</div></div></button>`;
+  switch(m.type){
+    case 'vente': return R('sale', m.status==='annule'?'c-x':'c-out', 'cart', esc(pname(m.pid)), `Vente · ${esc(m.client||'Client')} · ${m.liv ? esc(lname(m.liv)) : 'dépôt'} · <span class="pill p-${m.status}">${STATUS[m.status]}</span>`, '−'+m.qty, 'var(--info)', amt(m.qty*m.price, m.cur), m.status==='annule');
+    case 'entree': return R('move', 'c-in', 'in', esc(pname(m.pid)), `Entrée au dépôt${m.note ? ' · ' + esc(m.note) : ''}`, '+'+m.qty, 'var(--ok)', num(m.cost) ? amt(m.qty*num(m.cost), prod(m.pid)?.cur) : '');
+    case 'envoi': return R('move', 'c-send', 'send', esc(pname(m.pid)), `Envoyé à ${esc(lname(m.liv))}${m.note ? ' · ' + esc(m.note) : ''}`, '→'+m.qty, 'var(--vio)', '');
+    case 'retour': return R('move', 'c-in', 'back', esc(pname(m.pid)), `Retour de ${esc(lname(m.liv))} au dépôt`, '←'+m.qty, 'var(--ok)', '');
+    case 'perte': return R('move', 'c-loss', 'out', esc(pname(m.pid)), `Sortie · ${esc(m.motif||'Autre')} · ${m.loc ? esc(lname(m.loc)) : 'dépôt'}`, '−'+m.qty, 'var(--warn)', money(m.qty*num(m.costU)));
+    case 'versement': return R('money', 'c-money', 'cash', 'Versement de ' + esc(lname(m.liv)), m.note ? esc(m.note) : 'Argent reçu (Mobile Money…)', '+'+amt(m.amount, m.cur), 'var(--ok)', '');
+    case 'paiecomm': return R('money', 'c-send', 'coin', 'Commission payée à ' + esc(lname(m.liv)), m.note ? esc(m.note) : 'Paiement des commissions', '−'+money(num(m.amount)), 'var(--vio)', '');
+    case 'depense': return R('money', 'c-loss', 'receipt', esc(m.cat||'Dépense'), (m.liv ? esc(lname(m.liv)) + ' · ' : '') + (m.note ? esc(m.note) : 'Dépense'), '−'+amt(m.amount, m.cur), 'var(--warn)', m.cur==='FC' ? money(moneyUSD(m)) : '');
+  }
+  return '';
+}
+function refreshList(v){
+  const el = $('#lst'); if(!el) return;
+  if(v === 'stock') el.innerHTML = stockRows();
+  if(v === 'ventes') el.innerHTML = saleRows();
+  if(v === 'livre') el.innerHTML = bookRows();
+}
+
+/* ---------- Réglages ---------- */
+function vReglages(){
+  const st = S.settings;
+  return `<div class="sec" style="margin-top:4px"><h2>Ma boutique</h2></div>
+  <form class="card" id="setf">
+    ${field('Nom de la boutique', `<input name="shop" value="${esc(st.shop)}" maxlength="40">`)}
+    <div class="f"><span>Logo</span><div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+      <div class="logo" style="width:54px;height:54px;background:var(--brand);color:var(--brand-ink)">${st.logo ? `<img src="${st.logo}" alt="">` : esc(initials(st.shop))}</div>
+      <label class="btn sm" style="cursor:pointer">Choisir une image<input type="file" accept="image/*" id="logoIn" hidden></label>
+      ${st.logo ? `<button type="button" class="btn sm" data-a="rmlogo">Retirer</button>` : ''}</div></div>
+    <div class="f"><span>Couleur</span><div class="colors">${COLORS.map(c => `<button type="button" style="background:${c}" class="${c.toLowerCase()===String(st.color).toLowerCase()?'on':''}" data-a="color:${c}" aria-label="${c}"></button>`).join('')}</div>
+      <input type="color" name="color" value="${esc(st.color)}" style="width:100%"></div>
+    ${countryFields(st)}
+    <div class="row2">
+      ${field('Frais de livraison client', `<input name="fee" type="number" step="any" min="0" value="${esc(st.fee)}">`)}
+      ${field('Devise des frais', `<select name="feeCur"><option value="FC" ${st.feeCur==='FC'?'selected':''}>${esc(LC())}</option><option value="$" ${st.feeCur==='$'?'selected':''}>$</option></select>`)}
+    </div>
+    <p class="note" style="margin:-4px 0 12px">Les frais de livraison sont payés par le client au livreur : ils ne comptent pas dans vos ventes.</p>
+    <div class="row2">
+      ${field('Indicatif téléphone', `<input name="cc" inputmode="numeric" value="${esc(st.cc)}" placeholder="243">`)}
+      ${field('WhatsApp boutique', `<input name="wa" type="tel" value="${esc(st.wa)}" placeholder="+243 …">`, 'Affiché sur les reçus clients')}
+    </div>
+    <button class="btn primary block">Enregistrer</button>
+  </form>
+
+  <div class="sec"><h2>Sauvegarde et données</h2></div>
+  <div class="card stack">
+    <p class="note">${storageOK ? 'Vos données sont enregistrées <b>sur cet appareil uniquement</b>. Faites une sauvegarde chaque semaine et gardez-la sur WhatsApp ou Google Drive.' : '<b style="color:var(--bad)">L\'enregistrement automatique ne fonctionne pas ici.</b> Exportez vos données avant de fermer la page.'}</p>
+    <button class="btn primary block" data-a="backup">Exporter une sauvegarde</button>
+    <button class="btn block" data-a="restore">Restaurer une sauvegarde</button>
+    <button class="btn block" data-a="csv">Exporter les ventes (Excel / CSV)</button>
+    ${!S.products.length && PRESET ? `<button class="btn block" data-a="preset">Charger le catalogue ${esc(PRESET.label)}</button>` : ''}
+    ${!S.products.length ? '<button class="btn block" data-a="demo">Charger des exemples</button>' : ''}
+    <button class="btn ghost-bad block" data-a="reset">Tout effacer</button>
+  </div>
+  <p class="note" style="text-align:center;margin:18px 0 6px">${S.products.length} produits · ${S.livreurs.length} livreurs · ${S.moves.length} opérations</p>`;
+}
+
+function countryFields(st){
+  return `${field('Pays', `<select name="country">${COUNTRIES.map(c => `<option ${c[0]===st.country?'selected':''}>${esc(c[0])}</option>`).join('')}${COUNTRIES.some(c => c[0]===st.country) ? '' : `<option selected>${esc(st.country||'')}</option>`}</select>`, 'Remplit la monnaie, le taux et l\'indicatif. Vérifiez le taux du jour.')}
+    <div class="row2">${field('Monnaie locale', `<input name="lc" maxlength="6" required value="${esc(st.lc||'FC')}" placeholder="FC">`)}${field('Taux : 1 $ =', `<input name="rate" type="number" step="any" min="0.0001" required value="${esc(st.rate)}">`, '<span id="rateHint">en ' + esc(st.lc||'FC') + '</span>')}</div>
+    <p class="note" style="margin:-4px 0 12px">Le taux sert à convertir les prix en monnaie locale en dollars. Mettez-le à jour quand il change.</p>`;
+}
+
+/* ---------- Fenêtres ---------- */
+let shTimer;
+function sheet(title, html){
+  clearTimeout(shTimer);
+  $('#sht').textContent = title; $('#shb').innerHTML = html; $('#shb').scrollTop = 0;
+  const ov = $('#ov'); ov.hidden = false; document.body.classList.add('lock');
+  requestAnimationFrame(() => ov.classList.add('on'));
+}
+function closeSheet(){
+  const ov = $('#ov'); ov.classList.remove('on'); document.body.classList.remove('lock');
+  shTimer = setTimeout(() => { ov.hidden = true; $('#shb').innerHTML = ''; }, 200);
+}
+$('#ov').addEventListener('click', e => { if(e.target.id === 'ov') closeSheet(); });
+document.addEventListener('keydown', e => { if(e.key === 'Escape'){ if($('#dlg').innerHTML) $('#dlg').innerHTML = ''; else if(!$('#ov').hidden) closeSheet(); } });
+function ask(msg, ok = 'Confirmer', danger = true){
+  return new Promise(res => {
+    $('#dlg').innerHTML = `<div class="dlg"><div class="card"><p>${msg}</p><div class="btns"><button class="btn" id="dno">Annuler</button><button class="btn ${danger?'danger':'primary'}" id="dok">${ok}</button></div></div></div>`;
+    $('#dno').onclick = () => { $('#dlg').innerHTML = ''; res(false); };
+    $('#dok').onclick = () => { $('#dlg').innerHTML = ''; res(true); };
+  });
+}
+let toastT;
+function toast(msg){ const t = $('#toast'); t.textContent = msg; t.hidden = false; clearTimeout(toastT); toastT = setTimeout(() => t.hidden = true, 2800); }
+const field = (label, inner, hint = '') => `<label class="f"><span>${label}</span>${inner}${hint ? `<small>${hint}</small>` : ''}</label>`;
+
+function fabSheet(){
+  const A2 = [
+    ['new:vente','c-out','cart','Vente','Commande client, livrée par un livreur ou au dépôt'],
+    ['new:envoi','c-send','send','Envoyer du stock à un livreur','Marchandise confiée à un livreur'],
+    ['new:entree','c-in','in','Entrée de stock','Marchandise reçue ou achetée (au dépôt)'],
+    ['money:versement','c-money','cash','Versement d\'un livreur','Argent des ventes reçu (Mobile Money…)'],
+    ['money:depense','c-loss','receipt','Dépense','Transport, expédition, Facebook, boutique…'],
+    ['new:retour','c-in','back','Retour de stock','Un livreur rend des produits au dépôt'],
+    ['new:perte','c-loss','out','Sortie / perte','Casse, perte, cadeau, usage interne'],
+    ['new:produit','c-brand','tag','Nouveau produit','Ajouter un article ou un pack']
+  ];
+  sheet('Nouvelle opération', A2.map(([a,c,i,t,d]) => `<button class="act" data-a="${a}"><div class="ic ${c}">${ico(i)}</div><div><b>${t}</b><small>${d}</small></div></button>`).join(''));
+}
+
+/* ----- Produit ----- */
+function productForm(id){
+  const p = id ? prod(id) : null;
+  const cats = [...new Set(S.products.map(x => x.cat).filter(Boolean))];
+  const others = S.products.filter(x => !isKit(x) && x.id !== id).sort(byName);
+  const kit = (p?.kit || []).concat([{},{},{}]).slice(0,3);
+  sheet(p ? 'Modifier le produit' : 'Nouveau produit', `<form id="pf">
+    ${field('Nom du produit *', `<input name="name" required maxlength="70" value="${esc(p?.name)}" placeholder="Ex : Sac de poitrine">`)}
+    ${field('Détails', `<textarea name="details" placeholder="Description, taille, couleur, contenance…">${esc(p?.details)}</textarea>`)}
+    <div class="row2">${field('Catégorie', `<input name="cat" list="catl" value="${esc(p?.cat)}" placeholder="Ex : Beauté"><datalist id="catl">${cats.map(c => `<option value="${esc(c)}">`).join('')}</datalist>`)}
+      ${field('Devise du prix', `<select name="cur"><option value="$" ${p?.cur!=='FC'?'selected':''}>Dollar ($)</option><option value="FC" ${p?.cur==='FC'?'selected':''}>Monnaie locale (${esc(LC())})</option></select>`)}</div>
+    <div class="row2">${field('Prix de vente *', `<input name="sell" type="number" step="any" min="0" required value="${p ? p.sell : ''}" placeholder="0">`)}${field("Prix d'achat *", `<input name="buy" type="number" step="any" min="0" value="${p && num(p.buy) ? p.buy : ''}" placeholder="0">`, 'Coût par pièce (même devise)')}</div>
+    <div class="row2">${field('Commission livreur', `<select name="commMode"><option value="fixe" ${p?.commMode!=='pct'?'selected':''}>Montant fixe ($)</option><option value="pct" ${p?.commMode==='pct'?'selected':''}>Pourcentage (%)</option></select>`)}${field('Valeur', `<input name="comm" type="number" step="any" min="0" value="${p ? p.comm : ''}" placeholder="Ex : 2">`, '<span id="commHint">par pièce livrée</span>')}</div>
+    ${field('Alerte stock bas', `<input name="alert" type="number" min="0" step="1" value="${p ? p.alert : 3}">`, 'Alerte quand il reste ce nombre de pièces ou moins')}
+    ${p ? '' : `<div id="initw">${field('Stock de départ au dépôt', `<input name="init" type="number" min="0" step="1" placeholder="0">`)}</div>`}
+    <label class="f" style="display:flex;gap:10px;align-items:center"><input type="checkbox" name="iskit" ${isKit(p)?'checked':''} style="width:22px;height:22px;min-height:0"><span style="margin:0">C'est un pack (composé d'autres produits)</span></label>
+    <div id="kitw" ${isKit(p)?'':'hidden'}><p class="note" style="margin-bottom:8px">Quand ce pack est vendu, ces produits sortent du stock.</p>
+      ${kit.map(c => `<div class="kitrow"><select name="kp"><option value="">— produit —</option>${others.map(o => `<option value="${o.id}" ${o.id===c.pid?'selected':''}>${esc(o.name)}</option>`).join('')}</select><input name="kq" type="number" min="1" step="1" value="${c.q||1}"></div>`).join('')}</div>
+    <button class="btn primary block" style="margin-top:6px">${p ? 'Enregistrer' : 'Ajouter le produit'}</button>
+    ${p ? `<button type="button" class="btn ghost-bad block" style="margin-top:8px" data-a="delprod:${p.id}">Supprimer ce produit</button>` : ''}</form>`);
+  const f = $('#pf'), E = f.elements;
+  E.iskit.onchange = () => { $('#kitw').hidden = !E.iskit.checked; if($('#initw')) $('#initw').hidden = E.iskit.checked; E.buy.required = !E.iskit.checked; };
+  E.buy.required = !E.iskit.checked;
+  const ch = () => $('#commHint').textContent = E.commMode.value === 'pct' ? '% du prix de vente' : '$ par pièce livrée';
+  E.commMode.onchange = ch; ch();
+  f.onsubmit = e => {
+    e.preventDefault();
+    const name = E.name.value.trim(); if(!name) return;
+    let kitv = null;
+    if(E.iskit.checked){
+      const kp = [...f.querySelectorAll('[name=kp]')], kq = [...f.querySelectorAll('[name=kq]')];
+      kitv = kp.map((s,i) => ({pid:s.value, q:Math.max(1, Math.round(num(kq[i].value)))})).filter(c => c.pid);
+      if(!kitv.length){ toast('Choisissez au moins un produit pour le pack'); return; }
+    }
+    if(p && S.moves.some(m => m.pid === p.id) && JSON.stringify(kitv) !== JSON.stringify(isKit(p) ? p.kit : null)){
+      toast(isKit(p) ? 'Ce pack a déjà des ventes : sa composition ne peut plus changer' : 'Ce produit a déjà du stock : créez plutôt un nouveau pack'); return; }
+    const data = {name, details:E.details.value.trim(), cat:E.cat.value.trim(), cur:E.cur.value, sell:num(E.sell.value), buy:num(E.buy.value), comm:num(E.comm.value), commMode:E.commMode.value, alert:Math.max(0, Math.round(num(E.alert.value))), kit:kitv};
+    if(p){ Object.assign(p, data); toast('Produit modifié'); }
+    else {
+      const np = Object.assign({id:uid()}, data); S.products.push(np);
+      const init = kitv ? 0 : Math.round(num(E.init?.value));
+      if(init > 0) S.moves.push({id:uid(), ts:Date.now(), type:'entree', pid:np.id, qty:init, cost:np.buy, date:today(), note:'Stock de départ'});
+      toast('Produit ajouté');
+    }
+    S.settings.setup = true; save(); closeSheet(); render();
+  };
+}
+function prodSheet(id){
+  const p = prod(id); if(!p) return;
+  const st = stockAt(), kit = isKit(p);
+  const cu = unitCostUSD(p), su = toUSD(num(p.sell), p.cur), cm = commUFor(p, {pay:'produit'}, su), marge = su - cu - cm;
+  const hist = sortMoves(S.moves.filter(m => m.pid === id || (!kit && m.pid && isKit(prod(m.pid)) && prod(m.pid).kit.some(c => c.pid === id)))).slice(0,15);
+  const locs = S.livreurs.map(l => [l, kit ? avail(st, l.id, id) : qAt(st, l.id, id)]).filter(x => x[1]);
+  sheet(p.name, `
+    ${kit ? `<div class="warnbox" style="background:var(--vio-soft);color:var(--vio)">Pack : ${p.kit.map(c => c.q + ' × ' + esc(pname(c.pid))).join(' + ')}. Les quantités ci-dessous = nombre de packs possibles.</div>` : ''}
+    <div class="kv"><div><b class="num">${kit ? avail(st,'',id) : qAt(st,'',id)}</b><span>Au dépôt</span></div><div><b class="num">${kit ? locs.reduce((s,x)=>s+x[1],0) : inHands(st,id)}</b><span>Chez livreurs</span></div><div><b class="num">${kit ? '—' : totalOf(st,id)}</b><span>Total</span></div></div>
+    ${locs.length ? `<div class="card" style="margin-bottom:12px">${locs.map(([l,q]) => `<div class="dl"><span>${esc(l.name)} · ${esc(l.city||'')}</span><span class="num">${q}</span></div>`).join('')}</div>` : ''}
+    <div class="card" style="margin-bottom:12px">
+      <div class="dl"><span>Prix de vente</span><span class="num">${priceTxt(p)}${p.cur==='FC' ? ' ≈ ' + money(su) : ''}</span></div>
+      <div class="dl"><span>Prix d'achat</span><span class="num">${num(p.buy)>0 ? amt(p.buy, p.cur) : (kit && cu ? '≈ ' + money(cu) + ' (produits)' : '<span class="red">à compléter</span>')}</span></div>
+      <div class="dl"><span>Commission livreur</span><span class="num">${commTxt(p)}${p.commMode==='pct' ? ' ≈ ' + money(cm) : ''}</span></div>
+      <div class="dl strong"><span>Bénéfice par pièce (après commission)</span><span class="num ${marge<0?'red':'green'}">${money(marge)}</span></div>
+      ${p.cat ? `<div class="dl"><span>Catégorie</span><span>${esc(p.cat)}</span></div>` : ''}
+      ${p.details ? `<p class="note" style="margin-top:8px;white-space:pre-line">${esc(p.details)}</p>` : ''}
+    </div>
+    <div class="btns" style="margin-bottom:8px">
+      <button class="btn primary" data-a="new:vente" data-pid="${id}">Vendre</button>
+      <button class="btn" data-a="new:envoi" data-pid="${id}">Envoyer</button>
+      ${kit ? '' : `<button class="btn" data-a="new:entree" data-pid="${id}">Entrée</button><button class="btn" data-a="new:perte" data-pid="${id}">Sortie</button>`}
+    </div>
+    <button class="btn block" data-a="editprod:${id}">Modifier le produit</button>
+    <div class="sec"><h2>Historique</h2></div>
+    <div class="list">${hist.length ? hist.map(rowMove).join('') : '<div class="empty">Aucune opération</div>'}</div>`);
+}
+
+/* ----- Opérations de stock : entrée, envoi, retour, vente, perte ----- */
+function moveForm(type, opt = {}){
+  const m = opt.id ? S.moves.find(x => x.id === opt.id) : null;
+  if(m) type = m.type;
+  if(!S.products.length){ toast("Ajoutez d'abord un produit"); productForm(); return; }
+  if((type === 'envoi' || type === 'retour') && !S.livreurs.length){ toast("Ajoutez d'abord un livreur"); livForm(); return; }
+  const stEx = stockAt(m ? S.moves.filter(x => x.id !== m.id) : S.moves);
+  const pid0 = m?.pid || opt.pid || '';
+  const liv0 = m ? (m.liv || m.loc || '') : (opt.liv || '');
+  const prods = S.products.filter(p => type === 'entree' || type === 'perte' ? !isKit(p) : true).sort(byName);
+  const T = {entree:['Entrée de stock','Ajouter au dépôt'], envoi:['Envoyer du stock à un livreur','Enregistrer l\'envoi'], retour:['Retour de stock au dépôt','Enregistrer le retour'],
+             vente:[m ? 'Modifier la vente' : 'Nouvelle vente', m ? 'Enregistrer' : 'Enregistrer la vente'], perte:['Sortie / perte de stock','Enregistrer la sortie']}[type];
+  const livOpts = (withDepot, label) => (withDepot ? `<option value="">${label}</option>` : '') + cities().map(c => `<optgroup label="${esc(c)}">${S.livreurs.filter(l => (l.city||'Sans ville') === c).sort(byName).map(l => `<option value="${l.id}" ${l.id===liv0?'selected':''}>${esc(l.name)}</option>`).join('')}</optgroup>`).join('');
+  let h = `<form id="mf">`;
+  if(type === 'envoi' || type === 'retour') h += field('Livreur *', `<select name="loc" required>${liv0 ? '' : '<option value="">Choisir un livreur…</option>'}${livOpts(false)}</select>`);
+  if(type === 'perte') h += field('Où se trouve le produit ?', `<select name="loc">${livOpts(true, 'Au dépôt')}</select>`);
+  if(type === 'vente') h += field('Livré par', `<select name="loc">${livOpts(true, 'Vente directe (depuis le dépôt)')}</select>`);
+  h += field('Produit *', `<select name="pid" required>${pid0 ? '' : '<option value="">Choisir un produit…</option>'}${prods.map(p => `<option value="${p.id}" ${p.id===pid0?'selected':''}>${esc(p.name)}</option>`).join('')}</select>`);
+  h += `<div id="avail"></div><div class="row2">${field('Quantité *', `<input name="qty" type="number" min="1" step="1" required value="${m ? m.qty : 1}">`)}`;
+  if(type === 'entree') h += field('Coût unitaire', `<input name="cost" type="number" step="any" min="0" value="${m ? (m.cost ?? '') : ''}">`, '<span id="curl"></span>') + `</div>`;
+  else if(type === 'perte') h += field('Motif', `<select name="motif">${MOTIFS.map(x => `<option ${m?.motif===x?'selected':''}>${x}</option>`).join('')}</select>`) + `</div>`;
+  else if(type === 'vente') h += field('Prix unitaire', `<input name="price" type="number" step="any" min="0" value="${m ? m.price : ''}">`, '<span id="curl"></span>') + `</div><div class="tot" id="tot"></div>
+      ${field('Nom du client', `<input name="client" value="${esc(m?.client)}" placeholder="Ex : Mme Nsimba">`)}
+      <div class="row2">${field('Téléphone client', `<input name="phone" type="tel" value="${esc(m?.phone)}" placeholder="08…">`)}${field('Adresse / commune', `<input name="addr" value="${esc(m?.addr)}" placeholder="Ex : Gombe">`)}</div>
+      <div class="f"><span>Statut</span><div class="seg" id="segS">${Object.entries(STATUS).map(([k,l]) => `<button type="button" data-s="${k}">${l}</button>`).join('')}</div></div>`;
+  else h += `<div></div></div>`;
+  h += `<div class="row2">${field('Date', `<input name="date" type="date" required value="${m ? m.date : today()}">`)}${field('Note', `<input name="note" value="${esc(m?.note)}" placeholder="${type==='entree'?'Fournisseur…':'Optionnel'}">`)}</div>
+    <button class="btn primary block">${T[1]}</button>
+    ${m ? `<button type="button" class="btn ghost-bad block" style="margin-top:8px" data-a="delmove:${m.id}">Supprimer cette opération</button>` : ''}</form>`;
+  sheet(T[0], h);
+
+  const f = $('#mf'), E = f.elements;
+  let status = m?.status || (liv0 ? 'attente' : 'livre');
+  const paintSeg = () => { if($('#segS')) [...$('#segS').children].forEach(b => b.classList.toggle('on', b.dataset.s === status)); };
+  paintSeg();
+  if($('#segS')) $('#segS').onclick = e => { const b = e.target.closest('button'); if(b){ status = b.dataset.s; paintSeg(); } };
+  const srcLoc = () => type === 'entree' ? null : type === 'envoi' ? '' : (E.loc ? E.loc.value : '');
+  const upd = () => {
+    const p = prod(E.pid.value), loc = srcLoc();
+    $('#avail').innerHTML = p && loc !== null ? `<p class="note" style="margin:-4px 0 10px">Disponible ${locName(loc)} : <b>${avail(stEx, loc, p.id)}</b>${isKit(p) ? ' pack(s)' : ' pièce(s)'}</p>` : '';
+    if($('#curl') && p) $('#curl').textContent = p.cur === 'FC' ? 'en ' + LC() : 'en dollars ($)';
+    if(type === 'vente' && p){
+      const q = num(E.qty.value), pr = num(E.price.value), totU = toUSD(q*pr, p.cur), cost = q * (m && m.pid === p.id ? num(m.costU) : unitCostUSD(p));
+      const comm = q * commUFor(p, liv(E.loc.value), toUSD(pr, p.cur));
+      $('#tot').innerHTML = `<span>Total client</span><b class="num">${amt(q*pr, p.cur)}</b><small>${p.cur==='FC' ? '≈ ' + money(totU) + ' · ' : ''}Commission livreur : ${money(comm)} · Bénéfice : ${money(totU - cost - comm)}${E.loc.value && feeTxt() ? ' · + frais livraison ' + feeTxt() + ' (pour le livreur)' : ''}</small>`;
+    }
+  };
+  E.pid.onchange = () => { const p = prod(E.pid.value); if(p){ if(E.price) E.price.value = p.sell || ''; if(E.cost) E.cost.value = num(p.buy) || ''; } upd(); };
+  if(E.loc) E.loc.onchange = () => { if(type === 'vente' && !m){ status = E.loc.value ? 'attente' : 'livre'; paintSeg(); } upd(); };
+  E.qty.oninput = upd; if(E.price) E.price.oninput = upd;
+  if(!m && pid0) E.pid.onchange(); else upd();
+
+  f.onsubmit = e => {
+    e.preventDefault();
+    const p = prod(E.pid.value); if(!p){ toast('Choisissez un produit'); return; }
+    const qty = Math.round(num(E.qty.value)); if(qty < 1){ toast('Quantité invalide'); return; }
+    const rec = Object.assign({}, m || {id:uid(), ts:Date.now(), type});
+    rec.pid = p.id; rec.qty = qty; rec.date = E.date.value || today(); rec.note = E.note.value.trim();
+    if(type === 'envoi' || type === 'retour'){ rec.liv = E.loc.value; if(!rec.liv){ toast('Choisissez un livreur'); return; } }
+    if(type === 'entree'){ rec.cost = num(E.cost.value); }
+    if(type === 'perte'){ rec.loc = E.loc.value; rec.motif = E.motif.value; if(!m || m.pid !== p.id) rec.costU = unitCostUSD(p); }
+    if(type === 'vente'){
+      rec.liv = E.loc.value; rec.price = num(E.price.value); rec.cur = p.cur;
+      if(!m || m.pid !== p.id) rec.costU = unitCostUSD(p);
+      if(!m || m.pid !== p.id || m.liv !== rec.liv || m.price !== rec.price) rec.commU = commUFor(p, liv(rec.liv), toUSD(rec.price, p.cur, m && m.cur === p.cur ? m.rate : rate()));
+      if(!m || m.pid !== p.id || m.cur !== p.cur) rec.rate = rate();
+      rec.client = E.client.value.trim(); rec.phone = E.phone.value.trim(); rec.addr = E.addr.value.trim(); rec.status = status;
+    }
+    const next = m ? S.moves.map(x => x.id === m.id ? rec : x) : S.moves.concat([rec]);
+    const err = checkStock(next, [p.id].concat(m ? [m.pid] : []));
+    if(err){ toast(err); return; }
+    S.moves = next;
+    if(type === 'entree' && !m && rec.cost > 0) p.buy = rec.cost;
+    S.settings.setup = true; save();
+    toast(m ? 'Modification enregistrée' : {entree:'Entrée ajoutée au dépôt', envoi:'Stock envoyé au livreur', retour:'Retour enregistré', vente:'Vente enregistrée', perte:'Sortie enregistrée'}[type]);
+    if(type === 'vente' && !m){ saleTab = status; render(); saleSheet(rec.id); }
+    else if((type === 'envoi' || type === 'retour') && opt.liv){ render(); livSheet(opt.liv); }
+    else { closeSheet(); render(); }
+  };
+}
+
+/* ----- Argent : versement, paiement commission, dépense ----- */
+function moneyForm(type, opt = {}){
+  const m = opt.id ? S.moves.find(x => x.id === opt.id) : null;
+  if(m) type = m.type;
+  if((type === 'versement' || type === 'paiecomm') && !S.livreurs.length){ toast("Ajoutez d'abord un livreur"); livForm(); return; }
+  const liv0 = m?.liv || opt.liv || '';
+  const livOpts = cities().map(c => `<optgroup label="${esc(c)}">${S.livreurs.filter(l => (l.city||'Sans ville') === c).sort(byName).map(l => `<option value="${l.id}" ${l.id===liv0?'selected':''}>${esc(l.name)}</option>`).join('')}</optgroup>`).join('');
+  const T = {versement:['Versement d\'un livreur','Enregistrer le versement'], paiecomm:['Payer la commission','Enregistrer le paiement'], depense:['Dépense','Enregistrer la dépense']}[type];
+  let h = `<form id="nf">`;
+  if(type === 'depense') h += field('Catégorie', `<select name="cat">${DEPCATS.map(c => `<option ${(m ? m.cat : opt.cat)===c?'selected':''}>${c}</option>`).join('')}</select>`);
+  if(type === 'depense') h += field('Concerne un livreur ? (optionnel)', `<select name="liv"><option value="">Non</option>${livOpts}</select>`);
+  else h += field('Livreur *', `<select name="liv" required>${liv0 ? '' : '<option value="">Choisir un livreur…</option>'}${livOpts}</select>`);
+  h += `<div id="due"></div><div class="row2">${field('Montant *', `<input name="amount" type="number" step="any" min="0" required value="${m ? m.amount : ''}">`)}
+    ${type === 'paiecomm' ? field('Devise', `<select name="cur" disabled><option>$</option></select>`) : field('Devise', `<select name="cur"><option value="$" ${m?.cur!=='FC'?'selected':''}>$</option><option value="FC" ${m?.cur==='FC'?'selected':''}>${esc(LC())}</option></select>`)}</div>
+    <div class="row2">${field('Date', `<input name="date" type="date" required value="${m ? m.date : today()}">`)}${field('Note', `<input name="note" value="${esc(m?.note)}" placeholder="${type==='versement'?'Ex : M-Pesa, Airtel Money':'Optionnel'}">`)}</div>
+    <button class="btn primary block">${T[1]}</button>
+    ${m ? `<button type="button" class="btn ghost-bad block" style="margin-top:8px" data-a="delmove:${m.id}">Supprimer</button>` : ''}</form>`;
+  sheet(T[0], h);
+  const f = $('#nf'), E = f.elements;
+  const upd = () => {
+    if(type === 'depense' || !E.liv.value){ $('#due').innerHTML = ''; return; }
+    const s = livStats(E.liv.value), dueU = type === 'versement' ? s.toRemit + (m ? moneyUSD(m) : 0) : s.toPay + (m ? num(m.amount) : 0);
+    $('#due').innerHTML = `<button type="button" class="tot" style="width:100%;text-align:left" id="fill"><span>${type==='versement'?'Reste à verser':'Commission à payer'}</span><b class="num">${money(dueU)}</b><small>${type==='versement' ? '≈ ' + fcOf(dueU) + ' · ' : 'Cette semaine : ' + money(s.week) + ' · '}touchez pour remplir</small></button>`;
+    $('#fill').onclick = () => { if(type === 'versement' && E.cur.value === 'FC') E.amount.value = Math.round(dueU * rate()); else E.amount.value = r2(dueU); };
+  };
+  E.liv.onchange = upd; upd();
+  f.onsubmit = e => {
+    e.preventDefault();
+    const a = num(E.amount.value); if(!(a > 0)){ toast('Montant invalide'); return; }
+    const rec = Object.assign({}, m || {id:uid(), ts:Date.now(), type});
+    rec.liv = E.liv.value; rec.amount = a; rec.cur = type === 'paiecomm' ? '$' : E.cur.value; rec.date = E.date.value || today(); rec.note = E.note.value.trim();
+    if(!m || m.cur !== rec.cur) rec.rate = rate();
+    if(type === 'depense') rec.cat = E.cat.value;
+    if(type !== 'depense' && !rec.liv){ toast('Choisissez un livreur'); return; }
+    S.moves = m ? S.moves.map(x => x.id === m.id ? rec : x) : S.moves.concat([rec]);
+    save(); toast(m ? 'Modification enregistrée' : {versement:'Versement enregistré ✅', paiecomm:'Commission payée ✅', depense:'Dépense enregistrée'}[type]);
+    if(opt.liv && !m){ render(); livSheet(opt.liv); } else { closeSheet(); render(); }
+  };
+}
+
+/* ----- Détail d'une vente ----- */
+function saleSheet(id){
+  const m = S.moves.find(x => x.id === id); if(!m) return;
+  const L = liv(m.liv), st = S.settings, total = amt(m.qty*m.price, m.cur), u = saleUSD(m);
+  const fee = L && feeTxt() ? feeTxt() : '';
+  const receipt = `*${st.shop}*\nReçu de vente\n\nProduit : ${pname(m.pid)}\nQuantité : ${m.qty}\nPrix unitaire : ${amt(m.price, m.cur)}\n*Total produit : ${total}*${fee ? '\nFrais de livraison : ' + fee + ' (à remettre au livreur)' : ''}\nDate : ${fmtDate(m.date, true)}\nStatut : ${STATUS[m.status]}\n\nMerci pour votre confiance !${st.wa ? '\nContact : ' + st.wa : ''}`;
+  const order = `*Livraison — ${st.shop}*\n\nProduit : ${pname(m.pid)}\nQuantité : ${m.qty}\nClient : ${m.client || '-'}\nTéléphone : ${m.phone || '-'}\nAdresse : ${m.addr || '-'}\n\n*Montant produit à encaisser : ${total}*${fee ? '\nFrais de livraison (pour vous) : ' + fee : ''}${num(m.commU) ? '\nVotre commission : ' + money(m.qty*num(m.commU)) : ''}${m.note ? '\nNote : ' + m.note : ''}\n\nMerci de verser la recette ce soir par Mobile Money 🙏`;
+  sheet('Vente', `
+    <div class="card" style="margin-bottom:12px">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;margin-bottom:6px"><div><div style="font-weight:700;font-size:16px">${esc(pname(m.pid))} × ${m.qty}</div><div class="note">${fmtDate(m.date, true)}</div></div><span class="pill p-${m.status}">${STATUS[m.status]}</span></div>
+      <div class="dl"><span>Total client</span><span class="num" style="font-size:17px">${total}</span></div>
+      ${m.cur === 'FC' ? `<div class="dl"><span>En dollars</span><span class="num">≈ ${money(u)}</span></div>` : ''}
+      <div class="dl"><span>Commission livreur</span><span class="num">${m.liv ? money(m.qty*num(m.commU)) : '—'}</span></div>
+      <div class="dl"><span>Bénéfice sur cette vente</span><span class="num">${money(u - m.qty*num(m.costU) - (m.liv ? m.qty*num(m.commU) : 0))}</span></div>
+      <div class="dl"><span>Livreur</span><span>${L ? esc(L.name) + ' · ' + esc(L.city||'') : 'Vente directe (dépôt)'}</span></div>
+      <div class="dl"><span>Client</span><span>${esc(m.client || '—')}</span></div>
+      ${m.phone ? `<div class="dl"><span>Téléphone</span><span>${esc(m.phone)}</span></div>` : ''}
+      ${m.addr ? `<div class="dl"><span>Adresse</span><span>${esc(m.addr)}</span></div>` : ''}
+      ${m.note ? `<div class="dl"><span>Note</span><span>${esc(m.note)}</span></div>` : ''}
+    </div>
+    <div class="f"><span>Changer le statut</span><div class="seg">${Object.entries(STATUS).map(([k,l]) => `<button type="button" class="${m.status===k?'on':''}" data-a="status:${k}" data-id="${m.id}">${l}</button>`).join('')}</div></div>
+    <div class="stack">
+      ${L ? `<a class="btn wa block" href="${waLink(L.phone, order)}" target="_blank" rel="noopener">${ico('wa')} Envoyer la commande à ${esc(L.name)}</a>` : ''}
+      <a class="btn wa block" href="${waLink(m.phone, receipt)}" target="_blank" rel="noopener">${ico('wa')} Envoyer le reçu ${m.phone ? 'au client' : 'par WhatsApp'}</a>
+      <div class="btns"><button class="btn" data-a="editsale:${m.id}">Modifier</button><button class="btn ghost-bad" data-a="delmove:${m.id}">Supprimer</button></div>
+    </div>`);
+}
+function setStatus(id, st){
+  const m = S.moves.find(x => x.id === id); if(!m || m.status === st) return;
+  const rec = Object.assign({}, m, {status:st});
+  const err = checkStock(S.moves.map(x => x.id === id ? rec : x), [m.pid]);
+  if(err){ toast(err); return; }
+  m.status = st; save(); render(); saleSheet(id);
+  toast(st === 'livre' ? 'Livrée ✅ — commission comptée' : st === 'annule' ? 'Vente annulée — stock remis' : 'Statut : ' + STATUS[st]);
+}
+
+/* ---------- Sauvegarde ---------- */
+function download(name, text, mime){
+  try{
+    const url = URL.createObjectURL(new Blob([text], {type:mime}));
+    const a = document.createElement('a'); a.href = url; a.download = name; document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 4000);
+  }catch(e){}
+}
+function copyText(t){
+  try{ navigator.clipboard.writeText(t).then(() => toast('Copié ✅'), () => toast('Sélectionnez le texte et copiez-le')); }
+  catch(e){ toast('Sélectionnez le texte et copiez-le'); }
+}
+const slug = () => (S.settings.shop || 'boutique').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'');
+function backupSheet(){
+  const data = JSON.stringify(S);
+  sheet('Exporter une sauvegarde', `<p class="note" style="margin-bottom:12px">Le fichier contient tous vos produits, livreurs, ventes, versements et dépenses. Envoyez-le-vous sur WhatsApp ou Google Drive.</p>
+    <div class="stack"><button class="btn primary block" id="bdl">Télécharger le fichier</button>
+    <button class="btn block" id="bcp">Copier la sauvegarde (texte)</button>
+    <textarea class="code" readonly id="btx">${esc(data)}</textarea>
+    <p class="note">Si le téléchargement ne démarre pas, utilisez « Copier » puis collez le texte dans une note ou un message.</p></div>`);
+  $('#bdl').onclick = () => { download(`sauvegarde-${slug()}-${today()}.json`, data, 'application/json'); toast('Téléchargement lancé'); };
+  $('#bcp').onclick = () => { $('#btx').select(); copyText(data); };
+}
+function restoreSheet(){
+  sheet('Restaurer une sauvegarde', `<p class="note" style="margin-bottom:12px">Attention : les données actuelles seront remplacées.</p>
+    <div class="stack"><label class="btn primary block" style="cursor:pointer">Choisir le fichier de sauvegarde<input type="file" accept=".json,application/json,text/plain" id="rfile" hidden></label>
+    <p class="note" style="text-align:center">ou collez le texte de la sauvegarde :</p>
+    <textarea class="code" id="rtx" placeholder='{"settings":…}'></textarea>
+    <button class="btn block" id="rgo">Restaurer depuis le texte</button></div>`);
+  const apply = async txt => {
+    let d; try{ d = JSON.parse(txt); }catch(e){ toast('Fichier invalide'); return; }
+    if(!d || !Array.isArray(d.products) || !Array.isArray(d.moves)){ toast("Ce n'est pas une sauvegarde valide"); return; }
+    if(!await ask(`Remplacer les données actuelles par cette sauvegarde (${d.products.length} produits, ${d.moves.length} opérations) ?`, 'Restaurer')) return;
+    S = normalize(d); save(); closeSheet(); view = 'home'; render(); toast('Sauvegarde restaurée ✅');
+  };
+  $('#rfile').onchange = e => { const file = e.target.files[0]; if(!file) return; const r = new FileReader(); r.onload = () => apply(r.result); r.readAsText(file); };
+  $('#rgo').onclick = () => apply($('#rtx').value.trim());
+}
+function csvSheet(){
+  const q = v => { const s = String(v ?? ''); return /[;"\n]/.test(s) ? '"' + s.replace(/"/g,'""') + '"' : s; };
+  const rows = [['Date','Produit','Quantité','Prix unitaire','Devise','Total','Total ($)','Commission livreur ($)','Bénéfice ($)','Livreur','Ville','Client','Téléphone','Adresse','Statut','Note']];
+  sortMoves(S.moves.filter(m => m.type === 'vente')).forEach(m => { const u = saleUSD(m), c = m.liv ? m.qty*num(m.commU) : 0;
+    rows.push([m.date, pname(m.pid), m.qty, m.price, m.cur, m.qty*m.price, r2(u), r2(c), r2(u - m.qty*num(m.costU) - c), m.liv ? lname(m.liv) : 'Dépôt', m.liv ? liv(m.liv)?.city || '' : '', m.client, m.phone, m.addr, STATUS[m.status], m.note]); });
+  const csv = '﻿' + rows.map(r => r.map(q).join(';')).join('\n');
+  sheet('Exporter les ventes', `<p class="note" style="margin-bottom:12px">${rows.length-1} ventes. Le fichier s'ouvre dans Excel, Google Sheets ou WPS Office.</p>
+    <div class="stack"><button class="btn primary block" id="cdl">Télécharger (CSV)</button><button class="btn block" id="ccp">Copier le tableau</button></div>`);
+  $('#cdl').onclick = () => { download(`ventes-${slug()}-${today()}.csv`, csv, 'text/csv;charset=utf-8'); toast('Téléchargement lancé'); };
+  $('#ccp').onclick = () => copyText(rows.map(r => r.join('\t')).join('\n'));
+}
+
+/* ---------- Catalogue de départ & exemples ---------- */
+function buildCatalog(src){
+  const ids = {};
+  src.products.forEach(([code]) => ids[code] = uid() + code);
+  S.products = src.products.map(([code,name,cat,cur,sell,comm,kit]) => ({id:ids[code], name, details:'', cat, cur, sell, buy:0, comm, commMode:'fixe', alert:3, kit: kit ? kit.map(([c,q]) => ({pid:ids[c], q})) : null}));
+  S.livreurs = src.livreurs.map(([name,phone,city]) => ({id:uid(), name, phone, city, pay:'produit'}));
+  return ids;
+}
+function loadPreset(){
+  S = defaults();
+  Object.assign(S.settings, {shop:PRESET.shop, color:PRESET.color, country:PRESET.country, lc:PRESET.lc, rate:PRESET.rate, fee:PRESET.fee, feeCur:PRESET.feeCur, setup:true});
+  buildCatalog(PRESET);
+  save(); closeSheet(); view = 'stock'; render();
+  toast('Catalogue chargé : ajoutez vos prix d\'achat et votre stock');
+}
+function seedDemo(){
+  const src = PRESET || GENERIC;
+  S = defaults();
+  Object.assign(S.settings, {shop: PRESET ? PRESET.shop + ' (exemple)' : 'Ma Boutique (exemple)', color: PRESET ? PRESET.color : '#0F766E', rate: PRESET ? PRESET.rate : 2300, setup:true});
+  buildCatalog(src);
+  // prix d'achat fictifs (≈ 40 % du prix de vente)
+  S.products.forEach(p => { if(!isKit(p)) p.buy = p.cur === 'FC' ? Math.round(p.sell * .4 / 500) * 500 : r2(p.sell * .4); });
+  const t = today(), d = k => addDays(t, -k), simple = S.products.filter(p => !isKit(p)), kits = S.products.filter(isKit), L = S.livreurs;
+  let ts = Date.now() - 4e9; const push = o => S.moves.push(Object.assign({id:uid(), ts:ts++, note:''}, o));
+  simple.forEach(p => push({type:'entree', pid:p.id, qty:60, cost:p.buy, date:d(24), note:'Achat fournisseur'}));
+  L.forEach((l,i) => simple.forEach((p,j) => push({type:'envoi', pid:p.id, qty:8 + ((i+j)%3)*2, liv:l.id, date:d(22 - i)})));
+  push({type:'depense', cat:'Expédition colis (vers une ville)', amount:25, cur:'$', rate:S.settings.rate, liv:L[L.length-1].id, date:d(21), note:'Colis Kinshasa → ' + L[L.length-1].city});
+  push({type:'depense', cat:'Publicité Facebook', amount:30, cur:'$', rate:S.settings.rate, liv:'', date:d(15), note:'Campagne 7 jours'});
+  push({type:'depense', cat:'Transport', amount:20000, cur:'FC', rate:S.settings.rate, liv:'', date:d(6), note:'Taxi moto marchandise'});
+  const clients = ['Mme Nsimba','M. Kabeya','Mme Mbuyi','M. Lukusa','Mme Ilunga','M. Tshibangu','Mme Kapinga','M. Mukendi'];
+  const addr = ['Gombe','Limete','Ngaliema','Bandal','Lemba','Kintambo','Matete','Masina'];
+  let n = 0;
+  for(let k = 19; k >= 0; k--){
+    const cnt = (k*7) % 3 + 1;
+    for(let j = 0; j < cnt; j++){
+      const pool = (n % 6 === 5 && kits.length) ? kits : simple;
+      const p = pool[(k + j*3 + n) % pool.length], l = L[n % L.length];
+      let st = k > 2 ? 'livre' : k === 0 ? 'attente' : (j % 2 ? 'encours' : 'livre');
+      if(k === 9 && j === 0) st = 'annule';
+      const rec = {type:'vente', pid:p.id, qty:1 + (n % 4 === 0 ? 1 : 0), price:p.sell, cur:p.cur, rate:S.settings.rate, costU:unitCostUSD(p), commU:commUFor(p, l, toUSD(p.sell, p.cur)), liv:l.id, client:clients[n%8], phone:'', addr:addr[(n*3)%8], status:st, date:d(k)};
+      if(!checkStock(S.moves.concat([rec]), [p.id])) push(rec);
+      n++;
+    }
+  }
+  // versements et commissions déjà payées pour une partie
+  L.forEach((l,i) => { const s = livStats(l.id), v = r2(Math.max(0, s.cash * (i===0 ? .7 : 1) - (i===1 ? 10 : 0)));
+    if(v > 0) push({type:'versement', liv:l.id, amount:v, cur:'$', rate:S.settings.rate, date:d(1), note:'Mobile Money'});
+    if(s.earned > 0 && i !== 2) push({type:'paiecomm', liv:l.id, amount:r2(s.earned * .5), date:d(2), note:'Semaine passée'}); });
+  push({type:'perte', pid:simple[1].id, qty:1, loc:'', motif:'Cassé / abîmé', costU:unitCostUSD(simple[1]), date:d(5)});
+  save(); closeSheet(); view = 'home'; render(); toast('Exemples chargés — effacez-les dans Réglages quand vous voulez');
+}
+
+function setupSheet(){
+  const st = S.settings;
+  sheet('Votre boutique', `<form id="wf">
+    ${field('Nom de l\'entreprise *', `<input name="shop" required maxlength="40" value="${st.shop==='Ma Boutique'?'':esc(st.shop)}" placeholder="Ex : Winner Business">`)}
+    <div class="f"><span>Logo (optionnel)</span><div style="display:flex;gap:10px;align-items:center"><div class="logo" id="wlogo" style="width:54px;height:54px;background:var(--brand);color:var(--brand-ink)">${st.logo ? `<img src="${st.logo}" alt="">` : '+'}</div>
+      <label class="btn sm" style="cursor:pointer">Choisir une image<input type="file" accept="image/*" id="logoIn" hidden></label></div></div>
+    <div class="f"><span>Couleur</span><div class="colors">${COLORS.map(c => `<button type="button" style="background:${c}" class="${c===st.color?'on':''}" data-a="wcolor:${c}"></button>`).join('')}</div></div>
+    ${countryFields(st)}
+    <div class="row2">${field('Indicatif téléphone', `<input name="cc" inputmode="numeric" value="${esc(st.cc)}">`)}${field('WhatsApp boutique', `<input name="wa" type="tel" value="${esc(st.wa)}" placeholder="+243 …">`)}</div>
+    <button class="btn primary block">Commencer</button></form>`);
+}
+
+/* ---------- Actions ---------- */
+const A = {
+  nav: v => { view = v; render(); window.scrollTo(0,0); },
+  per: v => { period = v; render(); },
+  dper: v => { depPeriod = v; render(); },
+  bper: v => { bookPeriod = v; render(); },
+  btype: v => { bookType = v; render(); },
+  stab: v => { saleTab = v; render(); },
+  scity: v => { saleCity = v; render(); },
+  close: () => closeSheet(),
+  fab: () => fabSheet(),
+  new: (t, el) => t === 'produit' ? productForm() : moveForm(t, {pid: el.dataset.pid, liv: el.dataset.liv}),
+  money: (t, el) => moneyForm(t, {liv: el.dataset.liv}),
+  prod: id => prodSheet(id),
+  editprod: id => productForm(id),
+  delprod: async id => {
+    const n = S.moves.filter(m => m.pid === id).length;
+    const used = S.products.some(p => isKit(p) && p.kit.some(c => c.pid === id));
+    if(used){ toast('Ce produit fait partie d\'un pack : supprimez d\'abord le pack'); return; }
+    if(!await ask(`Supprimer « ${esc(pname(id))} »${n ? ` et ses ${n} opération(s)` : ''} ? Cette action est définitive.`, 'Supprimer')) return;
+    S.products = S.products.filter(p => p.id !== id); S.moves = S.moves.filter(m => m.pid !== id);
+    save(); closeSheet(); render(); toast('Produit supprimé');
+  },
+  liv: id => livSheet(id),
+  newliv: () => livForm(),
+  editliv: id => livForm(id),
+  delliv: async id => {
+    const s = livStats(id);
+    if(s.handAll > 0 || Math.abs(s.toRemit) > 0.009){ toast(`Impossible : ${lname(id)} a encore ${s.handAll} pièce(s) ou de l'argent à verser`); return; }
+    if(!await ask(`Supprimer le livreur « ${esc(lname(id))} » ? Son historique reste dans le livre.`, 'Supprimer')) return;
+    S.livreurs = S.livreurs.filter(l => l.id !== id); save(); closeSheet(); render(); toast('Livreur supprimé');
+  },
+  sale: id => saleSheet(id),
+  editsale: id => moveForm(null, {id}),
+  move: id => moveForm(null, {id}),
+  money2: id => moneyForm(null, {id}),
+  status: (v, el) => setStatus(el.dataset.id, v),
+  delmove: async id => {
+    const m = S.moves.find(x => x.id === id); if(!m) return;
+    const next = S.moves.filter(x => x.id !== id);
+    const err = m.pid ? checkStock(next, [m.pid]) : '';
+    if(err){ toast('Suppression impossible — ' + err); return; }
+    if(!await ask('Supprimer cette opération ? Les totaux seront recalculés.', 'Supprimer')) return;
+    S.moves = next; save(); closeSheet(); render(); toast('Opération supprimée');
+  },
+  color: c => { S.settings.color = c; save(); render(); },
+  wcolor: (c, el) => { S.settings.color = c; applyBrand(); [...el.parentNode.children].forEach(b => b.classList.toggle('on', b === el)); },
+  rmlogo: () => { S.settings.logo = ''; save(); render(); },
+  backup: () => backupSheet(),
+  restore: () => restoreSheet(),
+  csv: () => csvSheet(),
+  demo: async () => { if(S.moves.length && !await ask('Remplacer vos données par des exemples ?', 'Remplacer')) return; seedDemo(); },
+  preset: () => loadPreset(),
+  startempty: () => setupSheet(),
+  reset: async () => {
+    if(!await ask('Effacer TOUTES les données (produits, livreurs, ventes, livre) ? Pensez à exporter une sauvegarde avant.', 'Tout effacer')) return;
+    const k = S.settings; S = defaults(); Object.assign(S.settings, {shop:k.shop, logo:k.logo, color:k.color, rate:k.rate, cc:k.cc, wa:k.wa, fee:k.fee, feeCur:k.feeCur});
+    save(); view = 'home'; render(); toast('Données effacées');
+  }
+};
+// les lignes « argent » du livre ouvrent le formulaire d'argent
+A.money = (t, el) => { if(['versement','paiecomm','depense'].includes(t)) moneyForm(t, {liv: el.dataset.liv, cat: el.dataset.cat}); else moneyForm(null, {id:t}); };
+document.addEventListener('click', e => {
+  const el = e.target.closest('[data-a]'); if(!el) return;
+  const i = el.dataset.a.indexOf(':');
+  const a = i < 0 ? el.dataset.a : el.dataset.a.slice(0,i), v = i < 0 ? '' : el.dataset.a.slice(i+1);
+  if(A[a]){ e.preventDefault(); A[a](v, el); }
+});
+document.addEventListener('submit', e => {
+  const f = e.target, E = f.elements;
+  if(f.id === 'setf'){ e.preventDefault();
+    Object.assign(S.settings, {shop:E.shop.value.trim() || 'Ma Boutique', color:E.color.value, country:E.country.value, lc:E.lc.value.trim() || 'FC', rate:num(E.rate.value) || S.settings.rate, fee:num(E.fee.value), feeCur:E.feeCur.value, cc:E.cc.value.replace(/\D/g,''), wa:E.wa.value.trim(), setup:true});
+    save(); render(); toast('Réglages enregistrés'); }
+  if(f.id === 'wf'){ e.preventDefault();
+    Object.assign(S.settings, {shop:E.shop.value.trim() || 'Ma Boutique', country:E.country.value, lc:E.lc.value.trim() || 'FC', rate:num(E.rate.value) || 2300, cc:E.cc.value.replace(/\D/g,''), wa:E.wa.value.trim(), setup:true});
+    save(); closeSheet(); view = 'stock'; render(); toast('Boutique prête ✅ Ajoutez vos produits'); }
+});
+document.addEventListener('change', e => {
+  if(e.target.id === 'logoIn'){
+    const file = e.target.files[0]; if(!file) return;
+    const r = new FileReader();
+    r.onload = () => { const img = new Image(); img.onload = () => {
+      const s = 160, c = document.createElement('canvas'); c.width = c.height = s;
+      const x = c.getContext('2d'), k = Math.max(s/img.width, s/img.height), w = img.width*k, h = img.height*k;
+      x.fillStyle = '#fff'; x.fillRect(0,0,s,s); x.drawImage(img, (s-w)/2, (s-h)/2, w, h);
+      S.settings.logo = c.toDataURL('image/jpeg', .85); save(); render(); toast('Logo mis à jour');
+      const pv = $('#wlogo'); if(pv) pv.innerHTML = `<img src="${S.settings.logo}" alt="">`;
+    }; img.src = r.result; };
+    r.readAsDataURL(file);
+  }
+  if(e.target.name === 'color' && e.target.closest('#setf')){ S.settings.color = e.target.value; applyBrand(); }
+  if(e.target.name === 'country' && e.target.form){
+    const c = COUNTRIES.find(x => x[0] === e.target.value), E = e.target.form.elements;
+    if(c && c[1]){ E.lc.value = c[1]; E.rate.value = c[3]; if(E.cc) E.cc.value = c[2]; if($('#rateHint')) $('#rateHint').textContent = 'en ' + c[1]; toast('Vérifiez le taux du jour pour ' + c[1]); }
+  }
+  if(e.target.name === 'lc' && $('#rateHint')) $('#rateHint').textContent = 'en ' + e.target.value;
+});
+
+/* ---------- Formulaires : fonctionnent même dans un aperçu restreint (sans envoi de formulaire) ---------- */
+document.addEventListener('click', e => {
+  const b = e.target.closest('form button:not([type=button])'); if(!b) return;
+  const f = b.form; if(!f) return;
+  e.preventDefault();
+  if(!f.checkValidity()){
+    const bad = f.querySelector(':invalid');
+    const lab = bad && bad.closest('label') && bad.closest('label').querySelector('span');
+    toast(lab ? 'À compléter : ' + lab.textContent.replace('*','').trim() : 'Complétez les champs obligatoires');
+    if(bad) bad.focus();
+    return;
+  }
+  f.dispatchEvent(new Event('submit', {cancelable:true, bubbles:true}));
+}, true);
+// Touche « Entrée » dans un champ : même traitement
+document.addEventListener('keydown', e => {
+  if(e.key !== 'Enter' || e.target.tagName !== 'INPUT') return;
+  const f = e.target.form; if(!f) return;
+  e.preventDefault();
+  const b = f.querySelector('button:not([type=button])'); if(b) b.click();
+});
+
+/* ---------- Démarrage ---------- */
+render();
+if(!S.settings.setup && !S.products.length){
+  sheet('Bienvenue 👋', `<p class="note" style="margin-bottom:14px">Gérez votre stock, vos livreurs dans chaque ville, leurs commissions, les versements et votre bénéfice réel.</p>
+    <div class="stack">
+    ${PRESET ? `<button class="btn primary block" data-a="preset">Démarrer avec le catalogue ${esc(PRESET.label)}</button><p class="note" style="text-align:center">${PRESET.products.length} produits, prix et commissions déjà remplis</p>` : ''}
+    <button class="btn ${PRESET?'':'primary'} block" data-a="startempty">Commencer avec une boutique vide</button>
+    <button class="btn block" data-a="demo">Essayer avec des exemples</button></div>`);
+}
+</script>
+</body>
+</html>
