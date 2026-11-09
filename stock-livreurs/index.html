@@ -192,7 +192,10 @@ pre.msg{white-space:pre-wrap;font:13px/1.45 -apple-system,Roboto,sans-serif;back
 details summary{cursor:pointer}
 textarea.code{width:100%;min-height:90px;font:12px/1.4 ui-monospace,Menlo,monospace;padding:10px;border:1.5px solid var(--line);border-radius:11px}
 
-@media print{ .top, nav.nav, .fab, .back, .noprint, #toast{display:none!important} body{padding:0!important;background:#fff} main{max-width:none;padding:0} .card,.kpi,.list{box-shadow:none;border:1px solid #ddd} }
+/* relevé */
+.relh .logo{background:var(--brand);color:var(--brand-ink);width:48px;height:48px}
+.sign{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:22px}.sign div{border-top:1px solid #999;padding-top:6px;font-size:12px;color:var(--muted,#666);text-align:center;margin-top:34px}
+@media print{ .relh .logo{border:1px solid #ddd} .tb{font-size:12px}  .top, nav.nav, .fab, .back, .noprint, #toast{display:none!important} body{padding:0!important;background:#fff} main{max-width:none;padding:0} .card,.kpi,.list{box-shadow:none;border:1px solid #ddd} }
 @media (min-width:900px){
   body{padding-bottom:24px;padding-left:220px}
   .top{padding-left:24px}
@@ -459,8 +462,8 @@ function stats(p){
 let view = 'home', period = 'mois', saleTab = 'attente', saleCity = '', bookType = 'all', bookPeriod = 'mois', depPeriod = 'mois';
 let stockQ = '', saleQ = '', bookQ = '';
 const NAV = [['home','Accueil','home'],['stock','Stock','box'],['ventes','Ventes','truck'],['livreurs','Livreurs','user'],['plus','Plus','more']];
-const SUB = {home:'Tableau de bord', stock:'Stock par produit', ventes:'Ventes & livraisons', livreurs:'Livreurs par ville', plus:'Plus', depenses:'Dépenses', livre:'Le Livre — toutes les opérations', reglages:'Réglages', clients:'Clients', rapport:'Rapport de la semaine'};
-const PARENT = {depenses:'plus', livre:'plus', reglages:'plus', clients:'plus', rapport:'plus'};
+const SUB = {home:'Tableau de bord', stock:'Stock par produit', ventes:'Ventes & livraisons', livreurs:'Livreurs par ville', plus:'Plus', depenses:'Dépenses', livre:'Le Livre — toutes les opérations', reglages:'Réglages', clients:'Clients', rapport:'Rapport de la semaine', releve:'Relevé du livreur'};
+const PARENT = {depenses:'plus', livre:'plus', reglages:'plus', clients:'plus', rapport:'plus', releve:'livreurs'};
 
 function applyBrand(){
   const c = S.settings.color || '#0F766E';
@@ -480,8 +483,8 @@ function render(){
     <div class="grow"><h1>${esc(st.shop || 'Ma Boutique')}</h1><p>${SUB[view]}</p></div>`;
   $('#nav').innerHTML = NAV.map(([k,l,i]) => `<button data-a="nav:${k}" class="${nv===k?'on':''}">${ico(i)}<span>${l}</span></button>`).join('');
   $('#fab').style.display = (view === 'reglages' || view === 'plus') ? 'none' : '';
-  const V = {home:vHome, stock:vStock, ventes:vVentes, livreurs:vLivreurs, plus:vPlus, depenses:vDepenses, livre:vLivre, reglages:vReglages, clients:vClients, rapport:vRapport};
-  $('#main').innerHTML = (PARENT[view] ? `<button class="back" data-a="nav:plus">‹ Retour</button>` : '') + V[view]();
+  const V = {home:vHome, stock:vStock, ventes:vVentes, livreurs:vLivreurs, plus:vPlus, depenses:vDepenses, livre:vLivre, reglages:vReglages, clients:vClients, rapport:vRapport, releve:vReleve};
+  $('#main').innerHTML = (PARENT[view] ? `<button class="back noprint" data-a="nav:${PARENT[view]}">‹ Retour</button>` : '') + V[view]();
 }
 function periodChips(cur, act){
   return `<div class="chips">${[['jour',"Aujourd'hui"],['sem','Cette semaine'],['mois','Ce mois'],['tout','Tout']].map(([k,l]) => `<button class="chip ${cur===k?'on':''}" data-a="${act}:${k}">${l}</button>`).join('')}</div>`;
@@ -678,6 +681,7 @@ function livSheet(id){
       <button class="btn" data-a="editliv:${id}">Modifier</button>
     </div>
     <a class="btn wa block" href="${waLink(l.phone, report)}" target="_blank" rel="noopener">${ico('wa')} Envoyer le point à ${esc(l.name)}</a>
+    <button class="btn primary block" style="margin-top:8px" data-a="releve:${id}">📄 Relevé de la semaine (commissions · PDF)</button>
     ${Object.keys(s.weekByProd).length ? `<div class="sec"><h2>Cette semaine, produit par produit</h2></div><div class="card tbw"><table class="tb"><tr><th>Produit</th><th class="rt">Pièces</th><th class="rt">Ventes</th><th class="rt">${l.pay==='salaire'?'':'Commission'}</th></tr>
       ${Object.entries(s.weekByProd).map(([pid,v]) => `<tr><td>${esc(pname(pid))}</td><td class="rt num">${v.q}</td><td class="rt num">${money(v.a)}</td><td class="rt num">${l.pay==='salaire'?'':money(v.c)}</td></tr>`).join('')}</table></div>` : ''}
     <div class="sec"><h2>Stock confié par produit</h2></div>
@@ -989,6 +993,76 @@ function vRapport(){
     <div class="btns"><button class="btn" data-a="rcopy">Copier le texte</button><button class="btn" data-a="rprint">Imprimer / PDF</button></div>
   </div>`;
 }
+
+/* ---------- Relevé de commissions d'un livreur (semaine lun → sam) ---------- */
+let relLiv = '', relWeek = 0;
+const dAbs = (iso, long) => new Date(iso + 'T12:00:00').toLocaleDateString('fr-FR', long ? {weekday:'long', day:'numeric', month:'long', year:'numeric'} : {day:'numeric', month:'short'});
+function releveData(lid, k){
+  const l = liv(lid), [a, b] = weekRange(k), inR = d => d >= a && d <= b;
+  const r = {l, a, b, sales:[], byProd:{}, n:0, pcs:0, cash:0, comm:0, vers:0, commPaid:0, sal:0};
+  for(const m of sortMoves(S.moves.filter(m => m.liv === lid && inR(m.date))).reverse()){
+    if(m.type === 'vente' && m.status === 'livre'){
+      const u = saleUSD(m), c = m.qty * num(m.commU);
+      r.sales.push(m); r.n++; r.pcs += m.qty; r.cash += u; r.comm += c;
+      const P = r.byProd[m.pid] = r.byProd[m.pid] || {q:0, a:0, c:0}; P.q += m.qty; P.a += u; P.c += c;
+    } else if(m.type === 'versement') r.vers += moneyUSD(m);
+    else if(m.type === 'paiecomm') r.commPaid += num(m.amount);
+    else if(m.type === 'depense' && /^Salaire/.test(m.cat||'')) r.sal += moneyUSD(m);
+  }
+  r.s = livStats(lid);
+  return r;
+}
+// Taux appliqué à une vente : « 10 % » ou « 2 $ / pièce »
+function rateTxt(m, l){
+  const cu = num(m.commU); if(!cu) return '—';
+  const p = prod(m.pid), unit = m.qty ? saleUSD(m) / m.qty : 0;
+  if((l && l.pay === 'pct') || (p && p.commMode === 'pct')) return unit ? fmt(cu / unit * 100) + ' %' : money(cu);
+  return money(cu) + ' / pièce';
+}
+function releveText(r){
+  const l = r.l, sal = l.pay === 'salaire';
+  const P = Object.entries(r.byProd).map(([id,v]) => `• ${pname(id)} : ${v.q} pièce(s) · ${money(v.a)}${sal ? '' : ' → ' + money(v.c)}`).join('\n');
+  return `*${S.settings.shop} — Relevé de la semaine*\n${l.name} (${l.city||''})\nDu ${dAbs(r.a, 1)} au ${dAbs(r.b, 1)}\nMode : ${payTxt(l)}\n\n*Livraisons*\n${P || '• aucune livraison'}\n\nVentes livrées : ${r.n} (${r.pcs} pièce(s)) — ${money(r.cash)}\n${sal ? '' : `*Commission de la semaine : ${money(r.comm)}*\nCommission payée cette semaine : ${money(r.commPaid)}\n`}Versé à la boutique cette semaine : ${money(r.vers)}\n\n${sal ? '' : `Commission restant à payer (total) : ${money(r.s.toPay)}\n`}*Argent restant à verser (total) : ${money(r.s.toRemit)}*\n\nMerci pour votre travail 🙏`;
+}
+function releveHTML(lid, chips, toShop){
+  const r = releveData(lid, relWeek), l = r.l, st = S.settings, sal = l.pay === 'salaire';
+  if(!l) return '<div class="card empty">Livreur introuvable</div>';
+  const txt = releveText(r);
+  return `${chips ? `<div class="chips noprint"><button class="chip ${relWeek===0?'on':''}" data-a="relweek:0">Cette semaine</button><button class="chip ${relWeek===1?'on':''}" data-a="relweek:1">Semaine dernière</button><button class="chip ${relWeek===2?'on':''}" data-a="relweek:2">Il y a 2 semaines</button><button class="chip ${relWeek===3?'on':''}" data-a="relweek:3">Il y a 3 semaines</button></div>` : ''}
+  <div class="card relh" style="margin-top:10px">
+    <div style="display:flex;gap:12px;align-items:center"><div class="logo" style="flex:none">${st.logo ? `<img src="${st.logo}" alt="">` : esc(initials(st.shop))}</div>
+    <div><b style="font-size:17px">${esc(st.shop || 'Ma Boutique')}</b><br><span class="note">RELEVÉ DE ${sal ? 'LIVRAISONS' : 'COMMISSIONS'} — du ${dAbs(r.a, 1)} au ${dAbs(r.b, 1)}</span></div></div>
+    <div class="dl" style="margin-top:10px"><span>Livreur</span><span><b>${esc(l.name)}</b> · ${esc(l.city||'')}</span></div>
+    ${l.phone ? `<div class="dl"><span>Téléphone</span><span>${esc(l.phone)}</span></div>` : ''}
+    <div class="dl"><span>Mode de paiement</span><span>${esc(payTxt(l))}</span></div>
+  </div>
+  <div class="kpis" style="margin-top:10px">
+    ${sal ? '' : `<div class="kpi hero"><div class="l">Commission de la semaine</div><div class="v num">${money(r.comm)}</div><div class="s">${r.n} vente(s) livrée(s) · ${r.pcs} pièce(s)</div></div>`}
+    <div class="kpi"><div class="l">Encaissé</div><div class="v num">${money(r.cash)}</div><div class="s">ventes livrées</div></div>
+    <div class="kpi"><div class="l">Versé</div><div class="v num">${money(r.vers)}</div><div class="s">cette semaine</div></div>
+  </div>
+  <div class="sec"><h2>Détail des ventes livrées</h2></div>
+  <div class="card tbw"><table class="tb"><tr><th>Date</th><th>Produit</th><th class="rt">Qté</th><th class="rt">Montant</th>${sal ? '' : '<th class="rt">Taux</th><th class="rt">Commission</th>'}</tr>
+  ${r.sales.map(m => `<tr><td>${dAbs(m.date)}<br><span class="note">${esc(m.client || '')}</span></td><td>${esc(pname(m.pid))}</td><td class="rt num">${m.qty}</td><td class="rt num">${money(saleUSD(m))}</td>${sal ? '' : `<td class="rt num">${rateTxt(m, l)}</td><td class="rt num"><b>${money(m.qty * num(m.commU))}</b></td>`}</tr>`).join('') || `<tr><td colspan="${sal ? 4 : 6}" class="note">Aucune vente livrée cette semaine</td></tr>`}
+  ${r.n ? `<tr><td colspan="2"><b>Total</b></td><td class="rt num"><b>${r.pcs}</b></td><td class="rt num"><b>${money(r.cash)}</b></td>${sal ? '' : `<td></td><td class="rt num"><b>${money(r.comm)}</b></td>`}</tr>` : ''}</table></div>
+  ${Object.keys(r.byProd).length > 1 ? `<div class="sec"><h2>Par produit</h2></div><div class="card">${Object.entries(r.byProd).map(([id,v]) => `<div class="dl"><span>${esc(pname(id))} · ${v.q} pièce(s)</span><span class="num">${money(v.a)}${sal ? '' : ' → <b>' + money(v.c) + '</b>'}</span></div>`).join('')}</div>` : ''}
+  <div class="sec"><h2>Le compte</h2></div>
+  <div class="card">
+    ${sal ? `<div class="dl"><span>Salaire payé cette semaine</span><span class="num">${money(r.sal)}</span></div>` : `<div class="dl"><span>Commission gagnée cette semaine</span><span class="num">${money(r.comm)}</span></div>
+    <div class="dl"><span>Commission payée cette semaine</span><span class="num">${money(r.commPaid)}</span></div>
+    <div class="dl strong"><span>Commission restant à payer (total)</span><span class="num">${money(r.s.toPay)}</span></div>`}
+    <div class="dl"><span>Argent versé à la boutique cette semaine</span><span class="num">${money(r.vers)}</span></div>
+    <div class="dl strong"><span>Argent restant à verser (total)</span><span class="num ${r.s.toRemit>0.009?'red':'green'}">${money(r.s.toRemit)}</span></div>
+  </div>
+  <div class="sign"><div>Signature du livreur</div><div>Signature de la boutique</div></div>
+  <p class="note" style="margin-top:8px">Édité le ${dAbs(today(), 1)} · ${esc(st.shop || '')}</p>
+  <div class="stack noprint" style="margin-top:14px">
+    <a class="btn wa block" href="${waLink(toShop ? st.wa : l.phone, txt)}" target="_blank" rel="noopener">${ico('wa')} ${toShop ? 'Envoyer le relevé à la boutique' : 'Envoyer le relevé à ' + esc(l.name)}</a>
+    <div class="btns"><button class="btn" data-a="relcopy:${lid}">Copier le texte</button><button class="btn primary" data-a="rprint">📄 Imprimer / PDF</button></div>
+    <p class="note">Pour le PDF : « Imprimer / PDF », puis sur iPhone : Partager → Enregistrer dans Fichiers (ou envoyer sur WhatsApp).</p>
+  </div>`;
+}
+function vReleve(){ return releveHTML(relLiv, true); }
 
 /* ---------- Fenêtres ---------- */
 let shTimer;
@@ -1478,6 +1552,9 @@ const A = {
   client: k => clientSheet(k),
   clientsale: k => { const c = clientsList().find(x => x.key === k); moveForm('vente', {client:c}); },
   rweek: v => { rapWeek = +v; render(); },
+  relweek: v => { relWeek = +v; render(); },
+  releve: id => { relLiv = id; relWeek = 0; closeSheet(); view = 'releve'; render(); window.scrollTo(0,0); },
+  relcopy: id => copyText(releveText(releveData(id, relWeek))),
   rcopy: () => { const [a,b] = weekRange(rapWeek); copyText(rapportText(a, b, weekReport(a, b))); },
   rprint: () => { try{ window.print(); }catch(e){ toast("Impression impossible ici : utilisez « Copier le texte »"); } },
   tpl: () => tplSheet(),
