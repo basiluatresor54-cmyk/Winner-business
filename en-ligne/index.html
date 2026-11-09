@@ -207,6 +207,9 @@ body.authon .top, body.authon nav.nav, body.authon .fab, body.authon main{displa
 .syncpill{flex:none;padding:6px 10px;border-radius:999px;font-size:12px;font-weight:700;background:rgba(255,255,255,.18);color:inherit;white-space:nowrap}
 .syncpill.s-off,.syncpill.s-wait{background:#fff3;box-shadow:inset 0 0 0 1.5px #fde68a}
 .syncpill.s-err{background:#fecaca;color:#7f1d1d}
+body.livmode nav.nav{display:none!important}
+body.livmode{padding-bottom:24px}
+@media (min-width:900px){body.livmode{padding-left:0}}
 textarea.code{width:100%;min-height:90px;font:12px/1.4 ui-monospace,Menlo,monospace;padding:10px;border:1.5px solid var(--line);border-radius:11px}
 
 @media (min-width:900px){
@@ -1519,6 +1522,7 @@ function showAuth(mode = 'login', msg = ''){
       <p class="auth-msg" id="authMsg">${esc(msg)}</p>
       <button class="btn primary block" id="authGo">${login ? 'Se connecter' : 'Créer mon compte'}</button>
     </form>
+    <p class="note" style="margin-top:10px">${login ? '' : 'En créant un compte, vous acceptez les <a href="conditions.html" target="_blank" rel="noopener" class="link">conditions d\'utilisation</a>.'}</p>
     <p class="note" style="margin-top:14px">${login ? 'Mot de passe oublié ? Contactez BASILUA TECH pour le réinitialiser.' : 'Votre numéro sert d\'identifiant. Aucun SMS n\'est envoyé.'}</p>`);
   el.querySelectorAll('[data-auth]').forEach(b => b.onclick = () => showAuth(b.dataset.auth));
   $('#authf').onsubmit = async e => {
@@ -1546,6 +1550,8 @@ async function afterLogin(){
   if(!session){ showAuth('login'); return; }
   ONLINE.user = session.user;
   authShell(`<p class="note">Chargement de vos boutiques…</p>`);
+  try{ const inv = await sb.rpc('accept_invites'); if(inv.data > 0) toast('Invitation acceptée ✅'); }catch(_){}
+  try{ const ad = await sb.rpc('am_i_admin'); ONLINE.admin = !!ad.data; }catch(_){ }
   try{
     const [shops, mem] = await Promise.all([
       sb.from('shops').select('id,name,settings,status,paid_until'),
@@ -1616,7 +1622,7 @@ function openShop(shop){
   META = loadMeta();
   rawSave();
   try{ localStorage.setItem(LAST_KEY, JSON.stringify({user:ONLINE.user && ONLINE.user.id, shop})); }catch(_){}
-  hideAuth(); closeSheet(); view = 'home'; render();
+  hideAuth(); closeSheet(); view = ONLINE.role === 'livreur' ? 'moi' : 'home'; render();
   syncNow();
 }
 async function logout(force){
@@ -1653,8 +1659,25 @@ save = function(){
 /* ---------- Bandeau d'abonnement + carte « Mon compte » ---------- */
 const rawRender = render;
 render = function(){
+  if(ONLINE.shop && ONLINE.role === 'livreur') view = 'moi';
+  if(CUSTOM[view]){
+    const v = view; view = 'plus'; rawRender(); view = v;
+    $('#top p').textContent = CSUB[v];
+    $('#fab').style.display = 'none';
+    document.body.classList.toggle('livmode', v === 'moi');
+    $('#main').innerHTML = (v === 'moi' ? '' : `<button class="back" data-a="nav:plus">‹ Retour</button>`) + CUSTOM[v]();
+    $('#top').insertAdjacentHTML('beforeend', `<button class="syncpill" id="syncpill" data-a="syncnow"></button>`); paintSync();
+    if(CUSTOM_AFTER[v]) CUSTOM_AFTER[v]();
+    return;
+  }
+  document.body.classList.remove('livmode');
   rawRender();
   if(!ONLINE.shop) return;
+  if(view === 'plus'){
+    const extra = (ONLINE.role === 'proprietaire' ? `<button class="it" data-a="nav:equipe"><div class="ic c-send">${ico('user')}</div><div class="m"><div class="t">Équipe</div><div class="d" style="white-space:normal">Inviter un gérant ou vos livreurs sur l'application</div></div>${ico('chev')}</button>` : '')
+      + (ONLINE.admin ? `<button class="it" data-a="nav:admin"><div class="ic" style="background:#111827;color:#fff">${ico('set')}</div><div class="m"><div class="t">Espace BASILUA TECH</div><div class="d" style="white-space:normal">Clients, abonnements, mots de passe, sauvegarde globale</div></div>${ico('chev')}</button>` : '');
+    if(extra) $('#main').insertAdjacentHTML('afterbegin', `<div class="list menu" style="margin-bottom:12px">${extra}</div>`);
+  }
   const si = subInfo(ONLINE.shop), main = $('#main');
   $('#top').insertAdjacentHTML('beforeend', `<button class="syncpill" id="syncpill" data-a="syncnow"></button>`); paintSync();
   if(view === 'home' && !S.products.length && !S.moves.length && shopWritable()){
@@ -1796,7 +1819,7 @@ setInterval(() => { if(document.visibilityState !== 'hidden') syncNow(); }, 4500
 // Lecture seule quand l'abonnement est inactif (ou pour un rôle sans droit d'écriture)
 const WRITE_ACTIONS = ['new','money','status','delmove','delprod','editprod','editsale','editliv','newliv','delliv','color','rmlogo','demo','reset','restore','importwb','preset'];
 document.addEventListener('click', e => {
-  if(!ONLINE.shop || shopWritable() || e.target.closest('#auth')) return;
+  if(!ONLINE.shop || shopWritable() || e.target.closest('#auth') || view === 'admin' || view === 'equipe') return;
   const t = e.target.closest('[data-a], #fab, form button:not([type=button])'); if(!t) return;
   const a = t.id === 'fab' ? 'new' : (t.dataset.a || 'submit').split(':')[0];
   if(a !== 'submit' && !WRITE_ACTIONS.includes(a)) return;
@@ -1823,6 +1846,229 @@ A.importwb = async () => {
 A.demo = async () => {
   if(!await ask('Les exemples seront enregistrés dans votre boutique en ligne. Vous pourrez tout effacer ensuite dans Réglages. Continuer ?', 'Charger les exemples', false)) return;
   const keep = Object.assign({}, S.settings); seedDemo(); S.settings = keep; save(); render();
+};
+
+/* =================================================================
+   Vues supplémentaires : Équipe, Espace BASILUA TECH, écran Livreur
+   ================================================================= */
+const CUSTOM = {}, CUSTOM_AFTER = {}, CSUB = {equipe:'Équipe', admin:'Espace BASILUA TECH', moi:'Mes livraisons'};
+const APP_LINK = 'https://basiluatresor54-cmyk.github.io/Winner-business/en-ligne/';
+function rpcErr(e){ return authErr(e); }
+function randPass(){ const a = 'abcdefghjkmnpqrstuvwxyz23456789'; const r = new Uint32Array(8); (window.crypto || {}).getRandomValues ? crypto.getRandomValues(r) : r.forEach((_,i) => r[i] = Math.random()*1e9); return [...r].map(x => a[x % a.length]).join(''); }
+
+/* ---------- Équipe (propriétaire) ---------- */
+const TEAM = {members:null, invites:null, loading:false, err:''};
+async function loadTeam(){
+  if(!ONLINE.shop) return; TEAM.loading = true;
+  const [m, i] = await Promise.all([
+    sb.from('members').select('user_id,role,display_name,phone,livreur_id,created_at').eq('shop_id', ONLINE.shop.id),
+    sb.from('invites').select('phone,role,livreur_id,display_name,created_at').eq('shop_id', ONLINE.shop.id)
+  ]);
+  TEAM.loading = false; TEAM.err = (m.error || i.error) ? rpcErr(m.error || i.error) : '';
+  TEAM.members = m.data || []; TEAM.invites = i.data || [];
+  if(view === 'equipe') render();
+}
+CUSTOM.equipe = () => {
+  if(ONLINE.role !== 'proprietaire') return `<div class="card empty">Réservé au propriétaire.</div>`;
+  if(TEAM.members === null) return `<div class="card empty">Chargement…</div>`;
+  const R2 = {proprietaire:'Propriétaire', gerant:'Gérant', livreur:'Livreur'};
+  return `<div class="card" style="margin-bottom:12px"><p class="note"><b>Gérant</b> : peut tout enregistrer (ventes, stock, dépenses).<br><b>Livreur</b> : voit seulement ses livraisons, son stock et sa commission, et marque « Livré ».</p></div>
+  ${TEAM.err ? `<div class="subban bad">${esc(TEAM.err)}</div>` : ''}
+  <div class="sec"><h2>Membres</h2></div>
+  <div class="list">${TEAM.members.map(m => `<div class="it"><div class="ic c-brand">${esc(initials(m.display_name || '?'))}</div><div class="m"><div class="t">${esc(m.display_name || 'Sans nom')}</div><div class="d">${R2[m.role]}${m.livreur_id ? ' · fiche ' + esc(lname(m.livreur_id)) : ''} · ${esc(telPretty(m.phone || ''))}</div></div>${m.role !== 'proprietaire' ? `<button class="btn sm ghost-bad" data-a="rmmember:${m.user_id}">Retirer</button>` : ''}</div>`).join('')}</div>
+  <div class="sec"><h2>Invitations en attente</h2></div>
+  <div class="list">${TEAM.invites.length ? TEAM.invites.map(i => `<div class="it"><div class="ic c-loss">${ico('send')}</div><div class="m"><div class="t">${esc(i.display_name || telPretty(i.phone))}</div><div class="d">${R2[i.role]}${i.livreur_id ? ' · ' + esc(lname(i.livreur_id)) : ''} · ${esc(telPretty(i.phone))}</div></div><a class="btn sm wa" href="${waLink('+' + i.phone, inviteMsg(i))}" target="_blank" rel="noopener">${ico('wa')}</a><button class="btn sm" data-a="delinv:${i.phone}">✕</button></div>`).join('') : '<div class="empty">Aucune invitation en attente</div>'}</div>
+  <div style="margin-top:12px"><button class="btn primary block" data-a="invite">+ Inviter une personne</button></div>`;
+};
+CUSTOM_AFTER.equipe = () => { if(TEAM.members === null && !TEAM.loading) loadTeam(); };
+function inviteMsg(i){
+  const role = i.role === 'livreur' ? 'livreur' : 'gérant(e)';
+  return `Bonjour ${i.display_name || ''} 👋\n\nVous êtes invité(e) comme *${role}* de *${S.settings.shop}* sur l'application Stock & Livreurs.\n\n1️⃣ Ouvrez : ${APP_LINK}\n2️⃣ Touchez « Créer un compte » (ou « Se connecter » si vous avez déjà un compte)\n3️⃣ Utilisez *ce numéro* : +${i.phone}\n\n${i.role === 'livreur' ? 'Vous verrez vos livraisons, votre stock et votre commission de la semaine.' : 'Vous aurez accès aux ventes, au stock et aux livreurs de la boutique.'}`;
+}
+function inviteSheet(pre = {}){
+  const cc = String(S.settings.cc || '243');
+  sheet('Inviter une personne', `<form id="invf">
+    ${field('Rôle', `<select name="role"><option value="livreur" ${pre.role !== 'gerant' ? 'selected' : ''}>Livreur</option><option value="gerant" ${pre.role === 'gerant' ? 'selected' : ''}>Gérant</option></select>`)}
+    <div id="invLiv">${field('Fiche du livreur *', `<select name="liv"><option value="">Choisir…</option>${S.livreurs.slice().sort(byName).map(l => `<option value="${l.id}" ${l.id === pre.liv ? 'selected' : ''}>${esc(l.name)} (${esc(l.city || '')})</option>`).join('')}</select>`, S.livreurs.length ? 'Ses livraisons et sa commission viennent de cette fiche' : 'Ajoutez d\'abord le livreur dans l\'onglet Livreurs')}</div>
+    ${field('Nom', `<input name="name" value="${esc(pre.name || '')}" placeholder="Ex : Marla">`)}
+    <div class="row3" style="grid-template-columns:1.1fr 2fr">${field('Pays', `<select name="cc">${ccOptions(cc)}</select>`)}${field('Téléphone (son compte) *', `<input name="phone" type="tel" required value="${esc(pre.phone || '')}" placeholder="0812345678">`)}</div>
+    <p class="note" style="margin:-4px 0 12px">La personne devra créer son compte avec ce numéro exact.</p>
+    <p class="auth-msg" id="invMsg"></p>
+    <button class="btn primary block">Créer l'invitation</button></form>`);
+  const f = $('#invf'), E = f.elements;
+  const sw = () => { $('#invLiv').hidden = E.role.value !== 'livreur'; };
+  E.role.onchange = sw; sw();
+  E.liv.onchange = () => { const l = liv(E.liv.value); if(l){ if(!E.name.value) E.name.value = l.name; if(!E.phone.value && l.phone) E.phone.value = l.phone; } };
+  f.onsubmit = async e => {
+    e.preventDefault();
+    const d = telDigits(E.cc.value, E.phone.value);
+    if(d.length < 9){ $('#invMsg').textContent = 'Numéro invalide.'; return; }
+    if(E.role.value === 'livreur' && !E.liv.value){ $('#invMsg').textContent = 'Choisissez la fiche du livreur.'; return; }
+    const {error} = await sb.rpc('create_invite', {p_shop:ONLINE.shop.id, p_phone:d, p_role:E.role.value, p_livreur_id:E.role.value === 'livreur' ? E.liv.value : null, p_name:E.name.value.trim() || null});
+    if(error){ $('#invMsg').textContent = rpcErr(error); return; }
+    const inv = {phone:d, role:E.role.value, livreur_id:E.liv.value, display_name:E.name.value.trim()};
+    sheet('Invitation créée ✅', `<p class="note" style="margin-bottom:12px">Envoyez maintenant le lien à la personne. Elle rejoindra automatiquement votre boutique en créant son compte avec le numéro <b>${esc(telPretty(d))}</b>.</p>
+      <a class="btn wa block" href="${waLink('+' + d, inviteMsg(inv))}" target="_blank" rel="noopener">${ico('wa')} Envoyer l'invitation par WhatsApp</a>
+      <pre class="msg" style="margin-top:10px">${esc(inviteMsg(inv))}</pre>`);
+    TEAM.members = null; if(view === 'equipe') render();
+  };
+}
+A.invite = () => inviteSheet();
+A.invliv = (id) => { const l = liv(id); inviteSheet({role:'livreur', liv:id, name:l && l.name, phone:l && l.phone}); };
+A.delinv = async (phone) => { if(!await ask('Annuler cette invitation ?', 'Annuler l\'invitation')) return; const {error} = await sb.rpc('delete_invite', {p_shop:ONLINE.shop.id, p_phone:phone}); if(error) return toast(rpcErr(error)); TEAM.members = null; render(); };
+A.rmmember = async (uid) => { if(!await ask('Retirer cette personne de la boutique ? Elle n\'aura plus accès aux données.', 'Retirer')) return; const {error} = await sb.rpc('remove_member', {p_shop:ONLINE.shop.id, p_user:uid}); if(error) return toast(rpcErr(error)); toast('Personne retirée'); TEAM.members = null; render(); };
+// bouton « Inviter sur l'application » dans la fiche d'un livreur
+const rawLivSheet = livSheet;
+livSheet = function(id){
+  rawLivSheet(id);
+  if(ONLINE.role === 'proprietaire' && ONLINE.shop) $('#shb').insertAdjacentHTML('afterbegin', `<button class="btn block" style="margin-bottom:12px;background:var(--vio-soft);color:var(--vio)" data-a="invliv:${id}">📲 Donner l'accès à l'application à ce livreur</button>`);
+};
+
+/* ---------- Écran du livreur ---------- */
+CUSTOM.moi = () => {
+  const lid = ONLINE.shop && ONLINE.shop.livreur_id, L = liv(lid);
+  if(!lid) return `<div class="card empty">Votre compte livreur n'est relié à aucune fiche. Contactez votre patron.</div>`;
+  const s = livStats(lid), st = stockAt();
+  const mine = S.moves.filter(m => m.type === 'vente' && m.liv === lid);
+  const todo = mine.filter(m => m.status === 'attente' || m.status === 'encours').sort((a,b) => ((a.ddate||a.date) + (a.dtime||'99')).localeCompare((b.ddate||b.date) + (b.dtime||'99')));
+  const done = sortMoves(mine.filter(m => m.status === 'livre')).slice(0, 10);
+  const stock = Object.entries(s.byProd).map(([pid,v]) => [pid, qAt(st, lid, pid), v.pend]).filter(x => x[1] || x[2]);
+  const card = m => `<div class="card" style="margin-bottom:10px">
+      <div style="display:flex;justify-content:space-between;gap:8px"><b>${esc(pname(m.pid))} × ${m.qty}</b><span class="pill p-${m.status}">${STATUS[m.status]}</span></div>
+      <div class="dl"><span>Client</span><span>${esc(m.client || '—')}</span></div>
+      ${m.phone ? `<div class="dl"><span>Téléphone</span><span><a href="tel:${esc(m.phone)}">${esc(m.phone)}</a></span></div>` : ''}
+      <div class="dl"><span>Adresse</span><span style="white-space:pre-line">${esc(m.addr || '—')}</span></div>
+      <div class="dl"><span>Livraison</span><span>${whenTxt(m)}</span></div>
+      <div class="dl strong"><span>À encaisser</span><span class="num">${amt(m.qty*m.price, m.cur)}</span></div>
+      <div class="dl"><span>Votre commission</span><span class="num">${money(m.qty*num(m.commU))}</span></div>
+      ${m.note ? `<p class="note" style="margin-top:6px">📝 ${esc(m.note)}</p>` : ''}
+      <div class="btns" style="margin-top:10px">${m.status === 'attente' ? `<button class="btn" data-a="livstat:encours" data-id="${m.id}">🛵 En route</button>` : `<a class="btn wa" href="${waLink(m.phone, 'Bonjour ' + (m.client||'') + ', je suis votre livreur ' + (L ? L.name : '') + ' de ' + S.settings.shop + '. J\'arrive avec votre commande.')}" target="_blank" rel="noopener">${ico('wa')} Client</a>`}<button class="btn primary" data-a="livstat:livre" data-id="${m.id}">✅ Livré</button></div></div>`;
+  return `<div class="card" style="margin-bottom:12px"><b>${esc(L ? L.name : 'Livreur')}</b> · ${esc(L && L.city || '')}<br><span class="note">${esc(S.settings.shop)}</span></div>
+  <div class="kpis">
+    <div class="kpi"><div class="l">À livrer</div><div class="v num">${todo.length}</div><div class="s">commande(s)</div></div>
+    <div class="kpi"><div class="l">Commission semaine</div><div class="v num">${money(s.week)}</div><div class="s">${s.weekN} livraison(s)</div></div>
+    <div class="kpi"><div class="l">Argent à verser</div><div class="v num ${s.toRemit > 0.009 ? 'neg' : ''}">${money(s.toRemit)}</div><div class="s">à la boutique</div></div>
+    <div class="kpi"><div class="l">Stock en main</div><div class="v num">${s.hand}</div><div class="s">pièces disponibles</div></div>
+  </div>
+  <div class="sec"><h2>À livrer</h2></div>
+  ${todo.length ? todo.map(card).join('') : '<div class="card empty">Aucune livraison en attente 👍</div>'}
+  ${stock.length ? `<div class="sec"><h2>Mon stock</h2></div><div class="card"><table class="tb"><tr><th>Produit</th><th class="rt">Disponible</th><th class="rt">Réservé</th></tr>${stock.map(([pid,q,p]) => `<tr><td>${esc(pname(pid))}</td><td class="rt num"><b>${q}</b></td><td class="rt num">${p}</td></tr>`).join('')}</table></div>` : ''}
+  <div class="sec"><h2>Livrées récemment</h2></div>
+  <div class="list">${done.length ? done.map(m => `<div class="it"><div class="ic c-in">${ico('cart')}</div><div class="m"><div class="t">${esc(pname(m.pid))} × ${m.qty}</div><div class="d">${esc(m.client || '')} · ${fmtDate(m.ddate || m.date)}</div></div><div class="r num">${amt(m.qty*m.price, m.cur)}</div></div>`).join('') : '<div class="empty">Rien pour le moment</div>'}</div>
+  <div class="btns" style="margin-top:16px"><button class="btn" data-a="syncnow">↻ Actualiser</button><button class="btn ghost-bad" data-a="logout">Se déconnecter</button></div>`;
+};
+A.livstat = async (st, el) => {
+  const id = el.dataset.id, m = S.moves.find(x => x.id === id); if(!m) return;
+  if(st === 'livre' && !await ask(`Confirmer la livraison de ${esc(pname(m.pid))} × ${m.qty} à ${esc(m.client || 'ce client')} ? Montant encaissé : ${amt(m.qty*m.price, m.cur)}.`, 'Oui, livré', false)) return;
+  const {data, error} = await sb.rpc('livreur_set_status', {p_shop:ONLINE.shop.id, p_move:id, p_status:st});
+  if(error || !data){ toast(error ? rpcErr(error) : 'Impossible de modifier cette livraison'); return; }
+  m.status = st; rawSave(); render(); toast(st === 'livre' ? 'Livraison confirmée ✅' : 'En route 🛵'); syncNow();
+};
+
+/* ---------- Espace BASILUA TECH (administration) ---------- */
+const ADM = {shops:null, trial:null, q:'', loading:false, err:''};
+async function loadAdmin(){
+  ADM.loading = true;
+  const [l, t] = await Promise.all([sb.rpc('admin_list_shops'), sb.rpc('get_trial_days')]);
+  ADM.loading = false; ADM.err = l.error ? rpcErr(l.error) : '';
+  ADM.shops = l.data || []; ADM.trial = t.data;
+  if(view === 'admin') render();
+}
+function shopState(s){ return subInfo({status:s.status, paid_until:s.paid_until}); }
+CUSTOM.admin = () => {
+  if(!ONLINE.admin) return `<div class="card empty">Accès réservé.</div>`;
+  if(ADM.shops === null) return `<div class="card empty">Chargement…</div>`;
+  const all = ADM.shops, cnt = k => all.filter(s => { const i = shopState(s); return k === 'ok' ? i.cls === 'ok' || i.cls === 'warn' && s.status === 'actif' : k === 'essai' ? s.status === 'essai' && i.cls !== 'bad' : i.cls === 'bad'; }).length;
+  const q = norm0(ADM.q), list = all.filter(s => !q || norm0([s.name, s.owner_name, s.owner_phone, s.country].join(' ')).includes(q));
+  return `${ADM.err ? `<div class="subban bad">${esc(ADM.err)}</div>` : ''}
+  <div class="kpis">
+    <div class="kpi"><div class="l">Boutiques</div><div class="v num">${all.length}</div><div class="s">au total</div></div>
+    <div class="kpi"><div class="l">Actives (payées)</div><div class="v num pos">${cnt('ok')}</div><div class="s">abonnement en cours</div></div>
+    <div class="kpi"><div class="l">En essai</div><div class="v num">${cnt('essai')}</div><div class="s">à convertir</div></div>
+    <div class="kpi"><div class="l">Expirées / bloquées</div><div class="v num neg">${cnt('bad')}</div><div class="s">à relancer</div></div>
+  </div>
+  <div class="card" style="margin-top:12px"><form id="trialf" style="display:flex;gap:8px;align-items:flex-end"><label class="f" style="flex:1;margin:0"><span>Essai gratuit des nouvelles boutiques (jours)</span><input name="days" type="number" min="0" max="365" value="${esc(ADM.trial ?? 7)}"></label><button class="btn">Enregistrer</button></form></div>
+  <div class="sec"><h2>Clients</h2><button class="link" data-a="admreload">↻ Actualiser</button></div>
+  <input class="search" type="search" placeholder="Rechercher un client, un numéro, un pays…" value="${esc(ADM.q)}" oninput="ADM.q=this.value;document.getElementById('admlist').innerHTML=admRows()">
+  <div class="list" id="admlist">${admRows(list)}</div>
+  <div class="sec"><h2>Sauvegarde</h2></div>
+  <div class="card"><p class="note" style="margin-bottom:10px">Exporte les données de <b>toutes</b> les boutiques (le plan gratuit de Supabase ne fait pas de sauvegarde automatique). Gardez le fichier sur Google Drive, une fois par semaine.</p><button class="btn primary block" data-a="admexport">Exporter toutes les données</button></div>`;
+};
+function admRows(list){
+  if(!list){ const q = norm0(ADM.q); list = (ADM.shops || []).filter(s => !q || norm0([s.name, s.owner_name, s.owner_phone, s.country].join(' ')).includes(q)); }
+  if(!list.length) return '<div class="empty">Aucun client</div>';
+  return list.map(s => { const i = shopState(s); return `<button class="it" data-a="admshop:${s.id}"><div class="ic c-brand">${esc(initials(s.name))}</div><div class="m"><div class="t">${esc(s.name)}</div><div class="d">${esc(s.owner_name || '—')} · ${esc(telPretty(s.owner_phone || ''))}${s.country ? ' · ' + esc(s.country) : ''}</div><div class="d">${s.last_activity ? 'Actif ' + fmtDate(String(s.last_activity).slice(0,10)) : 'Aucune donnée'} · ${s.nb_items} élément(s) · ${s.nb_members} membre(s)</div></div><div class="r"><span class="pill ${i.cls === 'bad' ? 'p-annule' : s.status === 'essai' ? 'p-attente' : 'p-livre'}" style="${i.cls === 'bad' ? 'background:var(--bad-soft);color:var(--bad)' : ''}">${esc(i.short)}</span><div class="sm">${s.paid_until ? fmtDate(s.paid_until) : '∞'}</div></div></button>`; }).join('');
+}
+CUSTOM_AFTER.admin = () => {
+  if(ADM.shops === null && !ADM.loading) loadAdmin();
+  const f = $('#trialf'); if(f) f.onsubmit = async e => { e.preventDefault(); const d = parseInt(e.target.elements.days.value, 10); const {error} = await sb.rpc('admin_set_trial_days', {p_days:d}); if(error) return toast(rpcErr(error)); ADM.trial = d; toast('Essai gratuit : ' + d + ' jours pour les nouvelles boutiques'); };
+};
+A.admreload = () => { ADM.shops = null; render(); };
+function addMonths(iso, n){ const d = new Date(iso + 'T12:00:00'); d.setMonth(d.getMonth() + n); return iso10(d); }
+A.admshop = async (id) => {
+  const s = (ADM.shops || []).find(x => x.id === id); if(!s) return;
+  const i = shopState(s), t = today(), base = s.paid_until && s.paid_until > t ? s.paid_until : t;
+  sheet(s.name, `
+    <div class="card" style="margin-bottom:12px">
+      <div class="dl"><span>Propriétaire</span><span>${esc(s.owner_name || '—')}</span></div>
+      <div class="dl"><span>Téléphone</span><span>${esc(telPretty(s.owner_phone || ''))}</span></div>
+      <div class="dl"><span>Pays</span><span>${esc(s.country || '—')}</span></div>
+      <div class="dl"><span>Inscrite le</span><span>${fmtDate(String(s.created_at).slice(0,10), true)}</span></div>
+      <div class="dl"><span>Dernière activité</span><span>${s.last_activity ? fmtDate(String(s.last_activity).slice(0,10), true) : '—'}</span></div>
+      <div class="dl strong"><span>Abonnement</span><span>${esc(i.short)} · ${s.paid_until ? 'jusqu\'au ' + fmtDate(s.paid_until, true) : 'sans limite'}</span></div>
+    </div>
+    <div class="sec" style="margin-top:4px"><h2>Activer / prolonger</h2></div>
+    <div class="btns" style="margin-bottom:8px">
+      <button class="btn primary" data-a="admset" data-id="${id}" data-st="actif" data-d="${addMonths(base,1)}">+1 mois</button>
+      <button class="btn primary" data-a="admset" data-id="${id}" data-st="actif" data-d="${addMonths(base,3)}">+3 mois</button>
+      <button class="btn primary" data-a="admset" data-id="${id}" data-st="actif" data-d="${addMonths(base,12)}">+12 mois</button>
+      <button class="btn" data-a="admset" data-id="${id}" data-st="essai" data-d="${addDays(base,7)}">+7 jours d'essai</button>
+      <button class="btn" data-a="admset" data-id="${id}" data-st="actif" data-d="">Illimité</button>
+      <button class="btn ghost-bad" data-a="admset" data-id="${id}" data-st="bloque" data-d="${s.paid_until || ''}">Bloquer</button>
+    </div>
+    <form id="admf" class="card" style="margin-bottom:12px"><div class="row2">${field('Statut', `<select name="st"><option value="actif" ${s.status==='actif'?'selected':''}>Actif</option><option value="essai" ${s.status==='essai'?'selected':''}>Essai</option><option value="bloque" ${s.status==='bloque'?'selected':''}>Bloqué</option></select>`)}${field('Jusqu\'au (vide = illimité)', `<input name="d" type="date" value="${esc(s.paid_until || '')}">`)}</div><button class="btn block">Enregistrer cette date</button></form>
+    <div class="stack">
+      <a class="btn wa block" href="${waLink('+' + (s.owner_phone || ''), `Bonjour ${s.owner_name || ''} 👋\nVotre abonnement Stock & Livreurs pour « ${s.name} » ${i.cls === 'bad' ? 'est expiré' : 'se termine le ' + (s.paid_until ? fmtDate(s.paid_until, true) : '—')}.\nPour continuer à enregistrer vos ventes, renouvelez votre abonnement. Merci 🙏\nBASILUA TECH`)}" target="_blank" rel="noopener">${ico('wa')} Rappel de paiement</a>
+    </div>
+    <div class="sec"><h2>Comptes de cette boutique</h2></div>
+    <div class="list" id="admmem"><div class="empty">Chargement…</div></div>`);
+  $('#admf').onsubmit = e => { e.preventDefault(); const E = e.target.elements; admSet(id, E.st.value, E.d.value || null); };
+  const {data, error} = await sb.rpc('admin_list_members', {p_shop:id});
+  const box = $('#admmem'); if(!box) return;
+  box.innerHTML = error ? `<div class="empty">${esc(rpcErr(error))}</div>` : (data || []).map(m => `<div class="it"><div class="m"><div class="t">${esc(m.display_name || 'Sans nom')}</div><div class="d">${ROLE_TXT[m.role] || m.role} · ${esc(telPretty(m.phone || ''))}</div></div><button class="btn sm" data-a="admpw" data-uid="${m.user_id}" data-name="${esc(m.display_name || '')}" data-phone="${esc(m.phone || '')}">Nouveau mot de passe</button></div>`).join('') || '<div class="empty">Aucun compte</div>';
+};
+async function admSet(id, st, d){
+  const {error} = await sb.rpc('admin_set_shop_status', {p_shop:id, p_status:st, p_paid_until:d || null});
+  if(error) return toast(rpcErr(error));
+  const s = ADM.shops.find(x => x.id === id); if(s){ s.status = st; s.paid_until = d || null; }
+  if(ONLINE.shop && ONLINE.shop.id === id){ ONLINE.shop.status = st; ONLINE.shop.paid_until = d || null; }
+  toast(st === 'bloque' ? 'Boutique bloquée' : 'Abonnement mis à jour ✅ ' + (d ? 'jusqu\'au ' + fmtDate(d, true) : '(illimité)'));
+  A.admshop(id); render();
+}
+A.admset = async (_, el) => {
+  const st = el.dataset.st, d = el.dataset.d || null, s = ADM.shops.find(x => x.id === el.dataset.id);
+  const txt = st === 'bloque' ? `Bloquer « ${esc(s.name)} » ? Le client passera en lecture seule.` : `Passer « ${esc(s.name)} » en ${st === 'essai' ? 'essai' : 'actif'} ${d ? 'jusqu\'au ' + fmtDate(d, true) : 'sans limite'} ?`;
+  if(!await ask(txt, 'Confirmer', st === 'bloque')) return;
+  admSet(el.dataset.id, st, d);
+};
+A.admpw = async (_, el) => {
+  const pw = randPass();
+  if(!await ask(`Donner un nouveau mot de passe à ${esc(el.dataset.name || 'ce compte')} ? L'ancien ne marchera plus.`, 'Réinitialiser')) return;
+  const {error} = await sb.rpc('admin_reset_password', {p_user:el.dataset.uid, p_password:pw});
+  if(error) return toast(rpcErr(error));
+  const msg = `Bonjour ${el.dataset.name || ''} 👋\nVotre nouveau mot de passe Stock & Livreurs est : *${pw}*\nConnectez-vous ici : ${APP_LINK}\nNuméro : +${el.dataset.phone}\nBASILUA TECH`;
+  sheet('Nouveau mot de passe', `<p class="note" style="margin-bottom:10px">Communiquez ce mot de passe à la personne :</p>
+    <div class="card" style="text-align:center;font-size:26px;font-weight:800;letter-spacing:.08em;margin-bottom:12px">${pw}</div>
+    <a class="btn wa block" href="${waLink('+' + el.dataset.phone, msg)}" target="_blank" rel="noopener">${ico('wa')} Envoyer par WhatsApp</a>`);
+};
+A.admexport = async () => {
+  toast('Préparation de l\'export…');
+  const {data, error} = await sb.rpc('admin_export_all');
+  if(error) return toast(rpcErr(error));
+  const txt = JSON.stringify(data);
+  download(`sauvegarde-globale-stock-livreurs-${today()}.json`, txt, 'application/json');
+  sheet('Sauvegarde globale', `<p class="note" style="margin-bottom:10px">${(data.shops||[]).length} boutique(s), ${(data.items||[]).length} élément(s). Le téléchargement a démarré. Sinon, copiez le texte.</p><button class="btn block" id="admcp">Copier</button><textarea class="code" readonly style="margin-top:10px">${esc(txt.slice(0, 20000))}${txt.length > 20000 ? '…' : ''}</textarea>`);
+  $('#admcp').onclick = () => copyText(txt);
 };
 
 /* ---------- Démarrage ---------- */
