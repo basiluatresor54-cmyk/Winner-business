@@ -214,6 +214,7 @@ body.livmode{padding-bottom:24px}
 textarea.code{width:100%;min-height:90px;font:12px/1.4 ui-monospace,Menlo,monospace;padding:10px;border:1.5px solid var(--line);border-radius:11px}
 
 .tb .num{white-space:nowrap}
+.phtools{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px}.phtools .btn{min-height:34px;padding:6px 10px;font-size:13px}
 /* photos produits */
 .ic.pic{padding:0;overflow:hidden;background:#fff;border:1px solid var(--line);display:grid;place-items:center;font-size:22px}.ic.pic img{width:100%;height:100%;object-fit:cover}
 /* vente rapide / rapport du jour */
@@ -1261,6 +1262,27 @@ function soirSheet(){
     <p class="note">Chaque message contient : ce qu'il a livré, sa commission, le montant à envoyer par Mobile Money (en $ et en ${esc(LC())}) et le stock qui lui reste.</p>`);
 }
 
+/* ---------- Numéro du client : coller depuis WhatsApp ou choisir dans les contacts ---------- */
+const canPickContact = () => 'contacts' in navigator && 'ContactsManager' in window;
+const phoneTools = () => `<span class="phtools"><button type="button" class="btn sm" data-a="pastephone">📋 Coller le numéro</button>${canPickContact() ? '<button type="button" class="btn sm" data-a="pickcontact">👤 Contacts</button>' : ''}</span>`;
+function cleanPhone(t){ const x = String(t||'').match(/(\+?\d[\d .\-()]{6,}\d)/); if(!x) return ''; let p = x[1].replace(/[ .\-()]/g,''); if(/^243\d{9}$/.test(p)) p = '+' + p; return p; }
+async function pastePhone(el){
+  const f = el.closest('form'), inp = f && f.elements.phone; if(!inp) return;
+  try{ const t = await navigator.clipboard.readText(), p = cleanPhone(t);
+    if(!p){ toast('Aucun numéro dans le presse-papier. Copiez d\'abord le numéro dans WhatsApp.'); return; }
+    inp.value = p; inp.dispatchEvent(new Event('input', {bubbles:true})); toast('Numéro collé ✅');
+    const nm = String(t).replace(/(\+?\d[\d .\-()]{6,}\d)/, '').replace(/[~:,\-–]+/g,' ').trim();
+    if(nm && /[a-zà-ÿ]{2,}/i.test(nm) && f.elements.client && !f.elements.client.value) f.elements.client.value = nm.slice(0, 40);
+  }catch(_){ toast('Collez le numéro à la main : appui long dans la case → Coller'); inp.focus(); }
+}
+async function pickContact(el){
+  const f = el.closest('form'); if(!f) return;
+  try{ const [c] = await navigator.contacts.select(['name','tel'], {multiple:false}); if(!c) return;
+    if(c.tel && c.tel[0]) f.elements.phone.value = cleanPhone(c.tel[0]) || c.tel[0];
+    if(c.name && c.name[0] && f.elements.client && !f.elements.client.value) f.elements.client.value = c.name[0];
+  }catch(_){ toast('Contacts indisponibles sur cet appareil'); }
+}
+
 /* ---------- Vente rapide (boutique / sur place) ---------- */
 const PAYS = ['', 'Cash', 'Mobile Money', 'Carte / autre'];
 let lastQuick = null;
@@ -1278,7 +1300,7 @@ function quickSale(){
     <div class="tot" id="qtot"></div>
     <div class="f"><span>Payé en</span><div class="seg" id="segP">${PAYS.slice(1).map(x => `<button type="button" data-p="${x}">${x}</button>`).join('')}</div></div>
     <details style="margin-bottom:12px"><summary class="note"><b>Client (optionnel)</b> — pour le reçu et la relance</summary>
-      <div class="row2" style="margin-top:8px">${field('Nom', `<input name="client" placeholder="Ex : Mme Nsimba">`)}${field('Téléphone (WhatsApp)', `<input name="phone" type="tel" placeholder="08… ou +243…">`)}</div></details>
+      <div class="row2" style="margin-top:8px">${field('Nom', `<input name="client" placeholder="Ex : Mme Nsimba">`)}${field('Téléphone (WhatsApp)', `<input name="phone" type="tel" placeholder="08… ou +243…">${phoneTools()}`)}</div></details>
     <button class="btn primary block">Encaisser</button></form>`);
   const f = $('#qf'), E = f.elements; let pay = 'Cash';
   const paintP = () => [...$('#segP').children].forEach(b => b.classList.toggle('on', b.dataset.p === pay)); paintP();
@@ -1600,7 +1622,7 @@ function moveForm(type, opt = {}){
   else if(type === 'perte') h += field('Motif', `<select name="motif">${MOTIFS.map(x => `<option ${m?.motif===x?'selected':''}>${x}</option>`).join('')}</select>`) + `</div>`;
   else if(type === 'vente') h += field('Prix unitaire', `<input name="price" type="number" step="any" min="0" value="${m ? m.price : ''}">`, '<span id="curl"></span>') + `</div><div class="tot" id="tot"></div>
       ${field('Nom du client', `<input name="client" value="${esc(m?.client)}" placeholder="Ex : Mme Nsimba">`)}
-      ${field('Téléphone client (WhatsApp)', `<input name="phone" type="tel" value="${esc(m?.phone)}" placeholder="08… ou +243…">`)}
+      ${field('Téléphone client (WhatsApp)', `<input name="phone" type="tel" value="${esc(m?.phone)}" placeholder="08… ou +243…">${phoneTools()}`)}
       ${field('Adresse complète de livraison', `<textarea name="addr" placeholder="Commune, quartier, avenue, n°, point de repère…">${esc(m?.addr)}</textarea>`)}
       <div class="row2">${field('Jour de livraison', `<input name="ddate" type="date" value="${m ? (m.ddate || m.date) : today()}">`)}${field('Heure de livraison', `<input name="dtime" type="time" value="${esc(m?.dtime || '')}">`)}</div>
       ${field('Payé en', `<select name="pay">${PAYS.map(x => `<option value="${x}" ${(m?.pay||'')===x?'selected':''}>${x || '— (non précisé)'}</option>`).join('')}</select>`, 'Pour une vente directe : cash, Mobile Money…')}
@@ -1932,6 +1954,8 @@ const A = {
   rweek: v => { rapWeek = +v; render(); },
   relweek: v => { relWeek = +v; render(); },
   quick: () => quickSale(),
+  pastephone: (v, el) => pastePhone(el),
+  pickcontact: (v, el) => pickContact(el),
   invform: v => invForm(v || ''),
   inv: id => invSheet(id),
   invdel: async id => { if(!await ask('Supprimer ce contrôle de stock et les écarts enregistrés ?', 'Supprimer')) return; S.moves = S.moves.filter(m => m.id !== id && m.inv !== id); save(); closeSheet(); render(); toast('Contrôle supprimé'); },
