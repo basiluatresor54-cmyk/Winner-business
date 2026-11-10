@@ -2050,8 +2050,10 @@ function productForm(id){
       kitv = kp.map((s,i) => ({pid:s.value, q:Math.max(1, Math.round(num(kq[i].value)))})).filter(c => c.pid);
       if(!kitv.length){ toast('Choisissez au moins un produit pour le pack'); return; }
     }
-    if(p && S.moves.some(m => m.pid === p.id) && JSON.stringify(kitv) !== JSON.stringify(isKit(p) ? p.kit : null)){
+    const kitKey = k => k && k.length ? k.map(c => String(c.pid) + 'x' + Math.max(1, Math.round(num(c.q)))).sort().join('|') : '';
+    if(p && S.moves.some(m => m.pid === p.id) && kitKey(kitv) !== kitKey(isKit(p) ? p.kit : null)){
       toast(isKit(p) ? 'Ce pack a déjà des ventes : sa composition ne peut plus changer' : 'Ce produit a déjà du stock : créez plutôt un nouveau pack'); return; }
+    if(p && isKit(p) && kitv && kitKey(kitv) === kitKey(p.kit)) kitv = p.kit;
     const data = {name, details:E.details.value.trim(), cat:E.cat.value.trim(), cur:E.cur.value, sell:num(E.sell.value), old:num(E.old.value) > num(E.sell.value) ? num(E.old.value) : 0, buy:num(E.buy.value), comm:num(E.comm.value), commMode:E.commMode.value, commCity:readCityComm(f), alert:Math.max(0, Math.round(num(E.alert.value))), kit:kitv, photo, hide:!E.show.checked};
     if(p){ Object.assign(p, data); toast('Produit modifié'); }
     else {
