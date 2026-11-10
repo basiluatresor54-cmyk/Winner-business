@@ -821,7 +821,7 @@ function rowSale(m){
   return `<button class="it" data-a="sale:${m.id}"${m.status === 'attente' || m.status === 'encours' ? ` data-sw="${m.id}"` : ''}>${prod(m.pid) && prod(m.pid).photo ? pic(prod(m.pid)) : `<div class="ic c-out">${ico('cart')}</div>`}
     <div class="m"><div class="t">${esc(pname(m.pid))} × ${m.qty}</div>
     <div class="d">${esc(m.client || 'Client')}${m.addr ? ' · ' + esc(m.addr) : ''}</div>
-    <div class="d">📅 ${fmtDate(m.ddate || m.date)}${m.dtime ? ' ' + m.dtime.replace(':','h') : ''} · ${L ? '🛵 ' + esc(L.name) + ' (' + esc(L.city||'') + ')' : 'Vente directe'}</div></div>
+    <div class="d">${m.status === 'livre' ? '✅ Livré ' + fmtDate(mday(m)) : '📅 ' + fmtDate(m.ddate || m.date) + (m.dtime ? ' ' + m.dtime.replace(':','h') : '')} · ${L ? '🛵 ' + esc(L.name) + ' (' + esc(L.city||'') + ')' : 'Vente directe'}</div></div>
     <div class="r"><div class="num ${m.status==='annule'?'strike':''}" style="font-weight:700">${amt(m.qty*m.price, m.cur)}</div><span class="pill p-${m.status}">${STATUS[m.status]}</span></div></button>`;
 }
 
@@ -2261,6 +2261,7 @@ function saleSheet(id, fresh){
       ${L ? `<p class="note" style="margin-top:8px"><b>Au livreur :</b></p><pre class="msg">${esc(rl)}</pre>` : ''}
       <p class="note" style="margin-top:8px"><b>Au client :</b></p><pre class="msg">${esc(rc)}</pre></details>
     <div class="f"><span>Statut</span><div class="seg">${Object.entries(STATUS).map(([k,l]) => `<button type="button" class="${m.status===k?'on':''}" data-a="status:${k}" data-id="${m.id}">${l}</button>`).join('')}</div></div>
+    ${m.status === 'livre' ? `<button class="btn block" style="margin:-4px 0 12px" data-a="ldate:${m.id}">✅ Livrée ${fmtDate(mday(m), true)} · changer la date</button>` : ''}
     <div class="card" style="margin-bottom:12px">
       <div class="dl"><span>Total client</span><span class="num">${total}${m.cur === 'FC' ? ' ≈ ' + money(u) : ''}</span></div>
       <div class="dl"><span>Commission livreur</span><span class="num">${m.liv ? money(m.qty*num(m.commU)) : '—'}</span></div>
@@ -2274,12 +2275,12 @@ function saleSheet(id, fresh){
     </div>
     <div class="btns"><button class="btn" data-a="editsale:${m.id}">Modifier</button><button class="btn ghost-bad" data-a="delmove:${m.id}">Supprimer</button></div>`);
 }
-function setStatus(id, st, quiet){
+function setStatus(id, st, quiet, ld){
   const m = S.moves.find(x => x.id === id); if(!m || m.status === st) return;
   const rec = Object.assign({}, m, {status:st});
   const err = checkStock(S.moves.map(x => x.id === id ? rec : x), [m.pid]);
   if(err){ toast(err); return; }
-  m.status = st; if(st === 'livre') m.ldate = today(); else delete m.ldate; save(); render(); if(!quiet) saleSheet(id);
+  m.status = st; if(st === 'livre') m.ldate = ld || today(); else delete m.ldate; save(); render(); if(!quiet) saleSheet(id);
   if(st === 'livre') cheer('Livrée ✅ — commission comptée', 60); else toast(st === 'annule' ? 'Vente annulée — stock remis' : 'Statut : ' + STATUS[st]);
 }
 
@@ -2436,7 +2437,7 @@ const A = {
   editsale: id => moveForm(null, {id}),
   move: id => moveForm(null, {id}),
   money2: id => moneyForm(null, {id}),
-  status: (v, el) => setStatus(el.dataset.id, v),
+  status: (v, el) => { const id = el.dataset.id; if(v === 'livre') livreDatePick(id, d => setStatus(id, 'livre', false, d)); else setStatus(id, v); },
   delmove: async id => {
     const m = S.moves.find(x => x.id === id); if(!m) return;
     const next = S.moves.filter(x => x.id !== id);
@@ -2489,6 +2490,17 @@ const A = {
     save(); view = 'home'; render(); toast('Données effacées');
   }
 };
+function livreDatePick(id, cb){
+  const m = S.moves.find(x => x.id === id); if(!m) return;
+  const t = today(), opts = [[t, "Aujourd'hui"], [addDays(t, -1), 'Hier'], [addDays(t, -2), 'Avant-hier']];
+  const pl = m.ddate || m.date; if(pl < addDays(t, -2)) opts.push([pl, 'Date prévue (' + dAbs(pl) + ')']);
+  sheet('✅ Livrée quand ?', `<p class="note" style="margin-bottom:12px">${esc(pname(m.pid))} × ${m.qty}${m.client ? ' — ' + esc(m.client) : ''}. La vente comptera dans les ventes et le bénéfice de ce jour-là.</p>
+    <div class="stack">${opts.map(([d, l]) => `<button class="btn block ${d === (m.ldate || t) ? 'primary' : ''}" data-ld="${d}">${l} · ${dAbs(d, 1)}</button>`).join('')}</div>
+    <div class="f" style="margin-top:12px"><span>Autre date</span><div style="display:flex;gap:8px"><input type="date" id="ldIn" max="${t}" value="${m.ldate || t}" style="flex:1"><button class="btn primary" id="ldOk">OK</button></div></div>`);
+  document.querySelectorAll('[data-ld]').forEach(b => b.onclick = () => cb(b.dataset.ld));
+  $('#ldOk').onclick = () => { const v = $('#ldIn').value; if(!v) return; if(v > t){ toast('La date ne peut pas être dans le futur'); return; } cb(v); };
+}
+A.ldate = id => livreDatePick(id, d => { const m = S.moves.find(x => x.id === id); if(!m) return; m.ldate = d; save(); render(); saleSheet(id); toast('Date de livraison : ' + dAbs(d, 1)); });
 A.install = async () => {
   if(installEvt){ try{ installEvt.prompt(); const r = await installEvt.userChoice; installEvt = null; if(r && r.outcome === 'accepted'){ localStorage.setItem('stock_installed','1'); toast('Installation en cours… ✅'); } render(); return; }catch(e){ installEvt = null; } }
   sheet("📲 Installer l'application", installHelpHTML());
