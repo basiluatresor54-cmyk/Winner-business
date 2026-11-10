@@ -1117,6 +1117,65 @@ function receiptLivreur(m){
   return `*BON DE LIVRAISON — ${st.shop}* 🛵\n\n📅 ${whenTxt(m)}\n👤 Client : ${m.client || '-'}\n📞 Téléphone : ${m.phone || '-'}\n📍 Adresse : ${m.addr || '-'}\n\n📦 Produit : ${pname(m.pid)} × ${m.qty}\n*💵 Montant à encaisser : ${amt(m.qty*m.price, m.cur)}*${fee ? '\n🛵 Frais de livraison (pour vous) : ' + fee : ''}${num(m.commU) ? '\n💰 Votre commission : ' + money(m.qty*num(m.commU)) : ''}${m.note ? '\n📝 Note : ' + m.note : ''}\n\nMerci de confirmer la livraison et de verser la recette ce soir par Mobile Money 🙏`;
 }
 
+/* ---------- Reçu en image (logo, couleurs, détail) ---------- */
+function loadImg(src){ return new Promise(res => { if(!src) return res(null); const i = new Image(); i.onload = () => res(i); i.onerror = () => res(null); i.src = src; }); }
+function wrapText(x, txt, maxW){ const words = String(txt).split(' '), out = []; let line = ''; for(const w of words){ const t = line ? line + ' ' + w : w; if(x.measureText(t).width > maxW && line){ out.push(line); line = w; } else line = t; } if(line) out.push(line); return out; }
+async function receiptImage(m){
+  const st = S.settings, L = liv(m.liv), P = prod(m.pid), done = m.status === 'livre';
+  const W = 1080, pad = 70, c = document.createElement('canvas'), x = c.getContext('2d');
+  const brand = st.color || '#0F766E', [r,g,b] = hexRgb(brand);
+  const [logo, ph] = await Promise.all([loadImg(st.logo), loadImg(P && P.photo)]);
+  const rows = [['Date', dAbs(m.date, 1)], ['Livraison', dAbs(m.ddate || m.date, 1) + (m.dtime ? ' à ' + m.dtime.replace(':','h') : '')], ['Adresse', m.addr || '—'], L ? ['Livreur', L.name + (L.phone ? ' · ' + L.phone : '')] : null, feeTxt() && L ? ['Frais de livraison', feeTxt() + ' (au livreur)'] : null].filter(Boolean);
+  x.font = '500 34px -apple-system, Segoe UI, Roboto, Arial';
+  const rowLines = rows.map(([k,v]) => [k, wrapText(x, v, W - pad*2 - 300)]);
+  const H = 2600;
+  c.width = W; c.height = H;
+  x.fillStyle = '#f4f5f7'; x.fillRect(0,0,W,H);
+  const grad = x.createLinearGradient(0,0,W,360); grad.addColorStop(0, brand); grad.addColorStop(1, `rgb(${Math.round(r*.7)},${Math.round(g*.7)},${Math.round(b*.7)})`);
+  x.fillStyle = grad; x.fillRect(0,0,W,360);
+  const rr = (X,Y,w,h,R) => { x.beginPath(); x.moveTo(X+R,Y); x.arcTo(X+w,Y,X+w,Y+h,R); x.arcTo(X+w,Y+h,X,Y+h,R); x.arcTo(X,Y+h,X,Y,R); x.arcTo(X,Y,X+w,Y,R); x.closePath(); };
+  // logo
+  x.save(); rr(pad, 70, 130, 130, 34); x.clip(); x.fillStyle = 'rgba(255,255,255,.2)'; x.fillRect(pad,70,130,130);
+  if(logo){ const k = Math.max(130/logo.width, 130/logo.height); x.drawImage(logo, pad + (130 - logo.width*k)/2, 70 + (130 - logo.height*k)/2, logo.width*k, logo.height*k); }
+  else { x.fillStyle = '#fff'; x.font = '800 52px -apple-system, Segoe UI, Roboto, Arial'; x.textAlign = 'center'; x.fillText(initials(st.shop), pad + 65, 154); x.textAlign = 'left'; }
+  x.restore();
+  x.fillStyle = '#fff'; x.font = '800 54px -apple-system, Segoe UI, Roboto, Arial'; x.fillText(String(st.shop || '').slice(0, 26), pad + 160, 128);
+  x.font = '600 32px -apple-system, Segoe UI, Roboto, Arial'; x.globalAlpha = .9; x.fillText(done ? 'REÇU DE PAIEMENT' : 'CONFIRMATION DE COMMANDE', pad + 160, 180); x.globalAlpha = 1;
+  x.font = '500 30px -apple-system, Segoe UI, Roboto, Arial'; x.globalAlpha = .85; x.fillText('N° ' + String(m.id).slice(-6).toUpperCase() + (m.client ? '  ·  ' + m.client : ''), pad, 300); x.globalAlpha = 1;
+  // carte produit
+  let y = 400; x.fillStyle = '#fff'; rr(pad - 20, y, W - (pad-20)*2, 230, 34); x.fill();
+  if(ph){ x.save(); rr(pad, y + 25, 180, 180, 26); x.clip(); x.drawImage(ph, pad, y + 25, 180, 180); x.restore(); }
+  const tx = ph ? pad + 210 : pad;
+  x.fillStyle = '#16181d'; x.font = '750 40px -apple-system, Segoe UI, Roboto, Arial';
+  wrapText(x, pname(m.pid), W - tx - pad).slice(0,2).forEach((l,i) => x.fillText(l, tx, y + 75 + i*48));
+  x.fillStyle = '#6b7280'; x.font = '500 32px -apple-system, Segoe UI, Roboto, Arial'; x.fillText(`${m.qty} × ${amt(m.price, m.cur)}`, tx, y + 185);
+  // total
+  y += 270; x.fillStyle = `rgba(${r},${g},${b},.1)`; rr(pad - 20, y, W - (pad-20)*2, 120, 30); x.fill();
+  x.fillStyle = '#16181d'; x.font = '650 36px -apple-system, Segoe UI, Roboto, Arial'; x.fillText(done ? 'Total payé' : 'Total à payer', pad + 10, y + 75);
+  x.fillStyle = brand; x.font = '850 56px -apple-system, Segoe UI, Roboto, Arial'; x.textAlign = 'right'; x.fillText(amt(m.qty*m.price, m.cur), W - pad - 10, y + 80); x.textAlign = 'left';
+  // détails
+  y += 200;
+  for(const [k, lines] of rowLines){ x.fillStyle = '#6b7280'; x.font = '600 30px -apple-system, Segoe UI, Roboto, Arial'; x.fillText(k, pad, y);
+    x.fillStyle = '#16181d'; x.font = '500 34px -apple-system, Segoe UI, Roboto, Arial'; lines.forEach((l,i) => x.fillText(l, pad + 300, y + i*44)); y += 26 + lines.length*44;
+    x.fillStyle = '#e7e9ee'; x.fillRect(pad, y - 18, W - pad*2, 2); y += 18; }
+  // pied
+  y += 70; x.fillStyle = '#16181d'; x.font = '700 36px -apple-system, Segoe UI, Roboto, Arial'; x.textAlign = 'center'; x.fillText('Merci pour votre confiance 🙏', W/2, y);
+  x.fillStyle = '#6b7280'; x.font = '500 30px -apple-system, Segoe UI, Roboto, Arial'; x.fillText((st.shop || '') + (st.wa ? '  ·  WhatsApp ' + st.wa : ''), W/2, y + 52); x.textAlign = 'left';
+  const out = document.createElement('canvas'), Hf = y + 110; out.width = W; out.height = Hf; out.getContext('2d').drawImage(c, 0, 0, W, Hf, 0, 0, W, Hf);
+  return new Promise(res => out.toBlob(bl => res(bl), 'image/jpeg', .9));
+}
+async function shareReceiptImage(id){
+  const m = S.moves.find(x => x.id === id); if(!m) return;
+  toast('Préparation du reçu…');
+  const bl = await receiptImage(m), name = 'recu-' + (m.client || 'client').replace(/[^\w-]+/g,'_') + '.jpg', file = new File([bl], name, {type:'image/jpeg'});
+  const url = URL.createObjectURL(bl);
+  sheet('🖼️ Reçu en image', `<img src="${url}" alt="Reçu" style="width:100%;border-radius:14px;box-shadow:var(--shadow)">
+    <div class="stack" style="margin-top:12px">${navigator.canShare && navigator.canShare({files:[file]}) ? `<button class="btn wa block" id="rShare">${ico('wa')} Partager (WhatsApp, etc.)</button>` : ''}
+    <a class="btn block" href="${url}" download="${name}">⬇️ Enregistrer l'image</a>
+    <p class="note">Sur iPhone : « Partager » puis WhatsApp, et choisissez ${esc(m.client || 'le client')}. Vous pouvez aussi faire un appui long sur l'image → Enregistrer.</p></div>`);
+  const b = $('#rShare'); if(b) b.onclick = () => navigator.share({files:[file], text:'Reçu — ' + (S.settings.shop || '')}).catch(() => {});
+}
+
 /* ---------- Alertes « À surveiller » (accueil) ---------- */
 function alertsCard(st, low){
   const t = today(), y = addDays(t, -1), out = [];
@@ -2043,6 +2102,7 @@ function saleSheet(id, fresh){
     <div class="stack" style="margin-bottom:6px">
       ${L ? `<a class="btn wa block" href="${waLink(L.phone, rl)}" target="_blank" rel="noopener">${ico('wa')} 1. Bon de livraison → ${esc(L.name)}${L.phone ? '' : ' (choisir le contact)'}</a>` : ''}
       <a class="btn wa block" href="${waLink(m.phone, rc)}" target="_blank" rel="noopener">${ico('wa')} ${L ? '2. ' : ''}Reçu → ${esc(m.client || 'client')}${m.phone ? '' : ' (choisir le contact)'}</a>
+      <button class="btn block" data-a="recimg:${m.id}">🖼️ Reçu en image (plus professionnel)</button>
     </div>
     <details class="card" style="margin:10px 0 12px"><summary class="note"><b>Voir les messages qui seront envoyés</b></summary>
       ${L ? `<p class="note" style="margin-top:8px"><b>Au livreur :</b></p><pre class="msg">${esc(rl)}</pre>` : ''}
@@ -2246,6 +2306,7 @@ const A = {
   rweek: v => { rapWeek = +v; render(); },
   relweek: v => { relWeek = +v; render(); },
   quick: () => quickSale(),
+  recimg: id => shareReceiptImage(id),
   goals: () => goalsForm(),
   style: (v, el) => { setStyle(v); if(el && el.parentNode.classList.contains('seg')) [...el.parentNode.children].forEach(b => b.classList.toggle('on', b === el)); else render(); },
   rmcover: () => { delete S.settings.cover; save(); render(); },
@@ -3121,6 +3182,11 @@ livSheet = function(id){
   if(session) afterLogin(); else showAuth('login');
   sb.auth.onAuthStateChange((ev) => { if(ev === 'SIGNED_OUT' && ONLINE.shop){ ONLINE.shop = null; showAuth('login'); } });
 })();
+
+/* ---------- Service worker : ouverture instantanée, même sans internet ---------- */
+if('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')){
+  window.addEventListener('load', () => { navigator.serviceWorker.register('sw.js').catch(() => {}); });
+}
 
 </script>
 </body>
