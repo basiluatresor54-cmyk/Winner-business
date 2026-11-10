@@ -1002,6 +1002,7 @@ function vReglages(){
     <button class="btn primary block">Enregistrer</button>
   </form>
 
+  ${catalogSection()}
   <div class="sec"><h2>Sauvegarde et données</h2></div>
   <div class="card stack">
     <p class="note">${storageOK ? 'Vos données sont enregistrées <b>sur cet appareil uniquement</b>. Faites une sauvegarde chaque semaine et gardez-la sur WhatsApp ou Google Drive.' : '<b style="color:var(--bad)">L\'enregistrement automatique ne fonctionne pas ici.</b> Exportez vos données avant de fermer la page.'}</p>
@@ -1065,6 +1066,14 @@ function parseOrder(txt){
   let pline = pl;
   if(!pline){ let bsc = 0; for(const l of lines){ if(/^(adresse|livraison|heure|contact|t[ée]l|ville|nom)\b/i.test(l)) continue; const id = bestProduct(l); if(id){ const sc = (/(x\s*\d|\d\s*x|\$|fc\b)/i.test(l) ? 2 : 1); if(sc > bsc){ bsc = sc; pline = l; } } } }
   o.pid = bestProduct(pline) || bestProduct(txt);
+  // Plusieurs produits (ex. commande de la boutique en ligne) : une ligne par produit avec « xN » ou un prix
+  o.items = [];
+  for(const l of lines){ if(/^(adresse|livraison|heure|contact|t[ée]l|ville|nom|total|note|r[ée]capitulatif)\b/i.test(l)) continue; if(!/(x\s*\d|\d\s*x\b|\$|\bfc\b)/i.test(l)) continue;
+    const id = bestProduct(l); if(!id) continue; const qm = l.match(/\bx\s*(\d+)|\b(\d+)\s*x\b/i), q = qm ? parseInt(qm[1] || qm[2], 10) : 1;
+    const P = prod(id), usd = l.match(/(\d+(?:[.,]\d+)?)\s*(?:\$|usd)/i), fc = l.match(/(\d[\d\s.]*\d|\d)\s*(?:fc|francs?)\b/i);
+    let v = null; if(P.cur === '$' && usd) v = num(usd[1]); else if(P.cur === 'FC' && fc) v = num(fc[1].replace(/[\s.]/g,''));
+    o.items.push({pid:id, qty:q, price: v ? r2(v / q) : num(P.sell), line:l}); }
+  if(o.items.length > 1 && !pl){ o.pid = o.items[0].pid; o.qty = o.items[0].qty; o.price = o.items[0].price; o.amount = null; }
   const q = lab(/^(?:quantit[ée]|qt[ée]|nombre|nbr?)\s*[:=\-–]\s*(\d+)/i) || ((pline || '').match(/(?:\bx\s*(\d+)|\b(\d+)\s*(?:x\b|pi[eè]ces?|pcs?|bo[iî]tes?|flacons?|pots?))/i) || []).slice(1).find(Boolean);
   if(q) o.qty = parseInt(q, 10);
   if(!o.qty && o.pid){ const ws = norm(prod(o.pid).name).split(/[^a-z0-9]+/).filter(w => w.length >= 3); const x = ws.length && norm(pline || txt).match(new RegExp('\\b(\\d{1,2})\\s*(?:x\\s*)?(?:' + ws.join('|') + ')')); if(x) o.qty = parseInt(x[1], 10); }
@@ -1169,6 +1178,27 @@ async function shareReceiptImage(id){
     <a class="btn block" href="${url}" download="${name}">⬇️ Enregistrer l'image</a>
     <p class="note">Sur iPhone : « Partager » puis WhatsApp, et choisissez ${esc(m.client || 'le client')}. Vous pouvez aussi faire un appui long sur l'image → Enregistrer.</p></div>`);
   const b = $('#rShare'); if(b) b.onclick = () => navigator.share({files:[file], text:'Reçu — ' + (S.settings.shop || '')}).catch(() => {});
+}
+
+/* ---------- Ma boutique en ligne (lien public à partager) ---------- */
+const BOUTIQUE_URL = new URL('../boutique/', location.href).href;
+function catalogSection(){
+  const on = typeof ONLINE !== 'undefined' && ONLINE && ONLINE.shop;
+  if(!on) return `<div class="sec"><h2>🛍️ Ma boutique en ligne</h2></div><div class="card"><p class="note">Disponible dans la version en ligne de l'application (avec compte).</p></div>`;
+  if(ONLINE.role === 'livreur') return '';
+  const st = S.settings, url = BOUTIQUE_URL + '?s=' + ONLINE.shop.id, nb = S.products.filter(p => !p.hide).length;
+  const share = `🛍️ Découvrez nos produits et commandez en 1 minute :\n${url}\n\n🛵 Livraison rapide · 💵 Paiement à la livraison\n${st.shop || ''}`;
+  return `<div class="sec"><h2>🛍️ Ma boutique en ligne</h2></div>
+  <div class="card">
+    <p class="note" style="margin-bottom:10px">Une page publique avec vos produits (photos, prix). Le client choisit, remplit son adresse et la commande vous arrive <b>toute prête sur WhatsApp</b> : collez-la dans « Nouvelle vente ».</p>
+    <div class="seg" style="grid-template-columns:1fr 1fr">${[['1','✅ Ouverte'],['0','Fermée']].map(([k,l]) => `<button type="button" class="${(st.catalog ? '1' : '0') === k ? 'on' : ''}" data-a="catalog:${k}">${l}</button>`).join('')}</div>
+    ${st.catalog ? `${st.wa ? '' : `<div class="warnbox" style="margin-top:10px">⚠️ Ajoutez votre <b>WhatsApp boutique</b> ci-dessus, sinon le client devra choisir à qui envoyer la commande.</div>`}
+    <div class="f" style="margin-top:12px"><span>Votre lien (${nb} produit${nb>1?'s':''} visible${nb>1?'s':''})</span><input readonly value="${esc(url)}" onclick="this.select()" style="font-size:13px"></div>
+    <label class="f"><span>Phrase d'accueil</span><input id="catIntro" maxlength="90" value="${esc(st.catIntro || '')}" placeholder="Ex : Produits capillaires 100 % naturels"></label>
+    <div class="btns"><button class="btn" data-a="catcopy">📋 Copier le lien</button><a class="btn" href="${esc(url)}" target="_blank" rel="noopener">👁️ Voir ma boutique</a></div>
+    <a class="btn wa block" style="margin-top:8px" href="${waLink('', share)}" target="_blank" rel="noopener">${ico('wa')} Partager sur WhatsApp</a>
+    <p class="note" style="margin-top:8px">Mettez ce lien dans vos pubs Facebook, votre statut et votre bio. Pour cacher un produit : Stock → produit → Modifier → décochez « Visible dans ma boutique en ligne ».</p>` : ''}
+  </div>`;
 }
 
 /* ---------- Alertes « À surveiller » (accueil) ---------- */
@@ -1858,6 +1888,7 @@ function productForm(id){
       <div id="cityRows">${cityCommRows(p)}</div>
       <button type="button" class="btn sm" id="addCity" style="margin-top:4px">+ Autre ville</button></details>
     ${field('Alerte stock bas', `<input name="alert" type="number" min="0" step="1" value="${p ? p.alert : 3}">`, 'Alerte quand il reste ce nombre de pièces ou moins')}
+    <label class="f" style="display:flex;gap:10px;align-items:center"><input type="checkbox" name="show" ${p && p.hide ? '' : 'checked'} style="width:22px;height:22px;min-height:0"><span style="margin:0">Visible dans ma boutique en ligne</span></label>
     ${p ? '' : `<div id="initw">${field('Stock de départ au dépôt', `<input name="init" type="number" min="0" step="1" placeholder="0">`)}</div>`}
     <label class="f" style="display:flex;gap:10px;align-items:center"><input type="checkbox" name="iskit" ${isKit(p)?'checked':''} style="width:22px;height:22px;min-height:0"><span style="margin:0">C'est un pack (composé d'autres produits)</span></label>
     <div id="kitw" ${isKit(p)?'':'hidden'}><p class="note" style="margin-bottom:8px">Quand ce pack est vendu, ces produits sortent du stock.</p>
@@ -1884,7 +1915,7 @@ function productForm(id){
     }
     if(p && S.moves.some(m => m.pid === p.id) && JSON.stringify(kitv) !== JSON.stringify(isKit(p) ? p.kit : null)){
       toast(isKit(p) ? 'Ce pack a déjà des ventes : sa composition ne peut plus changer' : 'Ce produit a déjà du stock : créez plutôt un nouveau pack'); return; }
-    const data = {name, details:E.details.value.trim(), cat:E.cat.value.trim(), cur:E.cur.value, sell:num(E.sell.value), buy:num(E.buy.value), comm:num(E.comm.value), commMode:E.commMode.value, commCity:readCityComm(f), alert:Math.max(0, Math.round(num(E.alert.value))), kit:kitv, photo};
+    const data = {name, details:E.details.value.trim(), cat:E.cat.value.trim(), cur:E.cur.value, sell:num(E.sell.value), buy:num(E.buy.value), comm:num(E.comm.value), commMode:E.commMode.value, commCity:readCityComm(f), alert:Math.max(0, Math.round(num(E.alert.value))), kit:kitv, photo, hide:!E.show.checked};
     if(p){ Object.assign(p, data); toast('Produit modifié'); }
     else {
       const np = Object.assign({id:uid()}, data); S.products.push(np);
@@ -1997,6 +2028,7 @@ function moveForm(type, opt = {}){
   if(E.loc) E.loc.onchange = () => { if(type === 'vente' && !m){ status = E.loc.value ? 'attente' : 'livre'; paintSeg(); } upd(); };
   E.qty.oninput = upd; if(E.price) E.price.oninput = upd;
   if(!m && pid0) E.pid.onchange(); else upd();
+  let extras = [];
   if($('#pasteGo')) $('#pasteGo').onclick = () => {
     const txt = $('#pasteTx').value.trim(); if(!txt){ toast('Collez d\'abord le message du client'); return; }
     const o = parseOrder(txt), got = [], miss = [];
@@ -2010,7 +2042,8 @@ function moveForm(type, opt = {}){
     if(o.price && E.price){ E.price.value = o.price; got.push('prix'); }
     if(o.when && (!o.dtime || o.slot)) E.note.value = (E.note.value ? E.note.value + ' · ' : '') + 'Livraison : ' + o.when;
     upd();
-    $('#pasteMsg').innerHTML = (got.length ? '✅ Rempli : ' + got.join(', ') + '. ' : '') + (miss.length ? '<span class="red">À compléter : ' + miss.join(', ') + '.</span>' : '') + ' Vérifiez avant d\'enregistrer.';
+    extras = o.items && o.items.length > 1 ? o.items.slice(1) : [];
+    $('#pasteMsg').innerHTML = (extras.length ? `<b>🛒 Commande de ${o.items.length} produits :</b> le 1er est rempli ci-dessous, ${extras.map(x => esc(pname(x.pid)) + ' × ' + x.qty).join(', ')} ${extras.length > 1 ? 'seront ajoutés' : 'sera ajouté'} automatiquement à l'enregistrement.<br>` : '') + (got.length ? '✅ Rempli : ' + got.join(', ') + '. ' : '') + (miss.length ? '<span class="red">À compléter : ' + miss.join(', ') + '.</span>' : '') + ' Vérifiez avant d\'enregistrer.';
   };
 
   f.onsubmit = e => {
@@ -2030,13 +2063,16 @@ function moveForm(type, opt = {}){
       rec.client = E.client.value.trim(); rec.phone = E.phone.value.trim(); rec.addr = E.addr.value.trim(); rec.status = status;
       rec.ddate = E.ddate.value || rec.date; rec.dtime = E.dtime.value; rec.pay = E.pay ? E.pay.value : (rec.pay || '');
     }
-    const next = m ? S.moves.map(x => x.id === m.id ? rec : x) : S.moves.concat([rec]);
-    const err = checkStock(next, [p.id].concat(m ? [m.pid] : []));
+    let next = m ? S.moves.map(x => x.id === m.id ? rec : x) : S.moves.concat([rec]);
+    const more = type === 'vente' && !m ? extras.filter(x => prod(x.pid)).map((x, i) => { const P = prod(x.pid);
+      return Object.assign({}, rec, {id:uid(), ts:rec.ts + i + 1, pid:P.id, qty:x.qty, price:x.price, cur:P.cur, rate:rate(), costU:unitCostUSD(P), commU:commUFor(P, liv(rec.liv), toUSD(x.price, P.cur))}); }) : [];
+    next = next.concat(more);
+    const err = checkStock(next, [p.id].concat(m ? [m.pid] : []).concat(more.map(x => x.pid)));
     if(err){ toast(err); return; }
     S.moves = next;
     if(type === 'entree' && !m && rec.cost > 0) p.buy = rec.cost;
     S.settings.setup = true; save();
-    toast(m ? 'Modification enregistrée' : {entree:'Entrée ajoutée au dépôt', envoi:'Stock envoyé au livreur', retour:'Retour enregistré', vente:'Vente enregistrée', perte:'Sortie enregistrée'}[type]);
+    toast(m ? 'Modification enregistrée' : more.length ? `${more.length + 1} ventes enregistrées (une par produit)` : {entree:'Entrée ajoutée au dépôt', envoi:'Stock envoyé au livreur', retour:'Retour enregistré', vente:'Vente enregistrée', perte:'Sortie enregistrée'}[type]);
     if(type === 'vente' && !m){ saleTab = status; render(); saleSheet(rec.id, true); }
     else if((type === 'envoi' || type === 'retour') && opt.liv){ render(); livSheet(opt.liv); }
     else { closeSheet(); render(); }
@@ -2301,6 +2337,8 @@ const A = {
   rweek: v => { rapWeek = +v; render(); },
   relweek: v => { relWeek = +v; render(); },
   quick: () => quickSale(),
+  catalog: v => { S.settings.catalog = v === '1'; save(); render(); toast(v === '1' ? 'Boutique en ligne ouverte 🛍️' : 'Boutique en ligne fermée'); },
+  catcopy: () => copyText(BOUTIQUE_URL + '?s=' + ONLINE.shop.id),
   recimg: id => shareReceiptImage(id),
   goals: () => goalsForm(),
   style: (v, el) => { setStyle(v); if(el && el.parentNode.classList.contains('seg')) [...el.parentNode.children].forEach(b => b.classList.toggle('on', b === el)); else render(); },
@@ -2347,6 +2385,7 @@ document.addEventListener('submit', e => {
     save(); closeSheet(); view = 'stock'; render(); toast('Boutique prête ✅ Ajoutez vos produits'); }
 });
 document.addEventListener('change', e => {
+  if(e.target.id === 'catIntro'){ S.settings.catIntro = e.target.value.trim().slice(0, 90); save(); toast('Phrase enregistrée'); return; }
   if(e.target.id === 'coverIn' && e.target.files[0]){ coverImage(e.target.files[0]).then(u => { S.settings.cover = u; save(); render(); toast('Photo de couverture ajoutée ✅'); }).catch(() => toast('Image illisible')); return; }
   if(e.target.id === 'colPick' || e.target.id === 'colHex'){ let v = String(e.target.value).trim(); if(!v.startsWith('#')) v = '#' + v;
     if(/^#[0-9a-f]{6}$/i.test(v)){ S.settings.color = v.toUpperCase(); applyBrand(); const o = e.target.id === 'colPick' ? $('#colHex') : $('#colPick'); if(o) o.value = v; document.querySelectorAll('.colors button').forEach(b => b.classList.remove('on')); if($('#setf')) save(); } else if(e.target.id === 'colHex') toast('Code couleur invalide (ex. #8A3B12)'); return; }
