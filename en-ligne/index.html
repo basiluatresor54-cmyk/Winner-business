@@ -2511,11 +2511,11 @@ const A = {
     save(); view = 'home'; render(); toast('Données effacées');
   }
 };
-function livreDatePick(id, cb){
+function livreDatePick(id, cb, extra){
   const m = S.moves.find(x => x.id === id); if(!m) return;
   const t = today(), opts = [[t, "Aujourd'hui"], [addDays(t, -1), 'Hier'], [addDays(t, -2), 'Avant-hier']];
   const pl = m.ddate || m.date; if(pl < addDays(t, -2)) opts.push([pl, 'Date prévue (' + dAbs(pl) + ')']);
-  sheet('✅ Livrée quand ?', `<p class="note" style="margin-bottom:12px">${esc(pname(m.pid))} × ${m.qty}${m.client ? ' — ' + esc(m.client) : ''}. La vente comptera dans les ventes et le bénéfice de ce jour-là.</p>
+  sheet('✅ Livrée quand ?', `<p class="note" style="margin-bottom:12px">${esc(pname(m.pid))} × ${m.qty}${m.client ? ' — ' + esc(m.client) : ''}. ${extra ? ' ' + extra : ''} La vente comptera dans les ventes et le bénéfice de ce jour-là.</p>
     <div class="stack">${opts.map(([d, l]) => `<button class="btn block ${d === (m.ldate || t) ? 'primary' : ''}" data-ld="${d}">${l} · ${dAbs(d)}</button>`).join('')}</div>
     <div class="f" style="margin-top:12px"><span>Autre date</span><div style="display:flex;gap:8px"><input type="date" id="ldIn" max="${t}" value="${m.ldate || t}" style="flex:1"><button class="btn primary" id="ldOk">OK</button></div></div>`);
   document.querySelectorAll('[data-ld]').forEach(b => b.onclick = () => cb(b.dataset.ld));
@@ -3487,15 +3487,21 @@ CUSTOM.moi = () => {
   ${invHistHTML(lid)}
   ${declsOf(lid).length ? `<div class="sec"><h2>Mes versements</h2></div><div class="list">${declsOf(lid).slice(0, 8).map(d => declRow(d, false)).join('')}</div>` : ''}
   <div class="sec"><h2>Livrées récemment</h2></div>
-  <div class="list">${done.length ? done.map(m => `<div class="it"><div class="ic c-in">${ico('cart')}</div><div class="m"><div class="t">${esc(pname(m.pid))} × ${m.qty}</div><div class="d">${esc(m.client || '')} · ${fmtDate(m.ddate || m.date)}</div></div><div class="r num">${amt(m.qty*m.price, m.cur)}</div></div>`).join('') : '<div class="empty">Rien pour le moment</div>'}</div>
+  <div class="list">${done.length ? done.map(m => `<button class="it" data-a="livldate" data-id="${m.id}"><div class="ic c-in">${ico('cart')}</div><div class="m"><div class="t">${esc(pname(m.pid))} × ${m.qty}</div><div class="d">${esc(m.client || '')} · ✅ Livré ${fmtDate(mday(m))} <span class="note">· changer la date</span></div></div><div class="r num">${amt(m.qty*m.price, m.cur)}</div></button>`).join('') : '<div class="empty">Rien pour le moment</div>'}</div>
   <div class="btns" style="margin-top:16px"><button class="btn" data-a="syncnow">↻ Actualiser</button><button class="btn ghost-bad" data-a="logout">Se déconnecter</button></div>`;
 };
 A.livstat = async (st, el) => {
   const id = el.dataset.id, m = S.moves.find(x => x.id === id); if(!m) return;
-  if(st === 'livre' && !await ask(`Confirmer la livraison de ${esc(pname(m.pid))} × ${m.qty} à ${esc(m.client || 'ce client')} ? Montant encaissé : ${amt(m.qty*m.price, m.cur)}.`, 'Oui, livré', false)) return;
-  const {data, error} = await sb.rpc('livreur_set_status', {p_shop:ONLINE.shop.id, p_move:id, p_status:st, p_ldate:today()});
+  if(st === 'livre'){ livreDatePick(id, d => livSetStatus(m, 'livre', d), `Montant encaissé : <b>${amt(m.qty*m.price, m.cur)}</b>.`); return; }
+  return livSetStatus(m, st);
+};
+A.livldate = (v, el) => { const m = S.moves.find(x => x.id === el.dataset.id); if(m) livreDatePick(m.id, d => livSetStatus(m, 'livre', d, true)); };
+async function livSetStatus(m, st, ld, onlyDate){
+  const id = m.id;
+  const {data, error} = await sb.rpc('livreur_set_status', {p_shop:ONLINE.shop.id, p_move:id, p_status:st, p_ldate:ld || today()});
   if(error || !data){ toast(error ? rpcErr(error) : 'Impossible de modifier cette livraison'); return; }
-  m.status = st; if(st === 'livre') m.ldate = today(); else delete m.ldate; rawSave(); render(); toast(st === 'livre' ? 'Livraison confirmée ✅' : 'En route 🛵'); syncNow();
+  m.status = st; if(st === 'livre') m.ldate = ld || today(); else delete m.ldate; closeSheet(); rawSave(); render(); toast(onlyDate ? 'Date de livraison : ' + dAbs(m.ldate, 1) : st === 'livre' ? 'Livraison confirmée ✅' : 'En route 🛵'); syncNow();
+  if(onlyDate) return;
   notifyShop('owners', st === 'livre' ? `✅ ${lname(m.liv)} a livré` : `🛵 ${lname(m.liv)} est en route`, `${pname(m.pid)} × ${m.qty}${m.client ? ' — ' + m.client : ''} · ${amt(m.qty*m.price, m.cur)}`, {tag:'st-' + m.id});
 };
 
