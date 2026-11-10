@@ -2057,7 +2057,7 @@ function moveForm(type, opt = {}){
     if(type === 'entree' && !m && rec.cost > 0) p.buy = rec.cost;
     S.settings.setup = true; save();
     toast(m ? 'Modification enregistrée' : more.length ? `${more.length + 1} ventes enregistrées (une par produit)` : {entree:'Entrée ajoutée au dépôt', envoi:'Stock envoyé au livreur', retour:'Retour enregistré', vente:'Vente enregistrée', perte:'Sortie enregistrée'}[type]);
-    if(type === 'vente' && !m){ saleTab = status; render(); saleSheet(rec.id, true); }
+    if(type === 'vente' && !m){ if(window.onSaleCreated) try{ onSaleCreated(rec); }catch(_){} saleTab = status; render(); saleSheet(rec.id, true); }
     else if((type === 'envoi' || type === 'retour') && opt.liv){ render(); livSheet(opt.liv); }
     else { closeSheet(); render(); }
   };

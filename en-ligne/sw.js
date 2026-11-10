@@ -1,5 +1,5 @@
 /* Stock & Livreurs — service worker : ouverture instantanée et hors connexion */
-const VERSION = 'f952b5c478';
+const VERSION = '96ce328477';
 const CACHE = 'stock-livreurs-' + VERSION;
 const CORE = ['./', 'index.html', 'supabase.js', 'manifest.webmanifest', 'icon-180.png', 'icon-192.png', 'icon-512.png', 'guide.html', 'conditions.html'];
 self.addEventListener('install', e => {
@@ -24,4 +24,15 @@ self.addEventListener('fetch', e => {
     const net = fetch(req).then(r => { if(r && r.ok){ const c = r.clone(); caches.open(CACHE).then(x => x.put(req, c)); } return r; }).catch(() => hit);
     return hit || net;
   }));
+});
+
+/* Notifications */
+self.addEventListener('push', e => {
+  let d = {}; try{ d = e.data ? e.data.json() : {}; }catch(_){ d = {title:'Stock & Livreurs', body: e.data ? e.data.text() : ''}; }
+  e.waitUntil(self.registration.showNotification(d.title || 'Stock & Livreurs', {body: d.body || '', tag: d.tag || undefined, icon:'icon-192.png', badge:'icon-192.png', data:{url: d.url || './'}, renotify: !!d.tag}));
+});
+self.addEventListener('notificationclick', e => {
+  e.notification.close();
+  const url = new URL((e.notification.data && e.notification.data.url) || './', self.registration.scope).href;
+  e.waitUntil(self.clients.matchAll({type:'window', includeUncontrolled:true}).then(cs => { for(const c of cs){ if(c.url.startsWith(self.registration.scope) && 'focus' in c) return c.focus(); } return self.clients.openWindow(url); }));
 });

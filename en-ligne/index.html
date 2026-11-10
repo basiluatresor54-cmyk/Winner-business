@@ -2078,7 +2078,7 @@ function moveForm(type, opt = {}){
     if(type === 'entree' && !m && rec.cost > 0) p.buy = rec.cost;
     S.settings.setup = true; save();
     toast(m ? 'Modification enregistrée' : more.length ? `${more.length + 1} ventes enregistrées (une par produit)` : {entree:'Entrée ajoutée au dépôt', envoi:'Stock envoyé au livreur', retour:'Retour enregistré', vente:'Vente enregistrée', perte:'Sortie enregistrée'}[type]);
-    if(type === 'vente' && !m){ saleTab = status; render(); saleSheet(rec.id, true); }
+    if(type === 'vente' && !m){ if(window.onSaleCreated) try{ onSaleCreated(rec); }catch(_){} saleTab = status; render(); saleSheet(rec.id, true); }
     else if((type === 'envoi' || type === 'retour') && opt.liv){ render(); livSheet(opt.liv); }
     else { closeSheet(); render(); }
   };
@@ -2728,7 +2728,7 @@ render = function(){
         <p class="note" style="margin:8px 0 12px">${si ? esc(si.txt) : ''}</p>
         <a class="btn wa block" style="margin-bottom:8px" href="${supportLink('Bonjour BASILUA TECH, j\'ai besoin d\'aide avec Stock & Livreurs (boutique « ' + ONLINE.shop.name + ' »).')}" target="_blank" rel="noopener">${ico('wa')} Contacter BASILUA TECH (aide, abonnement)</a>
         <div class="btns">${ONLINE.shops.length > 1 ? '<button class="btn" data-a="switchshop">Changer de boutique</button>' : '<button class="btn" data-a="newshop">+ Autre boutique</button>'}<button class="btn ghost-bad" data-a="logout">Se déconnecter</button></div>
-      </div>`);
+      </div>` + notifCard());
   }
 };
 A.logout = async () => { if(await ask('Se déconnecter de ce téléphone ?', 'Se déconnecter', false)) logout(); };
@@ -2987,6 +2987,7 @@ CUSTOM.moi = () => {
   <div class="sec"><h2>À livrer</h2></div>
   ${todo.length ? todo.map(card).join('') : '<div class="card empty">Aucune livraison en attente 👍</div>'}
   ${stock.length ? `<div class="sec"><h2>Mon stock</h2></div><div class="card"><table class="tb"><tr><th>Produit</th><th class="rt">Disponible</th><th class="rt">Réservé</th></tr>${stock.map(([pid,q,p]) => `<tr><td>${esc(pname(pid))}</td><td class="rt num"><b>${q}</b></td><td class="rt num">${p}</td></tr>`).join('')}</table></div>` : ''}
+  ${notifCard()}
   ${flowHTML(lid, 15)}
   ${invHistHTML(lid)}
   ${declsOf(lid).length ? `<div class="sec"><h2>Mes versements</h2></div><div class="list">${declsOf(lid).slice(0, 8).map(d => declRow(d, false)).join('')}</div>` : ''}
@@ -3000,6 +3001,7 @@ A.livstat = async (st, el) => {
   const {data, error} = await sb.rpc('livreur_set_status', {p_shop:ONLINE.shop.id, p_move:id, p_status:st});
   if(error || !data){ toast(error ? rpcErr(error) : 'Impossible de modifier cette livraison'); return; }
   m.status = st; rawSave(); render(); toast(st === 'livre' ? 'Livraison confirmée ✅' : 'En route 🛵'); syncNow();
+  notifyShop('owners', st === 'livre' ? `✅ ${lname(m.liv)} a livré` : `🛵 ${lname(m.liv)} est en route`, `${pname(m.pid)} × ${m.qty}${m.client ? ' — ' + m.client : ''} · ${amt(m.qty*m.price, m.cur)}`, {tag:'st-' + m.id});
 };
 
 /* ---------- Espace BASILUA TECH (administration) ---------- */
@@ -3157,6 +3159,7 @@ A.decl = () => {
     if(error){ go.disabled = false; go.textContent = 'Déclarer ce versement'; $('#declMsg').textContent = rpcErr(error); return; }
     S.moves.push({id, type:'decl', liv:ONLINE.shop.livreur_id, amount:a, cur:E.cur.value, rate:rate(), method:E.method.value, ref:E.ref.value.trim(), note:E.note.value.trim(), photo, status:'attente', date:today(), ts:Date.now()});
     rawSave(); closeSheet(); render(); toast('Versement déclaré ✅ Votre patron va le confirmer'); syncNow();
+    notifyShop('owners', '💸 Versement déclaré', `${lname(ONLINE.shop.livreur_id)} a envoyé ${amt(a, E.cur.value)} (${E.method.value}${E.ref.value.trim() ? ', réf ' + E.ref.value.trim() : ''}). À confirmer dans l'application.`, {tag:'decl-' + id});
   };
 };
 // Réduit la photo (≈ 1280 px, JPEG) avant l'envoi : rapide même avec une petite connexion
@@ -3190,6 +3193,7 @@ A.declok = async (id) => {
   if(!await ask(`Confirmer que vous avez reçu ${amt(num(d.amount), d.cur)} de ${esc(lname(d.liv))} (${esc(d.method || '')}${d.ref ? ', réf ' + esc(d.ref) : ''}) ?`, 'Oui, reçu', false)) return;
   S.moves.push({id:uid(), ts:Date.now(), type:'versement', liv:d.liv, amount:num(d.amount), cur:d.cur, rate:num(d.rate) || rate(), date:today(), note:[d.method, d.ref ? 'réf ' + d.ref : ''].filter(Boolean).join(' · ') + ' (déclaré par le livreur)', decl:d.id});
   d.status = 'confirme'; d.confirmed = today();
+  notifyShop('livreur', '✅ Versement confirmé', `${amt(num(d.amount), d.cur)} bien reçu. Merci !`, {livreur_id:d.liv, tag:'declok-' + d.id});
   save(); if(livStats(d.liv).toRemit <= 0.009) cheer('🎉 Versement confirmé — ' + lname(d.liv) + ' a tout versé !', 120); else cheer('Versement confirmé ✅ Le reste à verser est mis à jour', 50);
   if(!$('#ov').hidden && $('#sht').textContent === 'Versements déclarés') A.decllist(); render();
 };
@@ -3226,6 +3230,64 @@ livSheet = function(id){
 if('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')){
   window.addEventListener('load', () => { navigator.serviceWorker.register('sw.js').catch(() => {}); });
 }
+
+
+/* ---------- Notifications (rappels de livraison, point du soir, versements) ---------- */
+const VAPID_PUBLIC = 'BEnIZbiwOTJmp6XJT3XlWceavI1HYWcQH-WtFkHb1Uu8TqiBigmfsh0VKpPR9AtarRheqX5OX_6WRXPuE2GWUKo';
+const isIOS = () => /iphone|ipad|ipod/i.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+const isStandalone = () => (window.matchMedia && matchMedia('(display-mode: standalone)').matches) || navigator.standalone === true;
+let PUSH_ON = null;
+async function pushCheck(){
+  try{ if(!('serviceWorker' in navigator) || !('PushManager' in window)){ PUSH_ON = false; return; }
+    const reg = await navigator.serviceWorker.getRegistration(); const sub = reg && await reg.pushManager.getSubscription(); PUSH_ON = !!sub && Notification.permission === 'granted'; }catch(_){ PUSH_ON = false; }
+}
+function pushState(){
+  if(!('Notification' in window) || !('serviceWorker' in navigator) || !('PushManager' in window)) return isIOS() && !isStandalone() ? 'install' : 'unsupported';
+  if(isIOS() && !isStandalone()) return 'install';
+  if(Notification.permission === 'denied') return 'denied';
+  return PUSH_ON ? 'on' : 'off';
+}
+const u8 = b => { const s = (b + '='.repeat((4 - b.length % 4) % 4)).replace(/-/g,'+').replace(/_/g,'/'); return Uint8Array.from(atob(s), c => c.charCodeAt(0)); };
+const ab64 = buf => btoa(String.fromCharCode(...new Uint8Array(buf))).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
+async function pushEnable(){
+  try{
+    const perm = await Notification.requestPermission(); if(perm !== 'granted'){ toast('Notifications refusées. Autorisez-les dans les réglages du téléphone.'); render(); return; }
+    const reg = await navigator.serviceWorker.register('sw.js'); await navigator.serviceWorker.ready;
+    let sub = await reg.pushManager.getSubscription();
+    if(!sub) sub = await reg.pushManager.subscribe({userVisibleOnly:true, applicationServerKey:u8(VAPID_PUBLIC)});
+    const j = sub.toJSON();
+    await sb.from('push_subs').delete().eq('endpoint', j.endpoint);
+    const {error} = await sb.from('push_subs').insert({shop_id:ONLINE.shop.id, endpoint:j.endpoint, p256dh:j.keys.p256dh, auth:j.keys.auth});
+    if(error){ toast('Erreur : ' + rpcErr(error)); return; }
+    PUSH_ON = true; render(); toast('Notifications activées 🔔');
+    sb.functions.invoke('push', {body:{mode:'selftest'}}).catch(() => {});
+  }catch(e){ toast('Impossible d\'activer : ' + (e && e.message || e)); }
+}
+async function pushDisable(){
+  try{ const reg = await navigator.serviceWorker.getRegistration(), sub = reg && await reg.pushManager.getSubscription();
+    if(sub){ await sb.from('push_subs').delete().eq('endpoint', sub.endpoint); await sub.unsubscribe(); } }catch(_){}
+  PUSH_ON = false; render(); toast('Notifications désactivées');
+}
+A.pushon = () => pushEnable();
+A.pushoff = () => pushDisable();
+A.pushtest = () => { sb.functions.invoke('push', {body:{mode:'selftest'}}).then(() => toast('Notification de test envoyée')).catch(() => toast('Hors ligne')); };
+function notifCard(){
+  const st = pushState(), liv = ONLINE.role === 'livreur';
+  const what = liv ? 'vos nouvelles livraisons, un rappel 1 h avant chaque livraison et la confirmation de vos versements' : 'les versements déclarés, les livraisons faites, un rappel 1 h avant chaque livraison, le résumé du matin et le point du soir (19 h)';
+  const body = st === 'on' ? `<p class="note" style="margin-bottom:10px">✅ Activées sur cet appareil : ${what}.</p><div class="btns"><button class="btn" data-a="pushtest">Envoyer un test</button><button class="btn ghost-bad" data-a="pushoff">Désactiver</button></div>`
+    : st === 'install' ? `<p class="note">Sur iPhone, les notifications marchent seulement quand l'application est <b>installée sur l'écran d'accueil</b> : Safari → Partager → « Sur l'écran d'accueil », puis ouvrez-la depuis l'icône et revenez ici.</p>`
+    : st === 'denied' ? `<p class="note">Les notifications sont bloquées. Autorisez-les dans les réglages du téléphone (Réglages → Notifications → Stock), puis revenez ici.</p>`
+    : st === 'unsupported' ? `<p class="note">Ce navigateur ne permet pas les notifications. Utilisez Chrome (Android) ou l'application installée sur iPhone.</p>`
+    : `<p class="note" style="margin-bottom:10px">Recevez sur ce téléphone : ${what}.</p><button class="btn primary block" data-a="pushon">🔔 Activer les notifications</button>`;
+  return `<div class="sec"><h2>🔔 Notifications</h2></div><div class="card" style="margin-bottom:12px">${body}</div>`;
+}
+// Événements envoyés aux autres membres de la boutique
+function notifyShop(to, title, bodyTxt, extra){
+  if(!ONLINE.shop || ONLINE.offline) return;
+  try{ sb.functions.invoke('push', {body:Object.assign({shop_id:ONLINE.shop.id, to, title, body:bodyTxt}, extra || {})}).catch(() => {}); }catch(_){}
+}
+window.onSaleCreated = rec => { if(rec.liv && ONLINE.role !== 'livreur') notifyShop('livreur', '🛵 Nouvelle livraison', `${pname(rec.pid)} × ${rec.qty}${rec.client ? ' — ' + rec.client : ''}\n📅 ${whenTxt(rec)}${rec.addr ? '\n📍 ' + rec.addr : ''}`, {livreur_id:rec.liv, tag:'new-' + rec.id}); };
+pushCheck();
 
 </script>
 </body>
