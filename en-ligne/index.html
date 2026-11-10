@@ -150,6 +150,13 @@ table.tb{width:100%;border-collapse:collapse;font-size:13.5px}
 .tot b{font-size:17px}
 .tot small{width:100%;font-size:12.5px;color:var(--muted)}
 .note{font-size:12.5px;color:var(--muted);line-height:1.5}
+.instcard{display:flex;gap:12px;align-items:flex-start;margin-bottom:12px;border:1.5px solid var(--brand)}
+.instic{font-size:30px;line-height:1}
+.isteps{list-style:none;padding:0;margin:0;display:grid;gap:10px}
+.isteps li{display:flex;gap:10px;align-items:flex-start;font-size:14px;line-height:1.45}
+.istep{flex:none;width:26px;height:26px;border-radius:50%;background:var(--brand);color:var(--brand-ink);display:grid;place-items:center;font-weight:800;font-size:13px}
+.ikey{display:inline-block;background:var(--soft);border-radius:6px;padding:0 5px}
+.ilink{display:flex;gap:8px;margin-top:8px}.ilink input{flex:1;min-width:0;font-size:13px}
 .warnbox{background:var(--warn-soft);color:var(--warn);border-radius:12px;padding:10px 12px;font-size:13px;font-weight:600;margin-bottom:12px;display:block;text-align:left;width:100%}
 .seg{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-bottom:12px}
 .seg button{padding:10px 4px;border-radius:10px;background:var(--soft2);font-size:12.5px;font-weight:650;color:var(--muted)}
@@ -648,6 +655,46 @@ function periodChips(cur, act){
 const PERTXT = {jour:"aujourd'hui", sem:'cette semaine', mois:'ce mois', tout:'au total'};
 
 /* ---------- Accueil ---------- */
+
+/* ---------- Installer l'application (iPhone, Android, ordinateur) ---------- */
+const UA = navigator.userAgent || '';
+const isIOS = /iPhone|iPad|iPod/i.test(UA) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+const isAndroid = /Android/i.test(UA);
+const inAppBrowser = /FBAN|FBAV|FB_IAB|FBIOS|Instagram|Messenger|Line\/|Snapchat|TikTok|musical_ly|BytedanceWebview|; wv\)/i.test(UA);
+const iosOtherBrowser = isIOS && /CriOS|FxiOS|EdgiOS|OPiOS|GSA\//i.test(UA);
+const isStandalone = () => !!((window.matchMedia && matchMedia('(display-mode: standalone)').matches) || navigator.standalone === true);
+let installEvt = null;
+window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); installEvt = e; try{ if(view === 'home' || view === 'plus') render(); }catch(_){} });
+window.addEventListener('appinstalled', () => { installEvt = null; try{ localStorage.setItem('stock_installed', '1'); toast('Application installée ✅ Ouvrez-la depuis votre écran d\'accueil'); render(); }catch(_){} });
+const appUrl = () => location.href.split('#')[0].replace(/[?&](essai|inscription|signup)\b[^&]*/,'').replace(/\?$/,'');
+const installKind = () => inAppBrowser ? 'inapp' : isIOS ? (iosOtherBrowser ? 'iosother' : 'ios') : isAndroid ? 'android' : 'pc';
+function installSteps(kind){
+  const st = (n, t) => `<li><span class="istep">${n}</span><div>${t}</div></li>`;
+  const ios = `<ol class="isteps">${st(1, 'Touchez le bouton <b>Partager</b> <span class="ikey">⬆️</span> en bas de Safari (le carré avec une flèche vers le haut). Sur iPad, il est en haut à droite.')}${st(2, 'Faites défiler vers le bas et touchez <b>« Sur l\'écran d\'accueil »</b> <span class="ikey">➕</span>.')}${st(3, 'Touchez <b>« Ajouter »</b> en haut à droite.')}${st(4, 'L\'icône apparaît sur l\'écran d\'accueil : ouvrez toujours l\'application <b>depuis cette icône</b>.')}</ol>`;
+  const android = `<ol class="isteps">${st(1, 'Ouvrez le lien dans <b>Google Chrome</b>.')}${st(2, 'Touchez le menu <b>⋮</b> (3 points en haut à droite).')}${st(3, 'Touchez <b>« Installer l\'application »</b> ou <b>« Ajouter à l\'écran d\'accueil »</b>.')}${st(4, 'Confirmez <b>« Installer »</b> : l\'icône apparaît avec vos autres applications.')}</ol>`;
+  const pc = `<ol class="isteps">${st(1, 'Ouvrez le lien dans <b>Google Chrome</b> ou <b>Microsoft Edge</b>.')}${st(2, 'Cliquez sur l\'icône <b>Installer</b> <span class="ikey">⊕</span> à droite de la barre d\'adresse (ou menu ⋮ → <b>« Installer Stock & Livreurs »</b> / « Applications → Installer ce site en tant qu\'application »).')}${st(3, 'L\'application s\'ouvre dans sa propre fenêtre et une icône est ajoutée au bureau.')}</ol>`;
+  const link = `<div class="ilink"><input readonly value="${esc(appUrl())}" onclick="this.select()"><button type="button" class="btn sm" data-a="instcopy">Copier</button></div>`;
+  if(kind === 'inapp') return `<div class="warnbox">⚠️ Vous êtes dans le navigateur de <b>Facebook / Instagram / TikTok</b>. On ne peut pas installer d'ici.</div>
+    ${isAndroid ? `<a class="btn primary block" href="intent://${location.host}${location.pathname}#Intent;scheme=https;package=com.android.chrome;end">Ouvrir dans Chrome</a><p class="note" style="margin:8px 0">Si rien ne se passe : touchez ⋮ en haut à droite → <b>« Ouvrir dans le navigateur »</b>.</p>`
+      : `<p class="note" style="margin:8px 0">Touchez <b>⋯</b> (en haut ou en bas à droite) → <b>« Ouvrir dans Safari »</b>, ou copiez le lien et collez-le dans <b>Safari</b> :</p>`}${link}
+    <p class="note" style="margin-top:12px">Ensuite :</p>${isAndroid ? android : ios}`;
+  if(kind === 'iosother') return `<div class="warnbox">⚠️ Sur iPhone, l'installation se fait avec <b>Safari</b> (pas Chrome). Copiez le lien et ouvrez-le dans Safari :</div>${link}<p class="note" style="margin-top:12px">Puis dans Safari :</p>${ios}`;
+  return kind === 'ios' ? ios : kind === 'android' ? android : pc;
+}
+function installHelpHTML(){
+  const k = installKind();
+  const tabs = ['ios','android','pc'].map(x => `<button type="button" class="${(k === x || (x === 'ios' && k === 'iosother') || (k === 'inapp' && x === (isAndroid ? 'android' : 'ios'))) ? 'on' : ''}" data-a="insttab:${x}">${{ios:'📱 iPhone',android:'🤖 Android',pc:'💻 PC'}[x]}</button>`).join('');
+  return `<p class="note" style="margin-bottom:12px">L'application s'installe <b>sans Play Store ni App Store</b>, en 30 secondes. Gratuit, léger (moins de 1 Mo), et elle s'ouvre même sans internet.</p>
+  ${k === 'inapp' || k === 'iosother' ? `<div id="instBody">${installSteps(k)}</div>` : `<div class="seg" style="margin-bottom:12px">${tabs}</div><div id="instBody">${installSteps(k)}</div>`}
+  ${installEvt ? `<button class="btn primary block" style="margin-top:12px" data-a="install">📲 Installer maintenant</button>` : ''}
+  <p class="note" style="margin-top:14px">💡 Vos données ne sont pas dans l'icône : si vous supprimez l'icône ou changez de téléphone, reconnectez-vous avec votre numéro et votre mot de passe, tout revient.</p>`;
+}
+function installCard(){
+  if(isStandalone() || localStorage.getItem('stock_installed') === '1' || num(localStorage.getItem('stock_inst_hide')) > Date.now()) return '';
+  return `<div class="card instcard"><div class="instic">📲</div><div style="flex:1;min-width:0"><b>Installez l'application</b><div class="note">Une icône sur votre téléphone, ouverture rapide, même sans internet.</div>
+    <div class="btns" style="margin-top:8px"><button class="btn primary sm" data-a="install">${installEvt ? 'Installer' : 'Comment faire ?'}</button><button class="btn sm" data-a="insthide">Plus tard</button></div></div></div>`;
+}
+
 function vHome(){
   if(!S.products.length) return `<div class="card empty" style="margin-top:8px"><b>Bienvenue 👋</b>Ajoutez vos produits pour commencer.
     <div class="stack" style="margin-top:16px">${PRESET ? `<button class="btn primary block" data-a="preset">Charger le catalogue ${esc(PRESET.label)}</button>` : ''}
@@ -671,7 +718,7 @@ function vHome(){
   const quick = modeOf() !== 'livraison' ? `<button class="btn primary block quickbtn" data-a="quick">⚡ Vente rapide</button>
   <button class="card daycard" data-a="jourset:${today()}"><span>Aujourd'hui : <b>${td.n}</b> vente(s) · <b class="num">${money(td.ca)}</b></span><span class="note">Rapport du jour ›</span></button>` : '';
   const cv = S.settings.cover ? `<div class="cover" style="background-image:url('${S.settings.cover}')"><div class="cv"><div class="logo">${S.settings.logo ? `<img src="${S.settings.logo}" alt="">` : esc(initials(S.settings.shop))}</div><div><b>${esc(S.settings.shop || '')}</b><span>${greet()} · ${dAbs(today(), 1)}</span></div></div></div>` : '';
-  return `${cv}${quick}${goalsCard()}${alertsCard(st, low)}${periodChips(period,'per')}
+  return `${cv}${installCard()}${quick}${goalsCard()}${alertsCard(st, low)}${periodChips(period,'per')}
   ${noBuy.length ? `<button class="warnbox" style="margin-top:10px" data-a="nav:stock">⚠️ ${noBuy.length} produit${noBuy.length>1?'s':''} sans prix d'achat : le bénéfice affiché est trop élevé. Touchez ici pour les compléter.</button>` : ''}
   <div class="kpis" style="margin-top:10px">
     <div class="kpi hero"><div class="l">Bénéfice net ${per}</div><div class="v num ${r.net<0?'neg':''}">${money(r.net)}</div><div class="s">sur ${money(r.ca)} de ventes livrées (${r.nv})</div></div>
@@ -900,7 +947,8 @@ function vPlus(){
     ['livre','c-brand','book','Le Livre',"Toutes les entrées, envois, ventes et sorties, jour par jour"],
     ['reglages','c-x','set','Réglages',"Boutique, logo, couleur, taux du dollar, sauvegarde"]
   ];
-  return `<div class="list menu">${items.map(([v,c,i,t,d]) => `<button class="it" data-a="nav:${v}"><div class="ic ${c}">${ico(i)}</div><div class="m"><div class="t">${t}</div><div class="d" style="white-space:normal">${d}</div></div>${ico('chev')}</button>`).join('')}</div>
+  if(!isStandalone()) items.push(['__install','c-brand','set',"📲 Installer l'application","iPhone, Android ou ordinateur : une icône comme une vraie application"]);
+  return `<div class="list menu">${items.map(([v,c,i,t,d]) => `<button class="it" data-a="${v === '__install' ? 'install' : 'nav:' + v}"><div class="ic ${c}">${ico(i)}</div><div class="m"><div class="t">${t}</div><div class="d" style="white-space:normal">${d}</div></div>${ico('chev')}</button>`).join('')}</div>
   <div class="sec"><h2>Raccourcis</h2></div>
   <div class="btns"><button class="btn" data-a="money:depense">+ Dépense</button><button class="btn" data-a="money:versement">+ Versement livreur</button><button class="btn" data-a="new:perte">− Sortie / perte</button><button class="btn" data-a="backup">Sauvegarde</button><button class="btn" data-a="soir">🌙 Point du soir</button><button class="btn" data-a="style:${glassPref()==='verre'?'simple':'verre'}">${glassPref()==='verre' ? 'Style simple' : '✨ Style verre'}</button><button class="btn" data-a="themetoggle">${isDark() ? '☀️ Mode clair' : '🌗 Mode sombre'}</button></div>
   <div style="margin-top:8px"><button class="btn block" data-a="tpl">📋 Modèle de commande pour WhatsApp</button></div>`;
@@ -2422,6 +2470,13 @@ const A = {
     save(); view = 'home'; render(); toast('Données effacées');
   }
 };
+A.install = async () => {
+  if(installEvt){ try{ installEvt.prompt(); const r = await installEvt.userChoice; installEvt = null; if(r && r.outcome === 'accepted'){ localStorage.setItem('stock_installed','1'); toast('Installation en cours… ✅'); } render(); return; }catch(e){ installEvt = null; } }
+  sheet("📲 Installer l'application", installHelpHTML());
+};
+A.insttab = k => { const b = document.getElementById('instBody'); if(b) b.innerHTML = installSteps(k); document.querySelectorAll('[data-a^="insttab:"]').forEach(x => x.classList.toggle('on', x.dataset.a === 'insttab:' + k)); };
+A.instcopy = () => copyText(appUrl());
+A.insthide = () => { localStorage.setItem('stock_inst_hide', String(Date.now() + 3*86400000)); render(); };
 // les lignes « argent » du livre ouvrent le formulaire d'argent
 A.money = (t, el) => { if(['versement','paiecomm','depense'].includes(t)) moneyForm(t, {liv: el.dataset.liv, cat: el.dataset.cat}); else moneyForm(null, {id:t}); };
 document.addEventListener('click', e => {
@@ -2574,7 +2629,7 @@ function authShell(inner){
   let el = $('#auth');
   if(!el){ el = document.createElement('div'); el.id = 'auth'; document.body.appendChild(el); }
   el.hidden = false; document.body.classList.add('authon');
-  el.innerHTML = `<div class="auth-box"><div class="auth-logo">${ico('box')}</div><h1>Stock &amp; Livreurs</h1><p class="note" style="margin-bottom:18px">Stock, ventes, livreurs et bénéfices — en ligne</p>${inner}<p class="note" style="margin-top:22px"><a class="link" href="guide.html" target="_blank" rel="noopener">Guide d'utilisation</a> · Conçu par <b>BASILUA TECH</b></p></div>`;
+  el.innerHTML = `<div class="auth-box"><div class="auth-logo">${ico('box')}</div><h1>Stock &amp; Livreurs</h1><p class="note" style="margin-bottom:18px">Stock, ventes, livreurs et bénéfices — en ligne</p>${inner}${!isStandalone() ? `<button type="button" class="btn block" style="margin-top:16px" data-a="install">📲 Installer l'application sur ce téléphone</button>` : ''}<p class="note" style="margin-top:22px"><a class="link" href="guide.html" target="_blank" rel="noopener">Guide d'utilisation</a> · Conçu par <b>BASILUA TECH</b></p></div>`;
   return el;
 }
 function hideAuth(){ const el = $('#auth'); if(el){ el.hidden = true; el.innerHTML = ''; } document.body.classList.remove('authon'); }
@@ -3284,16 +3339,14 @@ if('serviceWorker' in navigator && (location.protocol === 'https:' || location.h
 
 /* ---------- Notifications (rappels de livraison, point du soir, versements) ---------- */
 const VAPID_PUBLIC = 'BEnIZbiwOTJmp6XJT3XlWceavI1HYWcQH-WtFkHb1Uu8TqiBigmfsh0VKpPR9AtarRheqX5OX_6WRXPuE2GWUKo';
-const isIOS = () => /iphone|ipad|ipod/i.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
-const isStandalone = () => (window.matchMedia && matchMedia('(display-mode: standalone)').matches) || navigator.standalone === true;
 let PUSH_ON = null;
 async function pushCheck(){
   try{ if(!('serviceWorker' in navigator) || !('PushManager' in window)){ PUSH_ON = false; return; }
     const reg = await navigator.serviceWorker.getRegistration(); const sub = reg && await reg.pushManager.getSubscription(); PUSH_ON = !!sub && Notification.permission === 'granted'; }catch(_){ PUSH_ON = false; }
 }
 function pushState(){
-  if(!('Notification' in window) || !('serviceWorker' in navigator) || !('PushManager' in window)) return isIOS() && !isStandalone() ? 'install' : 'unsupported';
-  if(isIOS() && !isStandalone()) return 'install';
+  if(!('Notification' in window) || !('serviceWorker' in navigator) || !('PushManager' in window)) return isIOS && !isStandalone() ? 'install' : 'unsupported';
+  if(isIOS && !isStandalone()) return 'install';
   if(Notification.permission === 'denied') return 'denied';
   return PUSH_ON ? 'on' : 'off';
 }
@@ -3325,7 +3378,7 @@ function notifCard(){
   const st = pushState(), liv = ONLINE.role === 'livreur';
   const what = liv ? 'vos nouvelles livraisons, un rappel 1 h avant chaque livraison et la confirmation de vos versements' : 'les versements déclarés, les livraisons faites, un rappel 1 h avant chaque livraison, le résumé du matin et le point du soir (19 h)';
   const body = st === 'on' ? `<p class="note" style="margin-bottom:10px">✅ Activées sur cet appareil : ${what}.</p><div class="btns"><button class="btn" data-a="pushtest">Envoyer un test</button><button class="btn ghost-bad" data-a="pushoff">Désactiver</button></div>`
-    : st === 'install' ? `<p class="note">Sur iPhone, les notifications marchent seulement quand l'application est <b>installée sur l'écran d'accueil</b> : Safari → Partager → « Sur l'écran d'accueil », puis ouvrez-la depuis l'icône et revenez ici.</p>`
+    : st === 'install' ? `<p class="note">Sur iPhone, les notifications marchent seulement quand l'application est <b>installée sur l'écran d'accueil</b> : Safari → Partager → « Sur l'écran d'accueil », puis ouvrez-la depuis l'icône et revenez ici.</p><button class="btn block" style="margin-top:8px" data-a="install">📲 Voir comment installer</button>`
     : st === 'denied' ? `<p class="note">Les notifications sont bloquées. Autorisez-les dans les réglages du téléphone (Réglages → Notifications → Stock), puis revenez ici.</p>`
     : st === 'unsupported' ? `<p class="note">Ce navigateur ne permet pas les notifications. Utilisez Chrome (Android) ou l'application installée sur iPhone.</p>`
     : `<p class="note" style="margin-bottom:10px">Recevez sur ce téléphone : ${what}.</p><button class="btn primary block" data-a="pushon">🔔 Activer les notifications</button>`;
