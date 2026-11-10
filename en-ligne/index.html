@@ -1021,7 +1021,7 @@ function rowMove(m){
     case 'inventaire': { const L = m.lines || [], miss = L.reduce((t,x) => t + Math.max(0, x.exp - x.real), 0), plus = L.reduce((t,x) => t + Math.max(0, x.real - x.exp), 0);
       return R('inv', 'c-x', 'box', 'Contrôle de stock · ' + (m.loc ? esc(lname(m.loc)) : 'dépôt'), miss || plus ? `${miss ? miss + ' manquante(s)' : ''}${miss && plus ? ' · ' : ''}${plus ? plus + ' en trop' : ''}` : 'Tout est juste ✅', miss ? '−' + miss : '✓', miss ? 'var(--bad)' : 'var(--ok)', ''); }
     case 'cmd': return R('cmd', 'c-send', 'box', esc(m.title || 'Commande import'), `Commande import · ${esc(m.client||'Client')} · ${esc(stepOf(m.step)[1])}`, amtX(cmdCalc(m).total, m.cur), 'var(--brand-tx)', cmdNo(m));
-    case 'fourn': return '';
+    case 'fourn': case 'trans': return '';
     case 'ajust': return R('inv', 'c-in', 'in', esc(pname(m.pid)), 'Écart inventaire (en trop) · ' + (m.loc ? esc(lname(m.loc)) : 'dépôt'), '+' + m.qty, 'var(--ok)', '');
     case 'depense': return R('money', 'c-loss', 'receipt', esc(m.cat||'Dépense'), (m.liv ? esc(lname(m.liv)) + ' · ' : '') + (m.note ? esc(m.note) : 'Dépense'), '−'+amt(m.amount, m.cur), 'var(--warn)', m.cur==='FC' ? money(moneyUSD(m)) : '');
   }
@@ -2515,8 +2515,13 @@ A.insthide = () => { localStorage.setItem('stock_inst_hide', String(Date.now() +
 /* ---------- Mode Import / commandes sur demande (Chine…) ----------
    Une commande = move type 'cmd' (sans livreur => jamais visible par les livreurs).
    Fournisseurs = move type 'fourn'. Coûts, fournisseur et marge : visibles seulement dans l'application, jamais sur le reçu client. */
-const STEPS = [['acompte','Acompte reçu','💰'],['commande','Commandé au fournisseur','🛒'],['expedie','En route','✈️'],['arrive','Arrivé — prêt à livrer','📦'],['livre','Livré au client','✅']];
+const STEPS = [['acompte','Acompte reçu','💰'],['commande','Commandé au fournisseur','🛒'],['entrepot','Chez le transitaire (Chine)','🏭'],['expedie','En route','✈️'],['arrive','Arrivé — prêt à livrer','📦'],['livre','Livré au client','✅']];
 const STEPK = STEPS.map(s => s[0]);
+const ARRI = () => STEPK.indexOf('arrive');
+const STEP_SHORT = {acompte:'💰 Acompte', commande:'🛒 Commandé', entrepot:'🏭 Entrepôt Chine', expedie:'✈️ En route', arrive:'📦 Arrivé'};
+const PLATS = ['Taobao','1688','Alibaba','Pinduoduo','AliExpress','Temu','Shein','WeChat / direct','Autre'];
+const transList = () => S.moves.filter(m => m.type === 'trans').sort((a,b) => (a.name||'').localeCompare(b.name||''));
+const transOf = id => S.moves.find(m => m.id === id && m.type === 'trans');
 const stepOf = k => STEPS.find(s => s[0] === k) || ['annule','Annulée','✖️'];
 const impOn = () => has('imp');
 const impFrom = () => S.settings.impFrom || 'Chine';
@@ -2544,7 +2549,7 @@ let impTab = 'cours', impQ = '';
 function impStats(){
   const L = cmds(), act = L.filter(cmdActive), mo = today().slice(0,7);
   const s = {n: act.length, resteU: 0, paidU: 0, margeAct: 0, margeMois: 0, livMois: 0, late: 0};
-  act.forEach(c => { const k = cmdCalc(c); s.resteU += k.resteU; s.paidU += k.paidU; s.margeAct += k.margeU; if(c.eta && c.eta < today() && STEPK.indexOf(c.step) < 3) s.late++; });
+  act.forEach(c => { const k = cmdCalc(c); s.resteU += k.resteU; s.paidU += k.paidU; s.margeAct += k.margeU; if(c.eta && c.eta < today() && STEPK.indexOf(c.step) < ARRI()) s.late++; });
   L.filter(c => c.step === 'livre' && String((c.steps||{}).livre || c.date).slice(0,7) === mo).forEach(c => { s.margeMois += cmdCalc(c).margeU; s.livMois++; });
   return s;
 }
@@ -2554,7 +2559,7 @@ function impHomeCard(){
   return `<button class="card daycard" data-a="nav:import" style="margin-bottom:12px"><span>📦 Commandes import : <b>${s.n}</b> en cours${s.resteU > 0 ? ` · reste à encaisser <b class="num">${money(s.resteU)}</b>` : ''}${s.late ? ` · <b style="color:var(--bad)">${s.late} en retard</b>` : ''}</span><span class="note">Voir ›</span></button>`;
 }
 function stepBadge(c){
-  const s = stepOf(c.step), late = c.eta && c.eta < today() && cmdActive(c) && STEPK.indexOf(c.step) < 3;
+  const s = stepOf(c.step), late = c.eta && c.eta < today() && cmdActive(c) && STEPK.indexOf(c.step) < ARRI();
   const col = c.step === 'livre' ? 'var(--ok)' : c.step === 'annule' ? 'var(--muted)' : c.step === 'arrive' ? 'var(--brand-tx)' : 'var(--vio)';
   return `<span style="color:${col};font-weight:700">${s[2]} ${esc(s[1])}</span>${late ? ' · <b style="color:var(--bad)">en retard</b>' : ''}`;
 }
@@ -2567,9 +2572,9 @@ function cmdRow(c){
 function vImport(){
   if(!impOn()) return `<div class="card empty"><b>Commandes import</b>Activez « J'importe sur commande » dans Réglages.<div style="margin-top:12px"><button class="btn primary" data-a="nav:reglages">Ouvrir les réglages</button></div></div>`;
   const s = impStats(), L = cmds(), q = impQ.trim().toLowerCase();
-  const tabs = [['cours','En cours'], ...STEPS.slice(0,4).map(x => [x[0], x[2] + ' ' + x[1].split(' ')[0]]), ['livre','✅ Livrées'], ['annule','Annulées']];
+  const tabs = [['cours','En cours'], ...Object.entries(STEP_SHORT), ['livre','✅ Livrées'], ['annule','Annulées']];
   let list = L.filter(c => impTab === 'cours' ? cmdActive(c) : c.step === impTab);
-  if(q) list = list.filter(c => [c.title, c.client, c.phone, c.lot, c.track, cmdNo(c)].join(' ').toLowerCase().includes(q));
+  if(q) list = list.filter(c => [c.title, c.client, c.phone, c.lot, c.track, c.porder, c.tcode, c.plat, cmdNo(c)].join(' ').toLowerCase().includes(q));
   list.sort((a,b) => (b.ts||0) - (a.ts||0));
   const lots = {}; L.filter(cmdActive).forEach(c => { if(c.lot) (lots[c.lot] = lots[c.lot] || []).push(c); });
   return `<div class="kpis">
@@ -2578,7 +2583,7 @@ function vImport(){
     <div class="kpi"><div class="l">Acomptes reçus (en cours)</div><div class="v num">${money(s.paidU)}</div><div class="s">déjà encaissés</div></div>
     <div class="kpi"><div class="l">🔒 Marge ce mois</div><div class="v num" style="color:var(--ok)">${money(s.margeMois)}</div><div class="s">${s.livMois} livrée(s) · prévue ${money(s.margeAct)}</div></div>
   </div>
-  <div class="btns" style="margin:12px 0"><button class="btn primary" data-a="cmdnew">+ Nouvelle commande</button><button class="btn" data-a="fourns">🔒 Fournisseurs</button></div>
+  <div class="btns" style="margin:12px 0"><button class="btn primary" data-a="cmdnew">+ Nouvelle commande</button><button class="btn" data-a="fourns">🔒 Fournisseurs</button><button class="btn" data-a="transs">🔒 Transitaires</button></div>
   ${Object.keys(lots).length ? `<div class="sec"><h2>Envois groupés</h2></div><div class="list">${Object.entries(lots).map(([n, cs]) => `<div class="it" style="cursor:default"><div class="ic c-send">${ico('send')}</div><div class="m"><div class="t">${esc(n)}</div><div class="d">${cs.length} commande(s) · ${[...new Set(cs.map(c => stepOf(c.step)[2] + ' ' + stepOf(c.step)[1]))].join(', ')}</div></div><div class="r"><button class="btn sm" data-a="lotarrive:${encodeURIComponent(n)}">📦 Lot arrivé</button></div></div>`).join('')}</div>` : ''}
   <div class="chips" style="margin-top:14px">${tabs.map(([k,l]) => `<button class="chip ${impTab===k?'on':''}" data-a="imptab:${k}">${l}</button>`).join('')}</div>
   <input class="search" id="impQ" placeholder="Rechercher : client, produit, N°, lot…" value="${esc(impQ)}" style="margin:10px 0">
@@ -2603,12 +2608,17 @@ function cmdForm(id){
     <details class="card" style="margin:12px 0;border:1.5px dashed var(--line)" ${c && (c.fid || c.supAmt) ? 'open' : ''}><summary><b>🔒 Privé : fournisseur, coûts, suivi</b> <span class="note">(jamais visible par le client)</span></summary><div style="margin-top:10px">
       ${field('Fournisseur', `<select name="fid">${fOpts}</select>`)}
       <div id="newF" hidden>${field('Nom du nouveau fournisseur', `<input name="fnew" maxlength="60" placeholder="Ex : Shenzhen Phones (WeChat …)">`)}</div>
+      <div class="row2">${field('Plateforme', `<select name="plat"><option value="">—</option>${PLATS.map(x => `<option ${c?.plat===x?'selected':''}>${x}</option>`).join('')}</select>`)}${field('N° de commande plateforme', `<input name="porder" value="${esc(c?.porder)}">`)}</div>
+      ${field('Lien du produit', `<input name="plink" type="url" value="${esc(c?.plink)}" placeholder="https://item.taobao.com/…">`)}
       ${money2('Prix payé au fournisseur (total)', 'sup', c?.supAmt, c?.supCur || '¥')}
+      ${field('Transitaire', `<select name="tid"><option value="">— Choisir —</option>${transList().map(t => `<option value="${t.id}" ${c && c.tid === t.id ? 'selected' : ''}>${esc(t.name)}</option>`).join('')}<option value="__new">+ Nouveau transitaire…</option></select>`)}
+      <div id="newT" hidden>${field('Nom du nouveau transitaire', `<input name="tnew" maxlength="60" placeholder="Ex : Trans Express Zando">`)}</div>
+      <div class="row2">${field('Code / N° chez le transitaire', `<input name="tcode" value="${esc(c?.tcode)}" placeholder="Ex : BAS-0147">`)}${field('Poids (kg)', `<input name="kg" type="number" step="any" min="0" value="${c?.kg || ''}">`)}</div>
       <div class="row2">${field('Transport', `<select name="how"><option value="">—</option>${[['avion','✈️ Avion'],['bateau','🚢 Bateau'],['route','🚚 Route']].map(([v,l]) => `<option value="${v}" ${c?.how===v?'selected':''}>${l}</option>`).join('')}</select>`)}${field('Arrivée prévue', `<input name="eta" type="date" value="${esc(c?.eta)}">`)}</div>
       ${money2('Frais de transport', 'ship', c?.shipAmt, c?.shipCur)}
       ${money2('Douane / dédouanement', 'duty', c?.dutyAmt, c?.dutyCur)}
       ${money2('Autres frais', 'extra', c?.extraAmt, c?.extraCur)}
-      <div class="row2">${field('N° de suivi', `<input name="track" value="${esc(c?.track)}">`)}${field('Envoi groupé (lot)', `<input name="lot" list="lotsDL" value="${esc(c?.lot)}" placeholder="Ex : Cargo 12 nov">`)}</div><datalist id="lotsDL">${lotsList.map(l => `<option value="${esc(l)}">`).join('')}</datalist>
+      <div class="row2">${field('N° de suivi du colis', `<input name="track" value="${esc(c?.track)}">`)}${field('Envoi groupé (lot)', `<input name="lot" list="lotsDL" value="${esc(c?.lot)}" placeholder="Ex : Cargo 12 nov">`)}</div><datalist id="lotsDL">${lotsList.map(l => `<option value="${esc(l)}">`).join('')}</datalist>
       <div id="cmdMarge" class="tot" style="margin-top:6px"></div>
     </div></details>
     ${field('Note', `<input name="note" value="${esc(c?.note)}" placeholder="Couleur, capacité, détails…">`)}
@@ -2617,6 +2627,11 @@ function cmdForm(id){
   sheet(c ? 'Modifier la commande' : 'Nouvelle commande import', h);
   const f = $('#cmdf'), E = f.elements; let photo = c?.photo || '';
   E.fid.onchange = () => { $('#newF').hidden = E.fid.value !== '__new'; };
+  let shipAuto = !c || !num(c.shipAmt);
+  E.shipAmt.addEventListener('input', () => { shipAuto = false; });
+  const autoShip = () => { const T = transOf(E.tid.value); if(!T || !shipAuto) return; const r = E.how.value === 'bateau' ? 0 : num(T.rAir); if(r && num(E.kg.value)){ E.shipAmt.value = r2(r * num(E.kg.value)); E.shipCur.value = '$'; } };
+  E.tid.onchange = () => { $('#newT').hidden = E.tid.value !== '__new'; autoShip(); upd(); };
+  E.kg.addEventListener('input', () => { autoShip(); upd(); }); E.how.addEventListener('change', () => { autoShip(); upd(); });
   $('#cmdPhIn').onchange = async e => { const fl = e.target.files[0]; if(!fl) return; try{ photo = await smallImage(fl, 240, .72); $('#cmdPh').innerHTML = `<img src="${photo}" alt="">`; }catch(_){ toast('Image illisible'); } };
   const upd = () => {
     const tot = usdOf(num(E.qty.value || 1) * num(E.price.value), E.cur.value);
@@ -2628,9 +2643,11 @@ function cmdForm(id){
     e.preventDefault(); e.stopPropagation();
     let fid = E.fid.value;
     if(fid === '__new'){ const n = E.fnew.value.trim(); if(n){ const F = {id:uid(), type:'fourn', date:today(), ts:Date.now(), name:n}; S.moves.push(F); fid = F.id; } else fid = ''; }
+    let tid = E.tid.value;
+    if(tid === '__new'){ const n = E.tnew.value.trim(); if(n){ const T = {id:uid(), type:'trans', date:today(), ts:Date.now(), name:n}; S.moves.push(T); tid = T.id; } else tid = ''; }
     const base = {client:E.client.value.trim(), phone:E.phone.value.trim(), addr:E.addr.value.trim(), title:E.title.value.trim(), qty:Math.max(1, Math.round(num(E.qty.value) || 1)), price:num(E.price.value), cur:E.cur.value, photo,
       fid, supAmt:num(E.supAmt.value), supCur:E.supCur.value, how:E.how.value, eta:E.eta.value, shipAmt:num(E.shipAmt.value), shipCur:E.shipCur.value, dutyAmt:num(E.dutyAmt.value), dutyCur:E.dutyCur.value, extraAmt:num(E.extraAmt.value), extraCur:E.extraCur.value,
-      track:E.track.value.trim(), lot:E.lot.value.trim(), note:E.note.value.trim()};
+      track:E.track.value.trim(), lot:E.lot.value.trim(), note:E.note.value.trim(), plat:E.plat.value, porder:E.porder.value.trim(), plink:E.plink.value.trim(), tid, tcode:E.tcode.value.trim(), kg:num(E.kg.value)};
     if(c){ Object.assign(c, base); save(); closeSheet(); render(); cmdSheet(c.id); toast('Commande modifiée'); return; }
     const rec = Object.assign({id:uid(), type:'cmd', date:today(), ts:Date.now(), step:'acompte', steps:{acompte:today()}, pays:[]}, base);
     if(num(E.depAmt.value) > 0) rec.pays.push({id:uid(), date:today(), amt:num(E.depAmt.value), cur:E.depCur.value, pay:E.depPay.value});
@@ -2647,6 +2664,7 @@ function cmdMsg(c, step){
   const T = {
     acompte: `${hi}\n\nNous avons bien reçu votre paiement ✅\n${ref}\n${money3}${eta}\n\nNous vous informerons à chaque étape.`,
     commande: `${hi}\n\n🛒 Votre commande a été passée auprès de notre fournisseur.\n${ref}${eta}\n\nNous vous prévenons dès l'expédition.`,
+    entrepot: `${hi}\n\n🏭 Votre commande est bien arrivée à notre entrepôt en Chine. Elle partira avec le prochain envoi.\n${ref}${eta}`,
     expedie: `${hi}\n\n${how} Bonne nouvelle : votre commande est en route !\n${ref}${eta}${c.track ? '\n🔎 N° de suivi : ' + c.track : ''}`,
     arrive: `${hi}\n\n📦 Votre commande est arrivée et elle est prête !\n${ref}\n${money3}\n\nRépondez-nous pour la livraison ou le retrait.`,
     livre: `${hi}\n\n✅ Merci pour votre confiance ! Votre commande vous a été remise.\n${ref}\n${money3}`,
@@ -2668,7 +2686,10 @@ function cmdSheet(id){
     <div class="card" style="margin-top:12px"><b>Étapes</b>${tl}${c.eta ? `<p class="note" style="margin-top:6px">📅 Arrivée prévue : ${dAbs(c.eta, 1)}${c.track ? ' · Suivi : ' + esc(c.track) : ''}${c.lot ? ' · Lot : ' + esc(c.lot) : ''}</p>` : ''}</div>
     <div class="card" style="margin-top:10px"><b>Paiements du client</b>${pays}</div>
     <details class="card" style="margin-top:10px;border:1.5px dashed var(--line)"><summary><b>🔒 Privé : fournisseur et marge</b></summary><div style="margin-top:8px;line-height:1.7">
-      Fournisseur : <b>${F ? esc(F.name) : '—'}</b>${F && F.phone ? ' · ' + esc(F.phone) : ''}<br>
+      Fournisseur : <b>${F ? esc(F.name) : '—'}</b>${F && F.phone ? ' · ' + esc(F.phone) : ''}${c.plat ? ' · via <b>' + esc(c.plat) + '</b>' : ''}${c.porder ? ' · N° ' + esc(c.porder) : ''}<br>
+      ${c.plink ? `<a class="link" href="${esc(c.plink)}" target="_blank" rel="noopener">🔗 Voir le produit sur la plateforme</a><br>` : ''}
+      ${(() => { const T = transOf(c.tid); return T ? `Transitaire : <b>${esc(T.name)}</b>${T.phone ? ' · ' + esc(T.phone) : ''}${c.tcode ? ' · code <b>' + esc(c.tcode) + '</b>' : ''}<br>${T.addrCn ? '🇨🇳 ' + esc(T.addrCn) + '<br>' : ''}${T.addrKin ? '📍 ' + esc(T.addrKin) + '<br>' : ''}` : ''; })()}
+      ${c.kg ? 'Poids : ' + fmt(c.kg) + ' kg<br>' : ''}
       Marchandise : ${c.supAmt ? amtX(c.supAmt, c.supCur) + ' (' + money(usdOf(c.supAmt, c.supCur)) + ')' : '—'}<br>
       Transport ${c.how ? '(' + esc(c.how) + ')' : ''} : ${c.shipAmt ? amtX(c.shipAmt, c.shipCur) : '—'} · Douane : ${c.dutyAmt ? amtX(c.dutyAmt, c.dutyCur) : '—'} · Autres : ${c.extraAmt ? amtX(c.extraAmt, c.extraCur) : '—'}<br>
       ${k.hasCost ? `Coût total : <b>${money(k.costU)}</b> · Marge : <b style="color:${k.margeU >= 0 ? 'var(--ok)' : 'var(--bad)'}">${money(k.margeU)}</b>${k.totalU ? ' (' + Math.round(k.margeU / k.totalU * 100) + ' %)' : ''}` : '<span class="note">Coûts non renseignés : touchez Modifier.</span>'}
@@ -2698,6 +2719,30 @@ function fournSheet(){
       <button class="btn primary block">Ajouter</button></form>`);
   $('#fnf').onsubmit = e => { e.preventDefault(); e.stopPropagation(); const E = e.target.elements;
     S.moves.push({id:uid(), type:'fourn', date:today(), ts:Date.now(), name:E.name.value.trim(), phone:E.phone.value.trim(), city:E.city.value.trim()}); save(); fournSheet(); toast('Fournisseur ajouté'); };
+}
+function transSheet(){
+  const L = transList(), C = cmds();
+  sheet('🔒 Transitaires', `<p class="note" style="margin-bottom:10px">Vos transitaires (Zando, Gombe…) avec leur entrepôt en Chine. Visible seulement par vous.</p>
+    <div class="list">${L.length ? L.map(t => { const cs = C.filter(c => c.tid === t.id), act = cs.filter(cmdActive).length;
+      return `<div class="it" style="cursor:default;align-items:flex-start"><div class="ic c-send">${esc(initials(t.name))}</div><div class="m"><div class="t">${esc(t.name)}</div>
+        <div class="d" style="white-space:normal;line-height:1.5">${t.phone ? '📞 ' + esc(t.phone) + '<br>' : ''}${t.addrKin ? '📍 ' + esc(t.addrKin) + '<br>' : ''}${t.addrCn ? '🇨🇳 ' + esc(t.addrCn) + '<br>' : ''}${t.code ? 'Votre code : <b>' + esc(t.code) + '</b><br>' : ''}${num(t.rAir) ? '✈️ ' + money(num(t.rAir)) + '/kg ' : ''}${num(t.rSea) ? '🚢 ' + money(num(t.rSea)) + '/m³ ' : ''}${t.delay ? '· ⏱ ' + esc(t.delay) : ''}<br>${act} commande(s) en cours · ${cs.length} au total</div>
+        <div class="btns" style="margin-top:6px">${t.addrCn ? `<button class="btn sm" data-a="transcopy:${t.id}">📋 Copier l'adresse Chine</button>` : ''}<button class="btn sm" data-a="transedit:${t.id}">Modifier</button><button class="btn sm" data-a="transdel:${t.id}">✕</button></div></div></div>`; }).join('') : '<div class="empty">Aucun transitaire.</div>'}</div>
+    <button class="btn primary block" style="margin-top:12px" data-a="transedit:">+ Ajouter un transitaire</button>`);
+}
+function transForm(id){
+  const t = id ? transOf(id) : null;
+  sheet(t ? 'Modifier le transitaire' : 'Nouveau transitaire', `<form id="trf">
+    ${field('Nom *', `<input name="name" required maxlength="60" value="${esc(t?.name)}" placeholder="Ex : Trans Express Zando">`)}
+    ${field('Téléphone / WhatsApp', `<input name="phone" value="${esc(t?.phone)}">`)}
+    ${field('Adresse à Kinshasa (retrait des colis)', `<input name="addrKin" value="${esc(t?.addrKin)}" placeholder="Ex : Grand marché, Zando, galerie …">`)}
+    ${field('Adresse de l\'entrepôt en Chine', `<textarea name="addrCn" rows="3" placeholder="Adresse à mettre sur Taobao / 1688 (nom, téléphone, adresse en chinois…)">${esc(t?.addrCn)}</textarea>`)}
+    ${field('Votre code client / marque', `<input name="code" value="${esc(t?.code)}" placeholder="À écrire sur les colis, ex : BAS-KIN">`)}
+    <div class="row3">${field('Tarif avion ($/kg)', `<input name="rAir" type="number" step="any" min="0" value="${t?.rAir || ''}">`)}${field('Tarif bateau ($/m³)', `<input name="rSea" type="number" step="any" min="0" value="${t?.rSea || ''}">`)}${field('Délai', `<input name="delay" value="${esc(t?.delay)}" placeholder="Ex : 10-15 jours">`)}</div>
+    <button class="btn primary block">${t ? 'Enregistrer' : 'Ajouter'}</button></form>`);
+  $('#trf').onsubmit = e => { e.preventDefault(); e.stopPropagation(); const E = e.target.elements;
+    const d = {name:E.name.value.trim(), phone:E.phone.value.trim(), addrKin:E.addrKin.value.trim(), addrCn:E.addrCn.value.trim(), code:E.code.value.trim(), rAir:num(E.rAir.value), rSea:num(E.rSea.value), delay:E.delay.value.trim()};
+    if(t) Object.assign(t, d); else S.moves.push(Object.assign({id:uid(), type:'trans', date:today(), ts:Date.now()}, d));
+    save(); transSheet(); toast(t ? 'Transitaire modifié' : 'Transitaire ajouté'); };
 }
 function lotNotify(cs, title){
   sheet(title, `<p class="note" style="margin-bottom:10px">Prévenez chaque client (un message WhatsApp prêt pour chacun) :</p>
@@ -2785,6 +2830,10 @@ Object.assign(A, {
   cmdimg: id => shareCmdImage(id),
   imptab: k => { impTab = k; render(); },
   fourns: () => fournSheet(),
+  transs: () => transSheet(),
+  transedit: id => transForm(id || null),
+  transcopy: id => { const t = transOf(id); if(t) copyText(t.addrCn + (t.code ? '\n' + t.code : '')); },
+  transdel: async id => { if(!await ask('Supprimer ce transitaire ? (les commandes restent)', 'Supprimer')) return; S.moves = S.moves.filter(m => m.id !== id); save(); transSheet(); },
   fourndel: async id => { if(!await ask('Supprimer ce fournisseur ? (les commandes restent)', 'Supprimer')) return; S.moves = S.moves.filter(m => m.id !== id); save(); fournSheet(); },
   cmdstep: v => { const [id, st] = v.split('|'), c = cmds().find(x => x.id === id); if(!c) return;
     c.step = st; c.steps = Object.assign({}, c.steps, {[st]: today()}); save(); render(); cmdSheet(id);
@@ -2792,7 +2841,7 @@ Object.assign(A, {
   cmdcancel: async id => { if(!await ask('Annuler cette commande ? Elle restera dans « Annulées ».', 'Annuler la commande')) return; const c = cmds().find(x => x.id === id); c.step = 'annule'; c.steps = Object.assign({}, c.steps, {annule: today()}); save(); closeSheet(); render(); },
   cmddel: async id => { if(!await ask('Supprimer définitivement cette commande et ses paiements ?', 'Supprimer')) return; S.moves = S.moves.filter(m => m.id !== id); save(); closeSheet(); render(); toast('Commande supprimée'); },
   paydel: async v => { const [id, pid] = v.split('|'), c = cmds().find(x => x.id === id); if(!c || !await ask('Supprimer ce paiement ?', 'Supprimer')) return; c.pays = (c.pays || []).filter(p => p.id !== pid); save(); render(); cmdSheet(id); },
-  lotarrive: async v => { const n = decodeURIComponent(v), cs = cmds().filter(c => c.lot === n && cmdActive(c) && STEPK.indexOf(c.step) < 3);
+  lotarrive: async v => { const n = decodeURIComponent(v), cs = cmds().filter(c => c.lot === n && cmdActive(c) && STEPK.indexOf(c.step) < ARRI());
     if(!cs.length){ lotNotify(cmds().filter(c => c.lot === n && cmdActive(c)), '📦 Lot « ' + n + ' »'); return; }
     if(!await ask(`Marquer les ${cs.length} commande(s) du lot « ${n} » comme arrivées ?`, 'Oui, arrivé', false)) return;
     cs.forEach(c => { c.step = 'arrive'; c.steps = Object.assign({}, c.steps, {arrive: today()}); }); save(); render(); lotNotify(cs, '📦 Lot « ' + n + ' » arrivé'); }
@@ -3274,7 +3323,7 @@ document.addEventListener('visibilitychange', () => { if(document.visibilityStat
 setInterval(() => { if(document.visibilityState !== 'hidden') syncNow(); }, 45000);
 
 // Lecture seule quand l'abonnement est inactif (ou pour un rôle sans droit d'écriture)
-const WRITE_ACTIONS = ['new','quick','invform','invdel','money','status','delmove','delprod','editprod','editsale','editliv','newliv','delliv','color','rmlogo','demo','reset','restore','importwb','preset','cmdnew','cmdedit','cmdpay','cmdstep','cmdcancel','cmddel','paydel','lotarrive','fourndel'];
+const WRITE_ACTIONS = ['new','quick','invform','invdel','money','status','delmove','delprod','editprod','editsale','editliv','newliv','delliv','color','rmlogo','demo','reset','restore','importwb','preset','cmdnew','cmdedit','cmdpay','cmdstep','cmdcancel','cmddel','paydel','lotarrive','fourndel','transdel','transedit'];
 document.addEventListener('click', e => {
   if(!ONLINE.shop || shopWritable() || e.target.closest('#auth') || e.target.closest('#declf') || view === 'admin' || view === 'equipe') return;
   const t = e.target.closest('[data-a], #fab, form button:not([type=button])'); if(!t) return;
