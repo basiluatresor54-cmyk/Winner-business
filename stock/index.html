@@ -150,6 +150,11 @@ table.tb{width:100%;border-collapse:collapse;font-size:13.5px}
 .tot b{font-size:17px}
 .tot small{width:100%;font-size:12.5px;color:var(--muted)}
 .note{font-size:12.5px;color:var(--muted);line-height:1.5}
+.acts{display:grid;gap:8px;margin-top:6px}
+.actc{display:flex;gap:10px;align-items:flex-start;padding:11px 12px;border:1.5px solid var(--line);border-radius:14px;background:var(--card);cursor:pointer}
+.actc:has(input:checked){border-color:var(--brand);background:var(--brand-soft)}
+.actc input{width:20px!important;height:20px;margin:2px 0 0;flex:none;accent-color:var(--brand)}
+.actc .ai{font-size:22px;line-height:1}.actc b{display:block;font-size:14.5px}.actc small{display:block;color:var(--muted);font-size:12.5px;line-height:1.35;margin-top:2px}
 .instcard{display:flex;gap:12px;align-items:flex-start;margin-bottom:12px;border:1.5px solid var(--brand)}
 .instic{font-size:30px;line-height:1}
 .isteps{list-style:none;padding:0;margin:0;display:grid;gap:10px}
@@ -597,6 +602,14 @@ function stats(p){
 let view = 'home', period = 'mois', saleTab = 'attente', saleCity = '', bookType = 'all', bookPeriod = 'mois', depPeriod = 'mois';
 let stockQ = '', saleQ = '', bookQ = '';
 const NAV = [['home','Accueil','home'],['stock','Stock','box'],['ventes','Ventes','truck'],['livreurs','Livreurs','user'],['plus','Plus','more']];
+function navItems(){
+  const n = [NAV[0]];
+  if(sells()) n.push(NAV[1], NAV[2]);
+  if(has('liv')) n.push(NAV[3]);
+  if(has('imp') && n.length < 4) n.push(['import','Import','send']);
+  n.push(NAV[4]); return n;
+}
+const parentOf = v => v === 'import' && navItems().some(x => x[0] === 'import') ? '' : PARENT[v];
 const SUB = {import:'Commandes import (sur commande)', home:'Tableau de bord', stock:'Stock par produit', ventes:'Ventes & livraisons', livreurs:'Livreurs par ville', plus:'Plus', depenses:'Dépenses', livre:'Le Livre — toutes les opérations', reglages:'Réglages', clients:'Clients', rapport:'Rapport de la semaine', releve:'Relevé du livreur', jour:'Rapport du jour'};
 const PARENT = {import:'plus', depenses:'plus', livre:'plus', reglages:'plus', clients:'plus', rapport:'plus', releve:'livreurs', jour:'plus'};
 
@@ -634,13 +647,13 @@ function applyBrand(){
 }
 function render(){
   applyBrand();
-  const st = S.settings, nv = PARENT[view] || view;
+  const st = S.settings, nv = parentOf(view) || view;
   $('#top').innerHTML = `<div class="logo">${st.logo ? `<img src="${st.logo}" alt="">` : esc(initials(st.shop))}</div>
     <div class="grow"><h1>${esc(st.shop || 'Ma Boutique')}</h1><p>${SUB[view]}</p></div>`;
-  $('#nav').innerHTML = NAV.map(([k,l,i]) => `<button data-a="nav:${k}" class="${nv===k?'on':''}">${ico(i)}<span>${l}</span></button>`).join('');
+  $('#nav').innerHTML = navItems().map(([k,l,i]) => `<button data-a="nav:${k}" class="${nv===k?'on':''}">${ico(i)}<span>${l}</span></button>`).join('');
   $('#fab').style.display = (view === 'reglages' || view === 'plus') ? 'none' : '';
   const V = {home:vHome, stock:vStock, ventes:vVentes, livreurs:vLivreurs, plus:vPlus, depenses:vDepenses, livre:vLivre, reglages:vReglages, import:vImport, clients:vClients, rapport:vRapport, releve:vReleve, jour:vJour};
-  $('#main').innerHTML = (PARENT[view] ? `<button class="back noprint" data-a="nav:${PARENT[view]}">‹ Retour</button>` : '') + V[view]();
+  $('#main').innerHTML = (parentOf(view) ? `<button class="back noprint" data-a="nav:${parentOf(view)}">‹ Retour</button>` : '') + V[view]();
   const M = $('#main');
   if(view !== render.last){ M.classList.remove('enter'); void M.offsetWidth; M.classList.add('enter'); countUp(M); if(view === 'home') homeCheers(); }
   render.last = view;
@@ -692,6 +705,7 @@ function installCard(){
 }
 
 function vHome(){
+  if(!sells() && has('imp')){ const cvi = S.settings.cover ? `<div class="cover" style="background-image:url('${S.settings.cover}')"></div>` : ''; return `${cvi}${installCard()}${vImport()}`; }
   if(!S.products.length) return `${installCard()}${impHomeCard()}<div class="card empty" style="margin-top:8px"><b>Bienvenue 👋</b>Ajoutez vos produits pour commencer.
     <div class="stack" style="margin-top:16px">${PRESET ? `<button class="btn primary block" data-a="preset">Charger le catalogue ${esc(PRESET.label)}</button>` : ''}
     <button class="btn ${PRESET?'':'primary'} block" data-a="new:produit">Ajouter un produit</button><button class="btn block" data-a="demo">Essayer avec des exemples</button></div></div>`;
@@ -719,8 +733,8 @@ function vHome(){
   <div class="kpis" style="margin-top:10px">
     <div class="kpi hero"><div class="l">Bénéfice net ${per}</div><div class="v num ${r.net<0?'neg':''}">${money(r.net)}</div><div class="s">sur ${money(r.ca)} de ventes livrées (${r.nv})</div></div>
     <button class="kpi" data-a="nav:ventes"><div class="l">À livrer</div><div class="v num">${r.pending}</div><div class="s">${money(r.pendingAmt)} en attente</div></button>
-    <button class="kpi" data-a="nav:livreurs"><div class="l">Argent chez les livreurs</div><div class="v num ${remit>0.009?'neg':''}">${money(remit)}</div><div class="s">à verser à la boutique</div></button>
-    <button class="kpi" data-a="nav:livreurs"><div class="l">Commissions à payer</div><div class="v num">${money(topay)}</div><div class="s">aux livreurs</div></button>
+    ${has('liv') || S.livreurs.length ? `<button class="kpi" data-a="nav:livreurs"><div class="l">Argent chez les livreurs</div><div class="v num ${remit>0.009?'neg':''}">${money(remit)}</div><div class="s">à verser à la boutique</div></button>
+    <button class="kpi" data-a="nav:livreurs"><div class="l">Commissions à payer</div><div class="v num">${money(topay)}</div><div class="s">aux livreurs</div></button>` : ''}
     <button class="kpi" data-a="nav:stock"><div class="l">Stock total</div><div class="v num">${fmt(units)}</div><div class="s">pièces · valeur ${money(valBuy)}</div></button>
     <button class="kpi" data-a="nav:depenses"><div class="l">Dépenses ${per}</div><div class="v num">${money(r.dep)}</div><div class="s">transport, pub, boutique…</div></button>
   </div>
@@ -1019,7 +1033,21 @@ function refreshList(v){
 
 /* ---------- Réglages ---------- */
 const MODES = {livraison:'Livraison (avec livreurs)', boutique:'Boutique / vente sur place', mixte:'Les deux : boutique + livraison'};
-const modeOf = () => S.settings.mode || 'livraison';
+/* ---------- Domaines d'activité (choisis à l'inscription, modifiables dans Réglages) ---------- */
+const ACTS = [
+  ['shop','🏪','Boutique physique','Vente sur place : vente rapide, cash / Mobile Money, rapport du jour'],
+  ['liv','🛵','Vente en ligne avec livreurs','Stock chez chaque livreur, commandes WhatsApp, versements, commissions'],
+  ['self','🚶','Vente en ligne, je livre moi-même','Commandes WhatsApp, livraisons, reçus et factures, sans livreurs'],
+  ['imp','🚢','Importation sur commande','Chine, Dubaï… : acomptes, étapes jusqu\'à l\'arrivée, fournisseurs et marge privés']
+];
+function acts(){ const st = S.settings; if(st.acts && Object.values(st.acts).some(Boolean)) return st.acts; const m = st.mode || 'livraison'; return {shop: m !== 'livraison', liv: true, self: true, imp: !!st.imp}; }
+const has = k => !!acts()[k];
+const sells = () => has('shop') || has('liv') || has('self');
+const modeOf = () => { const a = acts(); return a.shop && (a.liv || a.self) ? 'mixte' : a.shop ? 'boutique' : 'livraison'; };
+const actsField = (st, title) => { const a = st.acts && Object.values(st.acts).some(Boolean) ? st.acts : (S && S.settings === st && st.setup ? acts() : {});
+  return `<div class="f"><span>${title || 'Quel est votre domaine d\'activité ?'} <small class="note">(cochez tout ce que vous faites)</small></span><div class="acts">${ACTS.map(([k,ic,t,d]) => `<label class="actc"><input type="checkbox" name="act_${k}" ${a[k] ? 'checked' : ''}><span class="ai">${ic}</span><span><b>${t}</b><small>${d}</small></span></label>`).join('')}</div><small class="note">L'application affiche seulement ce qui vous sert. Vous pouvez changer à tout moment dans Réglages.</small></div>`; };
+function readActs(E){ const a = {}; ACTS.forEach(([k]) => a[k] = !!(E['act_' + k] && E['act_' + k].checked)); if(!Object.values(a).some(Boolean)) ACTS.forEach(([k]) => a[k] = true); return a; }
+const actsSettings = a => ({acts:a, imp:!!a.imp, mode: a.shop && (a.liv || a.self) ? 'mixte' : a.shop ? 'boutique' : 'livraison'});
 const modeField = st => field('Comment vendez-vous ?', `<select name="mode">${Object.entries(MODES).map(([k,l]) => `<option value="${k}" ${(st.mode||'livraison')===k?'selected':''}>${l}</option>`).join('')}</select>`, 'Boutique : bouton « Vente rapide » sur l\'accueil. Tout le reste reste disponible.');
 function vReglages(){
   const st = S.settings;
@@ -1039,8 +1067,7 @@ function vReglages(){
       ${st.cover ? `<button type="button" class="btn sm" data-a="rmcover">Retirer</button>` : ''}</div><small class="note">Une belle photo de vos produits ou de votre boutique, en haut de l'accueil.</small></div>
     <div class="f"><span>Style (sur cet appareil)</span><div class="seg">${[['verre','✨ Verre (élégant)'],['simple','Simple (léger)']].map(([k,l]) => `<button type="button" class="${glassPref()===k?'on':''}" data-a="style:${k}">${l}</button>`).join('')}</div><small class="note">« Simple » est plus rapide sur les petits téléphones.</small></div>
     <div class="f"><span>Apparence (sur cet appareil)</span><div class="seg" id="segTheme">${Object.entries(THEMES).map(([k,l]) => `<button type="button" class="${themePref()===k?'on':''}" data-a="theme:${k}">${l}</button>`).join('')}</div><small class="note">Le mode sombre repose les yeux le soir. Automatique suit le réglage du téléphone.</small></div>
-    ${modeField(st)}
-    <label class="f" style="display:flex;gap:10px;align-items:flex-start"><input type="checkbox" name="imp" ${st.imp ? 'checked' : ''} style="width:auto;margin-top:3px"><span style="color:var(--ink)"><b>📦 J'importe sur commande</b> (Chine, Dubaï…)<br><small class="note">Ajoute « Commandes import » : acompte du client, étapes jusqu'à la livraison, reçus, fournisseurs et marge privés.</small></span></label>
+    ${actsField(st, 'Mes activités')}
     <div class="row2">${field('Pays du fournisseur', `<input name="impFrom" value="${esc(st.impFrom || 'Chine')}">`)}${field('Taux du yuan', `<input name="cny" type="number" step="any" min="0" value="${st.cny || 7.1}">`, '¥ pour 1 $')}</div>
     ${countryFields(st)}
     <div class="row2">
@@ -1966,7 +1993,8 @@ function fabSheet(){
     ['new:perte','c-loss','out','Sortie / perte','Casse, perte, cadeau, usage interne'],
     ['new:produit','c-brand','tag','Nouveau produit','Ajouter un article ou un pack']
   ];
-  sheet('Nouvelle opération', A2.map(([a,c,i,t,d]) => `<button class="act" data-a="${a}"><div class="ic ${c}">${ico(i)}</div><div><b>${t}</b><small>${d}</small></div></button>`).join(''));
+  const keep = a => { const L = has('liv') || S.livreurs.length; if(['new:envoi','new:retour','money:versement'].includes(a)) return L; if(a === 'quick') return has('shop') || !S.settings.acts; if(['new:vente','new:entree','new:perte','new:produit'].includes(a)) return sells(); return true; };
+  sheet('Nouvelle opération', A2.filter(x => keep(x[0])).map(([a,c,i,t,d]) => `<button class="act" data-a="${a}"><div class="ic ${c}">${ico(i)}</div><div><b>${t}</b><small>${d}</small></div></button>`).join(''));
 }
 
 /* ----- Produit ----- */
@@ -2371,12 +2399,12 @@ function setupSheet(){
   const st = S.settings;
   sheet('Votre boutique', `<form id="wf">
     ${field('Nom de l\'entreprise *', `<input name="shop" required maxlength="40" value="${st.shop==='Ma Boutique'?'':esc(st.shop)}" placeholder="Ex : Winner Business">`)}
+    ${actsField(st)}
     <div class="f"><span>Logo (optionnel)</span><div style="display:flex;gap:10px;align-items:center"><div class="logo" id="wlogo" style="width:54px;height:54px;background:var(--brand);color:var(--brand-ink)">${st.logo ? `<img src="${st.logo}" alt="">` : '+'}</div>
       <label class="btn sm" style="cursor:pointer">Choisir une image<input type="file" accept="image/*" id="logoIn" hidden></label></div></div>
     <div class="f"><span>Couleur</span><div class="colors">${COLORS.map(c => `<button type="button" style="background:${c}" class="${c.toLowerCase()===String(st.color).toLowerCase()?'on':''}" data-a="wcolor:${c}" aria-label="${c}"></button>`).join('')}</div>
       <div style="display:flex;gap:8px;align-items:center;margin-top:8px"><input type="color" id="colPick" name="color" value="${esc(st.color || '#0F766E')}" style="width:52px;height:42px;padding:2px;border:1.5px solid var(--line);border-radius:10px;background:var(--field)"><input id="colHex" maxlength="7" value="${esc(st.color || '#0F766E')}" placeholder="#8A3B12" style="flex:1;padding:10px 12px;border:1.5px solid var(--line);border-radius:11px;background:var(--field);font-family:monospace;font-size:15px"></div>
       <small class="note">Votre propre couleur : choisissez-la ou tapez son code (ex. #8A3B12).</small></div>
-    ${modeField(st)}
     ${countryFields(st)}
     <div class="row2">${field('Indicatif téléphone', `<input name="cc" inputmode="numeric" value="${esc(st.cc)}">`)}${field('WhatsApp boutique', `<input name="wa" type="tel" value="${esc(st.wa)}" placeholder="+243 …">`)}</div>
     <button class="btn primary block">Commencer</button></form>`);
@@ -2485,7 +2513,7 @@ A.insthide = () => { localStorage.setItem('stock_inst_hide', String(Date.now() +
 const STEPS = [['acompte','Acompte reçu','💰'],['commande','Commandé au fournisseur','🛒'],['expedie','En route','✈️'],['arrive','Arrivé — prêt à livrer','📦'],['livre','Livré au client','✅']];
 const STEPK = STEPS.map(s => s[0]);
 const stepOf = k => STEPS.find(s => s[0] === k) || ['annule','Annulée','✖️'];
-const impOn = () => !!S.settings.imp;
+const impOn = () => has('imp');
 const impFrom = () => S.settings.impFrom || 'Chine';
 const cny = () => num(S.settings.cny) || 7.1;
 const CURS = () => [['$','$'],['FC',LC()],['¥','¥ (yuan)']];
@@ -2777,11 +2805,11 @@ document.addEventListener('click', e => {
 document.addEventListener('submit', e => {
   const f = e.target, E = f.elements;
   if(f.id === 'setf'){ e.preventDefault();
-    Object.assign(S.settings, {shop:E.shop.value.trim() || 'Ma Boutique', color:E.color.value, country:E.country.value, lc:E.lc.value.trim() || 'FC', rate:num(E.rate.value) || S.settings.rate, fee:num(E.fee.value), feeCur:E.feeCur.value, cc:E.cc.value.replace(/\D/g,''), wa:E.wa.value.trim(), mode:E.mode.value, imp:!!(E.imp && E.imp.checked), impFrom:(E.impFrom ? E.impFrom.value.trim() : '') || 'Chine', cny:num(E.cny && E.cny.value) || 7.1, slogan:E.slogan.value.trim(), addr:E.saddr.value.trim(), tel2:E.tel2.value.trim(), email:E.email.value.trim(), legal:E.legal.value.trim(), invNote:E.invNote.value.trim(), setup:true});
+    Object.assign(S.settings, {shop:E.shop.value.trim() || 'Ma Boutique', color:E.color.value, country:E.country.value, lc:E.lc.value.trim() || 'FC', rate:num(E.rate.value) || S.settings.rate, fee:num(E.fee.value), feeCur:E.feeCur.value, cc:E.cc.value.replace(/\D/g,''), wa:E.wa.value.trim(), ...actsSettings(readActs(E)), impFrom:(E.impFrom ? E.impFrom.value.trim() : '') || 'Chine', cny:num(E.cny && E.cny.value) || 7.1, slogan:E.slogan.value.trim(), addr:E.saddr.value.trim(), tel2:E.tel2.value.trim(), email:E.email.value.trim(), legal:E.legal.value.trim(), invNote:E.invNote.value.trim(), setup:true});
     save(); render(); toast('Réglages enregistrés'); }
   if(f.id === 'wf'){ e.preventDefault();
-    Object.assign(S.settings, {shop:E.shop.value.trim() || 'Ma Boutique', country:E.country.value, lc:E.lc.value.trim() || 'FC', rate:num(E.rate.value) || 2300, cc:E.cc.value.replace(/\D/g,''), wa:E.wa.value.trim(), mode:E.mode.value, setup:true});
-    save(); closeSheet(); view = 'stock'; render(); toast('Boutique prête ✅ Ajoutez vos produits'); }
+    Object.assign(S.settings, {shop:E.shop.value.trim() || 'Ma Boutique', country:E.country.value, lc:E.lc.value.trim() || 'FC', rate:num(E.rate.value) || 2300, cc:E.cc.value.replace(/\D/g,''), wa:E.wa.value.trim(), ...actsSettings(readActs(E)), setup:true});
+    save(); closeSheet(); view = sells() ? 'stock' : 'import'; render(); toast(sells() ? 'Boutique prête ✅ Ajoutez vos produits' : 'Prêt ✅ Créez votre première commande'); }
 });
 document.addEventListener('change', e => {
   if(e.target.id === 'catIntro'){ S.settings.catIntro = e.target.value.trim().slice(0, 90); save(); toast('Phrase enregistrée'); return; }
