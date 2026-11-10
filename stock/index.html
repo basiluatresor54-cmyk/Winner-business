@@ -2511,7 +2511,7 @@ function livreDatePick(id, cb){
   const t = today(), opts = [[t, "Aujourd'hui"], [addDays(t, -1), 'Hier'], [addDays(t, -2), 'Avant-hier']];
   const pl = m.ddate || m.date; if(pl < addDays(t, -2)) opts.push([pl, 'Date prévue (' + dAbs(pl) + ')']);
   sheet('✅ Livrée quand ?', `<p class="note" style="margin-bottom:12px">${esc(pname(m.pid))} × ${m.qty}${m.client ? ' — ' + esc(m.client) : ''}. La vente comptera dans les ventes et le bénéfice de ce jour-là.</p>
-    <div class="stack">${opts.map(([d, l]) => `<button class="btn block ${d === (m.ldate || t) ? 'primary' : ''}" data-ld="${d}">${l} · ${dAbs(d, 1)}</button>`).join('')}</div>
+    <div class="stack">${opts.map(([d, l]) => `<button class="btn block ${d === (m.ldate || t) ? 'primary' : ''}" data-ld="${d}">${l} · ${dAbs(d)}</button>`).join('')}</div>
     <div class="f" style="margin-top:12px"><span>Autre date</span><div style="display:flex;gap:8px"><input type="date" id="ldIn" max="${t}" value="${m.ldate || t}" style="flex:1"><button class="btn primary" id="ldOk">OK</button></div></div>`);
   document.querySelectorAll('[data-ld]').forEach(b => b.onclick = () => cb(b.dataset.ld));
   $('#ldOk').onclick = () => { const v = $('#ldIn').value; if(!v) return; if(v > t){ toast('La date ne peut pas être dans le futur'); return; } cb(v); };
