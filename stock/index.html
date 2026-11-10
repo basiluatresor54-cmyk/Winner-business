@@ -575,6 +575,8 @@ function livStats(id){
   r.toPay = r.earned - r.commPaid;
   return r;
 }
+// jour comptable d'une vente : le jour de livraison (prévu) sinon le jour de la commande
+const mday = m => m.type === 'vente' ? (m.ddate || m.date) : m.date;
 function stats(p){
   const r = {ca:0, nv:0, cost:0, comm:0, loss:0, dep:0, depCat:{}, pending:0, pendingAmt:0, byProd:{}, byCity:{}, days:{}};
   for(const m of S.moves){
@@ -582,8 +584,8 @@ function stats(p){
       const a = saleUSD(m);
       if(m.status === 'attente' || m.status === 'encours'){ r.pending++; r.pendingAmt += a; }
       if(m.status === 'livre'){
-        r.days[m.date] = (r.days[m.date]||0) + a;
-        if(inPer(m.date, p)){
+        r.days[mday(m)] = (r.days[mday(m)]||0) + a;
+        if(inPer(mday(m), p)){
           r.ca += a; r.nv++; r.cost += m.qty * num(m.costU); r.comm += m.liv ? m.qty * num(m.commU) : 0;
           const P = r.byProd[m.pid] = r.byProd[m.pid] || {q:0, a:0}; P.q += m.qty; P.a += a;
           const city = m.liv ? (liv(m.liv)?.city || 'Sans ville') : 'Vente directe (dépôt)';
@@ -1338,7 +1340,7 @@ function alertsCard(st, low){
   S.livreurs.forEach(l => {
     const s = livStats(l.id); if(s.toRemit <= 0.5) return;
     const lastV = S.moves.filter(m => m.type === 'versement' && m.liv === l.id).reduce((a,m) => m.date > a ? m.date : a, '');
-    const oldSale = S.moves.some(m => m.type === 'vente' && m.status === 'livre' && m.liv === l.id && m.date <= y && m.date > lastV);
+    const oldSale = S.moves.some(m => m.type === 'vente' && m.status === 'livre' && m.liv === l.id && mday(m) <= y && mday(m) > lastV);
     if(oldSale) out.push([`liv:${l.id}`, `💰 ${esc(l.name)} n'a pas versé ${money(s.toRemit)} (ventes d'avant aujourd'hui)`]);
   });
   if(low.length) out.push(['nav:stock', `📦 ${low.length} produit(s) en stock bas ou en rupture`]);
@@ -1408,7 +1410,7 @@ function weekReport(a, b){
   const inR = d => d >= a && d <= b;
   const r = {ca:0, nv:0, cost:0, comm:0, dep:0, loss:0, byLiv:{}, byProd:{}, decl:0};
   for(const m of S.moves){
-    if(m.type === 'vente' && m.status === 'livre' && inR(m.date)){
+    if(m.type === 'vente' && m.status === 'livre' && inR(mday(m))){
       const u = saleUSD(m), c = m.liv ? m.qty * num(m.commU) : 0;
       r.ca += u; r.nv++; r.cost += m.qty * num(m.costU); r.comm += c;
       const P = r.byProd[m.pid] = r.byProd[m.pid] || {q:0, a:0}; P.q += m.qty; P.a += u;
@@ -1469,7 +1471,7 @@ function stockHistory(){
     if(!m.date) continue;
     if(m.type === 'entree'){ const p = prod(m.pid), c = num(m.cost) > 0 ? toUSD(num(m.cost), p && p.cur) : unitCostUSD(p), x = D(m.date);
       x.addQ += m.qty; x.addV += m.qty * c; x.adds[m.pid] = (x.adds[m.pid] || 0) + m.qty; }
-    else if(m.type === 'vente' && m.status === 'livre'){ const x = D(m.date), u = saleUSD(m); x.ca += u; x.n++; x.net += u - m.qty * num(m.costU) - (m.liv ? m.qty * num(m.commU) : 0); }
+    else if(m.type === 'vente' && m.status === 'livre'){ const x = D(mday(m)), u = saleUSD(m); x.ca += u; x.n++; x.net += u - m.qty * num(m.costU) - (m.liv ? m.qty * num(m.commU) : 0); }
     else if(m.type === 'depense'){ const x = D(m.date), v = moneyUSD(m); x.dep += v; x.net -= v; }
     else if(m.type === 'perte'){ const x = D(m.date); x.net -= m.qty * num(m.costU); }
   }
@@ -1547,7 +1549,7 @@ function cheer(msg, n){ confetti(n); toast(msg); }
 const onceKey = k => { const key = 'stock_cheer_' + (S.settings.shop||'') + '_' + k; try{ if(localStorage.getItem(key)) return false; localStorage.setItem(key, '1'); }catch(_){} return true; };
 
 /* ===== Objectifs (anneaux) ===== */
-function caOf(from, to){ let t = 0; for(const m of S.moves) if(m.type === 'vente' && m.status === 'livre' && m.date >= from && m.date <= to) t += saleUSD(m); return t; }
+function caOf(from, to){ let t = 0; for(const m of S.moves) if(m.type === 'vente' && m.status === 'livre' && mday(m) >= from && mday(m) <= to) t += saleUSD(m); return t; }
 function ringSVG(pct, col){ const r = 40, C = 2*Math.PI*r, p = Math.max(0, Math.min(1, pct)), off = C*(1-p);
   return `<svg class="ring" viewBox="0 0 100 100"><circle class="bgc" cx="50" cy="50" r="${r}"/><circle class="fg" cx="50" cy="50" r="${r}" stroke="${col}" style="--c:${C.toFixed(1)}" stroke-dasharray="${C.toFixed(1)}" stroke-dashoffset="${off.toFixed(1)}"/><text x="50" y="57" text-anchor="middle">${Math.round(pct*100)}%</text></svg>`; }
 function goalsCard(){
@@ -1714,7 +1716,7 @@ function flowHTML(lid, limit){
 let rankPer = 'sem';
 function taux(lid, per){
   const r = {done:0, ko:0, pend:0, ca:0, comm:0};
-  for(const m of S.moves) if(m.type === 'vente' && m.liv === lid && inPer(m.date, per)){
+  for(const m of S.moves) if(m.type === 'vente' && m.liv === lid && inPer(mday(m), per)){
     if(m.status === 'livre'){ r.done++; r.ca += saleUSD(m); r.comm += m.qty * num(m.commU); }
     else if(m.status === 'annule') r.ko++; else r.pend++;
   }
@@ -1737,7 +1739,7 @@ function soirData(lid, d){
   const r = {sold:{}, n:0, ca:0, comm:0, vers:0, pend:0};
   for(const m of S.moves){
     if(m.type === 'vente' && m.liv === lid){
-      if(m.status === 'livre' && m.date === d){ r.n++; r.ca += saleUSD(m); r.comm += m.qty * num(m.commU); r.sold[m.pid] = (r.sold[m.pid] || 0) + m.qty; }
+      if(m.status === 'livre' && mday(m) === d){ r.n++; r.ca += saleUSD(m); r.comm += m.qty * num(m.commU); r.sold[m.pid] = (r.sold[m.pid] || 0) + m.qty; }
       if(m.status === 'attente' || m.status === 'encours') r.pend++;
     } else if(m.type === 'versement' && m.liv === lid && m.date === d) r.vers += moneyUSD(m);
   }
@@ -1833,7 +1835,7 @@ let jourDate = '';
 function dayReport(d){
   const r = {d, n:0, pcs:0, ca:0, cost:0, comm:0, dep:0, loss:0, vers:0, byPay:{}, byProd:{}, sales:[], pend:0, pendAmt:0};
   for(const m of S.moves){
-    if(m.date !== d) continue;
+    if(mday(m) !== d) continue;
     if(m.type === 'vente' && m.status === 'livre'){
       const u = saleUSD(m), c = m.liv ? m.qty * num(m.commU) : 0;
       r.n++; r.pcs += m.qty; r.ca += u; r.cost += m.qty * num(m.costU); r.comm += c; r.sales.push(m);
@@ -1891,7 +1893,7 @@ const dAbs = (iso, long) => new Date(iso + 'T12:00:00').toLocaleDateString('fr-F
 function releveData(lid, k){
   const l = liv(lid), [a, b] = weekRange(k), inR = d => d >= a && d <= b;
   const r = {l, a, b, sales:[], byProd:{}, n:0, pcs:0, cash:0, comm:0, vers:0, commPaid:0, sal:0};
-  for(const m of sortMoves(S.moves.filter(m => m.liv === lid && inR(m.date))).reverse()){
+  for(const m of sortMoves(S.moves.filter(m => m.liv === lid && inR(mday(m)))).reverse()){
     if(m.type === 'vente' && m.status === 'livre'){
       const u = saleUSD(m), c = m.qty * num(m.commU);
       r.sales.push(m); r.n++; r.pcs += m.qty; r.cash += u; r.comm += c;
@@ -1934,7 +1936,7 @@ function releveHTML(lid, chips, toShop){
   </div>
   <div class="sec"><h2>Détail des ventes livrées</h2></div>
   <div class="card tbw"><table class="tb"><tr><th>Date</th><th>Produit</th><th class="rt">Qté</th><th class="rt">Montant</th>${sal ? '' : '<th class="rt">Taux</th><th class="rt">Commission</th>'}</tr>
-  ${r.sales.map(m => `<tr><td>${dAbs(m.date)}<br><span class="note">${esc(m.client || '')}</span></td><td>${esc(pname(m.pid))}</td><td class="rt num">${m.qty}</td><td class="rt num">${money(saleUSD(m))}</td>${sal ? '' : `<td class="rt num">${rateTxt(m, l)}</td><td class="rt num"><b>${money(m.qty * num(m.commU))}</b></td>`}</tr>`).join('') || `<tr><td colspan="${sal ? 4 : 6}" class="note">Aucune vente livrée cette semaine</td></tr>`}
+  ${r.sales.map(m => `<tr><td>${dAbs(mday(m))}<br><span class="note">${esc(m.client || '')}</span></td><td>${esc(pname(m.pid))}</td><td class="rt num">${m.qty}</td><td class="rt num">${money(saleUSD(m))}</td>${sal ? '' : `<td class="rt num">${rateTxt(m, l)}</td><td class="rt num"><b>${money(m.qty * num(m.commU))}</b></td>`}</tr>`).join('') || `<tr><td colspan="${sal ? 4 : 6}" class="note">Aucune vente livrée cette semaine</td></tr>`}
   ${r.n ? `<tr><td colspan="2"><b>Total</b></td><td class="rt num"><b>${r.pcs}</b></td><td class="rt num"><b>${money(r.cash)}</b></td>${sal ? '' : `<td></td><td class="rt num"><b>${money(r.comm)}</b></td>`}</tr>` : ''}</table></div>
   ${Object.keys(r.byProd).length > 1 ? `<div class="sec"><h2>Par produit</h2></div><div class="card">${Object.entries(r.byProd).map(([id,v]) => `<div class="dl"><span>${esc(pname(id))} · ${v.q} pièce(s)</span><span class="num">${money(v.a)}${sal ? '' : ' → <b>' + money(v.c) + '</b>'}</span></div>`).join('')}</div>` : ''}
   <div class="sec"><h2>Le compte</h2></div>
