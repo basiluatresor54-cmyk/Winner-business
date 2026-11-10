@@ -580,8 +580,8 @@ function stats(p){
 let view = 'home', period = 'mois', saleTab = 'attente', saleCity = '', bookType = 'all', bookPeriod = 'mois', depPeriod = 'mois';
 let stockQ = '', saleQ = '', bookQ = '';
 const NAV = [['home','Accueil','home'],['stock','Stock','box'],['ventes','Ventes','truck'],['livreurs','Livreurs','user'],['plus','Plus','more']];
-const SUB = {home:'Tableau de bord', stock:'Stock par produit', ventes:'Ventes & livraisons', livreurs:'Livreurs par ville', plus:'Plus', depenses:'Dépenses', livre:'Le Livre — toutes les opérations', reglages:'Réglages', clients:'Clients', rapport:'Rapport de la semaine', releve:'Relevé du livreur', jour:'Rapport du jour'};
-const PARENT = {depenses:'plus', livre:'plus', reglages:'plus', clients:'plus', rapport:'plus', releve:'livreurs', jour:'plus'};
+const SUB = {import:'Commandes import (sur commande)', home:'Tableau de bord', stock:'Stock par produit', ventes:'Ventes & livraisons', livreurs:'Livreurs par ville', plus:'Plus', depenses:'Dépenses', livre:'Le Livre — toutes les opérations', reglages:'Réglages', clients:'Clients', rapport:'Rapport de la semaine', releve:'Relevé du livreur', jour:'Rapport du jour'};
+const PARENT = {import:'plus', depenses:'plus', livre:'plus', reglages:'plus', clients:'plus', rapport:'plus', releve:'livreurs', jour:'plus'};
 
 /* ---------- Apparence : clair / sombre / automatique (réglage propre à chaque appareil) ---------- */
 const THEMES = {auto:'Automatique (comme le téléphone)', clair:'☀️ Clair (jour)', sombre:'🌙 Sombre (nuit)'};
@@ -622,7 +622,7 @@ function render(){
     <div class="grow"><h1>${esc(st.shop || 'Ma Boutique')}</h1><p>${SUB[view]}</p></div>`;
   $('#nav').innerHTML = NAV.map(([k,l,i]) => `<button data-a="nav:${k}" class="${nv===k?'on':''}">${ico(i)}<span>${l}</span></button>`).join('');
   $('#fab').style.display = (view === 'reglages' || view === 'plus') ? 'none' : '';
-  const V = {home:vHome, stock:vStock, ventes:vVentes, livreurs:vLivreurs, plus:vPlus, depenses:vDepenses, livre:vLivre, reglages:vReglages, clients:vClients, rapport:vRapport, releve:vReleve, jour:vJour};
+  const V = {home:vHome, stock:vStock, ventes:vVentes, livreurs:vLivreurs, plus:vPlus, depenses:vDepenses, livre:vLivre, reglages:vReglages, import:vImport, clients:vClients, rapport:vRapport, releve:vReleve, jour:vJour};
   $('#main').innerHTML = (PARENT[view] ? `<button class="back noprint" data-a="nav:${PARENT[view]}">‹ Retour</button>` : '') + V[view]();
   const M = $('#main');
   if(view !== render.last){ M.classList.remove('enter'); void M.offsetWidth; M.classList.add('enter'); countUp(M); if(view === 'home') homeCheers(); }
@@ -675,7 +675,7 @@ function installCard(){
 }
 
 function vHome(){
-  if(!S.products.length) return `<div class="card empty" style="margin-top:8px"><b>Bienvenue 👋</b>Ajoutez vos produits pour commencer.
+  if(!S.products.length) return `${installCard()}${impHomeCard()}<div class="card empty" style="margin-top:8px"><b>Bienvenue 👋</b>Ajoutez vos produits pour commencer.
     <div class="stack" style="margin-top:16px">${PRESET ? `<button class="btn primary block" data-a="preset">Charger le catalogue ${esc(PRESET.label)}</button>` : ''}
     <button class="btn ${PRESET?'':'primary'} block" data-a="new:produit">Ajouter un produit</button><button class="btn block" data-a="demo">Essayer avec des exemples</button></div></div>`;
   const r = stats(period), st = stockAt();
@@ -697,7 +697,7 @@ function vHome(){
   const quick = modeOf() !== 'livraison' ? `<button class="btn primary block quickbtn" data-a="quick">⚡ Vente rapide</button>
   <button class="card daycard" data-a="jourset:${today()}"><span>Aujourd'hui : <b>${td.n}</b> vente(s) · <b class="num">${money(td.ca)}</b></span><span class="note">Rapport du jour ›</span></button>` : '';
   const cv = S.settings.cover ? `<div class="cover" style="background-image:url('${S.settings.cover}')"><div class="cv"><div class="logo">${S.settings.logo ? `<img src="${S.settings.logo}" alt="">` : esc(initials(S.settings.shop))}</div><div><b>${esc(S.settings.shop || '')}</b><span>${greet()} · ${dAbs(today(), 1)}</span></div></div></div>` : '';
-  return `${cv}${installCard()}${quick}${goalsCard()}${alertsCard(st, low)}${periodChips(period,'per')}
+  return `${cv}${installCard()}${impHomeCard()}${quick}${goalsCard()}${alertsCard(st, low)}${periodChips(period,'per')}
   ${noBuy.length ? `<button class="warnbox" style="margin-top:10px" data-a="nav:stock">⚠️ ${noBuy.length} produit${noBuy.length>1?'s':''} sans prix d'achat : le bénéfice affiché est trop élevé. Touchez ici pour les compléter.</button>` : ''}
   <div class="kpis" style="margin-top:10px">
     <div class="kpi hero"><div class="l">Bénéfice net ${per}</div><div class="v num ${r.net<0?'neg':''}">${money(r.net)}</div><div class="s">sur ${money(r.ca)} de ventes livrées (${r.nv})</div></div>
@@ -926,6 +926,7 @@ function vPlus(){
     ['livre','c-brand','book','Le Livre',"Toutes les entrées, envois, ventes et sorties, jour par jour"],
     ['reglages','c-x','set','Réglages',"Boutique, logo, couleur, taux du dollar, sauvegarde"]
   ];
+  if(impOn()) items.unshift(['import','c-send','box','📦 Commandes import',"Commandes sur demande (Chine…) : acomptes, étapes, reçus, marge"]);
   if(!isStandalone()) items.push(['__install','c-brand','set',"📲 Installer l'application","iPhone, Android ou ordinateur : une icône comme une vraie application"]);
   return `<div class="list menu">${items.map(([v,c,i,t,d]) => `<button class="it" data-a="${v === '__install' ? 'install' : 'nav:' + v}"><div class="ic ${c}">${ico(i)}</div><div class="m"><div class="t">${t}</div><div class="d" style="white-space:normal">${d}</div></div>${ico('chev')}</button>`).join('')}</div>
   <div class="sec"><h2>Raccourcis</h2></div>
@@ -984,6 +985,8 @@ function rowMove(m){
     case 'paiecomm': return R('money', 'c-send', 'coin', 'Commission payée à ' + esc(lname(m.liv)), m.note ? esc(m.note) : 'Paiement des commissions', '−'+money(num(m.amount)), 'var(--vio)', '');
     case 'inventaire': { const L = m.lines || [], miss = L.reduce((t,x) => t + Math.max(0, x.exp - x.real), 0), plus = L.reduce((t,x) => t + Math.max(0, x.real - x.exp), 0);
       return R('inv', 'c-x', 'box', 'Contrôle de stock · ' + (m.loc ? esc(lname(m.loc)) : 'dépôt'), miss || plus ? `${miss ? miss + ' manquante(s)' : ''}${miss && plus ? ' · ' : ''}${plus ? plus + ' en trop' : ''}` : 'Tout est juste ✅', miss ? '−' + miss : '✓', miss ? 'var(--bad)' : 'var(--ok)', ''); }
+    case 'cmd': return R('cmd', 'c-send', 'box', esc(m.title || 'Commande import'), `Commande import · ${esc(m.client||'Client')} · ${esc(stepOf(m.step)[1])}`, amtX(cmdCalc(m).total, m.cur), 'var(--brand-tx)', cmdNo(m));
+    case 'fourn': return '';
     case 'ajust': return R('inv', 'c-in', 'in', esc(pname(m.pid)), 'Écart inventaire (en trop) · ' + (m.loc ? esc(lname(m.loc)) : 'dépôt'), '+' + m.qty, 'var(--ok)', '');
     case 'depense': return R('money', 'c-loss', 'receipt', esc(m.cat||'Dépense'), (m.liv ? esc(lname(m.liv)) + ' · ' : '') + (m.note ? esc(m.note) : 'Dépense'), '−'+amt(m.amount, m.cur), 'var(--warn)', m.cur==='FC' ? money(moneyUSD(m)) : '');
   }
@@ -1020,6 +1023,8 @@ function vReglages(){
     <div class="f"><span>Style (sur cet appareil)</span><div class="seg">${[['verre','✨ Verre (élégant)'],['simple','Simple (léger)']].map(([k,l]) => `<button type="button" class="${glassPref()===k?'on':''}" data-a="style:${k}">${l}</button>`).join('')}</div><small class="note">« Simple » est plus rapide sur les petits téléphones.</small></div>
     <div class="f"><span>Apparence (sur cet appareil)</span><div class="seg" id="segTheme">${Object.entries(THEMES).map(([k,l]) => `<button type="button" class="${themePref()===k?'on':''}" data-a="theme:${k}">${l}</button>`).join('')}</div><small class="note">Le mode sombre repose les yeux le soir. Automatique suit le réglage du téléphone.</small></div>
     ${modeField(st)}
+    <label class="f" style="display:flex;gap:10px;align-items:flex-start"><input type="checkbox" name="imp" ${st.imp ? 'checked' : ''} style="width:auto;margin-top:3px"><span style="color:var(--ink)"><b>📦 J'importe sur commande</b> (Chine, Dubaï…)<br><small class="note">Ajoute « Commandes import » : acompte du client, étapes jusqu'à la livraison, reçus, fournisseurs et marge privés.</small></span></label>
+    <div class="row2">${field('Pays du fournisseur', `<input name="impFrom" value="${esc(st.impFrom || 'Chine')}">`)}${field('Taux du yuan', `<input name="cny" type="number" step="any" min="0" value="${st.cny || 7.1}">`, '¥ pour 1 $')}</div>
     ${countryFields(st)}
     <div class="row2">
       ${field('Frais de livraison client', `<input name="fee" type="number" step="any" min="0" value="${esc(st.fee)}">`)}
@@ -1934,6 +1939,7 @@ const field = (label, inner, hint = '') => `<label class="f"><span>${label}</spa
 
 function fabSheet(){
   const A2 = [
+    ...(impOn() ? [['cmdnew','c-send','box','📦 Commande import','Le client paie un acompte, vous commandez chez le fournisseur']] : []),
     ['quick','c-out','cart','⚡ Vente rapide','Vente sur place / en boutique : payé tout de suite'],
     ['new:vente','c-out','cart','Vente','Commande client, livrée par un livreur ou au dépôt'],
     ['new:envoi','c-send','send','Envoyer du stock à un livreur','Marchandise confiée à un livreur'],
@@ -2456,6 +2462,294 @@ A.install = async () => {
 A.insttab = k => { const b = document.getElementById('instBody'); if(b) b.innerHTML = installSteps(k); document.querySelectorAll('[data-a^="insttab:"]').forEach(x => x.classList.toggle('on', x.dataset.a === 'insttab:' + k)); };
 A.instcopy = () => copyText(appUrl());
 A.insthide = () => { localStorage.setItem('stock_inst_hide', String(Date.now() + 3*86400000)); render(); };
+
+/* ---------- Mode Import / commandes sur demande (Chine…) ----------
+   Une commande = move type 'cmd' (sans livreur => jamais visible par les livreurs).
+   Fournisseurs = move type 'fourn'. Coûts, fournisseur et marge : visibles seulement dans l'application, jamais sur le reçu client. */
+const STEPS = [['acompte','Acompte reçu','💰'],['commande','Commandé au fournisseur','🛒'],['expedie','En route','✈️'],['arrive','Arrivé — prêt à livrer','📦'],['livre','Livré au client','✅']];
+const STEPK = STEPS.map(s => s[0]);
+const stepOf = k => STEPS.find(s => s[0] === k) || ['annule','Annulée','✖️'];
+const impOn = () => !!S.settings.imp;
+const impFrom = () => S.settings.impFrom || 'Chine';
+const cny = () => num(S.settings.cny) || 7.1;
+const CURS = () => [['$','$'],['FC',LC()],['¥','¥ (yuan)']];
+const curOpts = (sel, list) => (list || CURS()).map(([v,l]) => `<option value="${v}" ${v===sel?'selected':''}>${esc(l)}</option>`).join('');
+const usdOf = (a, cur) => cur === '¥' ? num(a) / cny() : cur === 'FC' ? num(a) / rate() : num(a);
+const fromUSD = (u, cur) => cur === '¥' ? u * cny() : cur === 'FC' ? u * rate() : u;
+const amtX = (a, cur) => cur === '¥' ? fmt(a) + ' ¥' : amt(a, cur);
+const cmds = () => S.moves.filter(m => m.type === 'cmd');
+const fourns = () => S.moves.filter(m => m.type === 'fourn').sort((a,b) => (a.name||'').localeCompare(b.name||''));
+const fname = id => (S.moves.find(m => m.id === id && m.type === 'fourn') || {}).name || '';
+const cmdNo = c => 'CMD-' + String(c.date || today()).replace(/-/g,'') + '-' + String(c.id).slice(-4).toUpperCase();
+function cmdCalc(c){
+  const total = num(c.qty || 1) * num(c.price), cur = c.cur || '$';
+  const paidU = (c.pays || []).reduce((t,p) => t + usdOf(p.amt, p.cur), 0);
+  const paid = r2(fromUSD(paidU, cur)), reste = Math.max(0, r2(total - paid));
+  const costU = usdOf(c.supAmt, c.supCur) + usdOf(c.shipAmt, c.shipCur) + usdOf(c.dutyAmt, c.dutyCur) + usdOf(c.extraAmt, c.extraCur);
+  const totalU = usdOf(total, cur);
+  return {total, cur, paid, paidU, reste, resteU: usdOf(reste, cur), costU, totalU, margeU: totalU - costU, hasCost: costU > 0};
+}
+const cmdActive = c => c.step !== 'livre' && c.step !== 'annule';
+let impTab = 'cours', impQ = '';
+
+function impStats(){
+  const L = cmds(), act = L.filter(cmdActive), mo = today().slice(0,7);
+  const s = {n: act.length, resteU: 0, paidU: 0, margeAct: 0, margeMois: 0, livMois: 0, late: 0};
+  act.forEach(c => { const k = cmdCalc(c); s.resteU += k.resteU; s.paidU += k.paidU; s.margeAct += k.margeU; if(c.eta && c.eta < today() && STEPK.indexOf(c.step) < 3) s.late++; });
+  L.filter(c => c.step === 'livre' && String((c.steps||{}).livre || c.date).slice(0,7) === mo).forEach(c => { s.margeMois += cmdCalc(c).margeU; s.livMois++; });
+  return s;
+}
+function impHomeCard(){
+  if(!impOn()) return '';
+  const s = impStats();
+  return `<button class="card daycard" data-a="nav:import" style="margin-bottom:12px"><span>📦 Commandes import : <b>${s.n}</b> en cours${s.resteU > 0 ? ` · reste à encaisser <b class="num">${money(s.resteU)}</b>` : ''}${s.late ? ` · <b style="color:var(--bad)">${s.late} en retard</b>` : ''}</span><span class="note">Voir ›</span></button>`;
+}
+function stepBadge(c){
+  const s = stepOf(c.step), late = c.eta && c.eta < today() && cmdActive(c) && STEPK.indexOf(c.step) < 3;
+  const col = c.step === 'livre' ? 'var(--ok)' : c.step === 'annule' ? 'var(--muted)' : c.step === 'arrive' ? 'var(--brand-tx)' : 'var(--vio)';
+  return `<span style="color:${col};font-weight:700">${s[2]} ${esc(s[1])}</span>${late ? ' · <b style="color:var(--bad)">en retard</b>' : ''}`;
+}
+function cmdRow(c){
+  const k = cmdCalc(c);
+  return `<button class="it" data-a="cmd:${c.id}">${c.photo ? `<div class="ic pic"><img src="${c.photo}" alt=""></div>` : `<div class="ic c-send">${ico('box')}</div>`}
+    <div class="m"><div class="t">${esc(c.title || 'Commande')}${num(c.qty) > 1 ? ' × ' + c.qty : ''}</div><div class="d">${esc(c.client || 'Client')} · ${stepBadge(c)}</div></div>
+    <div class="r"><div class="big num">${amtX(k.total, k.cur)}</div><div class="sm">${k.reste > 0 ? 'reste ' + amtX(k.reste, k.cur) : (c.step === 'annule' ? 'annulée' : 'soldé ✅')}</div></div></button>`;
+}
+function vImport(){
+  if(!impOn()) return `<div class="card empty"><b>Commandes import</b>Activez « J'importe sur commande » dans Réglages.<div style="margin-top:12px"><button class="btn primary" data-a="nav:reglages">Ouvrir les réglages</button></div></div>`;
+  const s = impStats(), L = cmds(), q = impQ.trim().toLowerCase();
+  const tabs = [['cours','En cours'], ...STEPS.slice(0,4).map(x => [x[0], x[2] + ' ' + x[1].split(' ')[0]]), ['livre','✅ Livrées'], ['annule','Annulées']];
+  let list = L.filter(c => impTab === 'cours' ? cmdActive(c) : c.step === impTab);
+  if(q) list = list.filter(c => [c.title, c.client, c.phone, c.lot, c.track, cmdNo(c)].join(' ').toLowerCase().includes(q));
+  list.sort((a,b) => (b.ts||0) - (a.ts||0));
+  const lots = {}; L.filter(cmdActive).forEach(c => { if(c.lot) (lots[c.lot] = lots[c.lot] || []).push(c); });
+  return `<div class="kpis">
+    <div class="kpi"><div class="l">Commandes en cours</div><div class="v num">${s.n}</div><div class="s">${s.late ? s.late + ' en retard' : 'à suivre'}</div></div>
+    <div class="kpi"><div class="l">Reste à encaisser</div><div class="v num" style="color:var(--bad)">${money(s.resteU)}</div><div class="s">≈ ${fmt(Math.round(s.resteU*rate()))} ${esc(LC())}</div></div>
+    <div class="kpi"><div class="l">Acomptes reçus (en cours)</div><div class="v num">${money(s.paidU)}</div><div class="s">déjà encaissés</div></div>
+    <div class="kpi"><div class="l">🔒 Marge ce mois</div><div class="v num" style="color:var(--ok)">${money(s.margeMois)}</div><div class="s">${s.livMois} livrée(s) · prévue ${money(s.margeAct)}</div></div>
+  </div>
+  <div class="btns" style="margin:12px 0"><button class="btn primary" data-a="cmdnew">+ Nouvelle commande</button><button class="btn" data-a="fourns">🔒 Fournisseurs</button></div>
+  ${Object.keys(lots).length ? `<div class="sec"><h2>Envois groupés</h2></div><div class="list">${Object.entries(lots).map(([n, cs]) => `<div class="it" style="cursor:default"><div class="ic c-send">${ico('send')}</div><div class="m"><div class="t">${esc(n)}</div><div class="d">${cs.length} commande(s) · ${[...new Set(cs.map(c => stepOf(c.step)[2] + ' ' + stepOf(c.step)[1]))].join(', ')}</div></div><div class="r"><button class="btn sm" data-a="lotarrive:${encodeURIComponent(n)}">📦 Lot arrivé</button></div></div>`).join('')}</div>` : ''}
+  <div class="chips" style="margin-top:14px">${tabs.map(([k,l]) => `<button class="chip ${impTab===k?'on':''}" data-a="imptab:${k}">${l}</button>`).join('')}</div>
+  <input class="search" id="impQ" placeholder="Rechercher : client, produit, N°, lot…" value="${esc(impQ)}" style="margin:10px 0">
+  <div class="list">${list.length ? list.map(cmdRow).join('') : `<div class="empty"><b>Aucune commande</b>${impTab === 'cours' ? 'Touchez « + Nouvelle commande » quand un client vous paie un acompte.' : 'Rien dans cette étape.'}</div>`}</div>`;
+}
+
+function cmdForm(id){
+  const c = id ? cmds().find(x => x.id === id) : null, st = S.settings;
+  const lotsList = [...new Set(cmds().map(x => x.lot).filter(Boolean))];
+  const fOpts = `<option value="">— Choisir —</option>${fourns().map(f => `<option value="${f.id}" ${c && c.fid === f.id ? 'selected' : ''}>${esc(f.name)}</option>`).join('')}<option value="__new">+ Nouveau fournisseur…</option>`;
+  const money2 = (lbl, n, v, cur, list) => `<div class="row2">${field(lbl, `<input name="${n}Amt" type="number" step="any" min="0" value="${v ?? ''}" placeholder="0">`)}${field('Devise', `<select name="${n}Cur">${curOpts(cur || '$', list)}</select>`)}</div>`;
+  const h = `<form id="cmdf">
+    <div class="sec" style="margin:0 0 6px"><h2>Client</h2></div>
+    ${field('Nom du client *', `<input name="client" required maxlength="60" value="${esc(c?.client)}">`)}
+    <div class="row2">${field('Téléphone', `<input name="phone" type="tel" value="${esc(c?.phone)}" placeholder="+243 …">`)}${field('Adresse / ville', `<input name="addr" value="${esc(c?.addr)}">`)}</div>
+    <div class="sec" style="margin:10px 0 6px"><h2>Produit commandé</h2></div>
+    ${field('Produit *', `<input name="title" required maxlength="80" value="${esc(c?.title)}" placeholder="Ex : iPhone 13 Pro 256 Go bleu">`)}
+    <div class="row3">${field('Quantité', `<input name="qty" type="number" min="1" step="1" value="${c ? c.qty : 1}">`)}${field('Prix de vente (pièce) *', `<input name="price" type="number" step="any" min="0" required value="${c ? c.price : ''}">`)}${field('Devise', `<select name="cur">${curOpts(c?.cur || '$', [['$','$'],['FC',LC()]])}</select>`)}</div>
+    <div class="f"><span>Photo (optionnel)</span><div style="display:flex;gap:10px;align-items:center"><div id="cmdPh" class="ic pic" style="width:54px;height:54px">${c?.photo ? `<img src="${c.photo}" alt="">` : ''}</div><label class="btn sm" style="cursor:pointer">Choisir une photo<input type="file" accept="image/*" id="cmdPhIn" hidden></label></div></div>
+    ${c ? '' : `<div class="sec" style="margin:10px 0 6px"><h2>Acompte reçu aujourd'hui</h2></div>
+    <div class="row3">${field('Montant', `<input name="depAmt" type="number" step="any" min="0" placeholder="0">`)}${field('Devise', `<select name="depCur">${curOpts('$', [['$','$'],['FC',LC()]])}</select>`)}${field('Payé en', `<select name="depPay">${PAYS.map(p => `<option>${p}</option>`).join('')}</select>`)}</div>`}
+    <details class="card" style="margin:12px 0;border:1.5px dashed var(--line)" ${c && (c.fid || c.supAmt) ? 'open' : ''}><summary><b>🔒 Privé : fournisseur, coûts, suivi</b> <span class="note">(jamais visible par le client)</span></summary><div style="margin-top:10px">
+      ${field('Fournisseur', `<select name="fid">${fOpts}</select>`)}
+      <div id="newF" hidden>${field('Nom du nouveau fournisseur', `<input name="fnew" maxlength="60" placeholder="Ex : Shenzhen Phones (WeChat …)">`)}</div>
+      ${money2('Prix payé au fournisseur (total)', 'sup', c?.supAmt, c?.supCur || '¥')}
+      <div class="row2">${field('Transport', `<select name="how"><option value="">—</option>${[['avion','✈️ Avion'],['bateau','🚢 Bateau'],['route','🚚 Route']].map(([v,l]) => `<option value="${v}" ${c?.how===v?'selected':''}>${l}</option>`).join('')}</select>`)}${field('Arrivée prévue', `<input name="eta" type="date" value="${esc(c?.eta)}">`)}</div>
+      ${money2('Frais de transport', 'ship', c?.shipAmt, c?.shipCur)}
+      ${money2('Douane / dédouanement', 'duty', c?.dutyAmt, c?.dutyCur)}
+      ${money2('Autres frais', 'extra', c?.extraAmt, c?.extraCur)}
+      <div class="row2">${field('N° de suivi', `<input name="track" value="${esc(c?.track)}">`)}${field('Envoi groupé (lot)', `<input name="lot" list="lotsDL" value="${esc(c?.lot)}" placeholder="Ex : Cargo 12 nov">`)}</div><datalist id="lotsDL">${lotsList.map(l => `<option value="${esc(l)}">`).join('')}</datalist>
+      <div id="cmdMarge" class="tot" style="margin-top:6px"></div>
+    </div></details>
+    ${field('Note', `<input name="note" value="${esc(c?.note)}" placeholder="Couleur, capacité, détails…">`)}
+    <button class="btn primary block">${c ? 'Enregistrer' : 'Créer la commande'}</button>
+  </form>`;
+  sheet(c ? 'Modifier la commande' : 'Nouvelle commande import', h);
+  const f = $('#cmdf'), E = f.elements; let photo = c?.photo || '';
+  E.fid.onchange = () => { $('#newF').hidden = E.fid.value !== '__new'; };
+  $('#cmdPhIn').onchange = async e => { const fl = e.target.files[0]; if(!fl) return; try{ photo = await smallImage(fl, 240, .72); $('#cmdPh').innerHTML = `<img src="${photo}" alt="">`; }catch(_){ toast('Image illisible'); } };
+  const upd = () => {
+    const tot = usdOf(num(E.qty.value || 1) * num(E.price.value), E.cur.value);
+    const cost = usdOf(E.supAmt.value, E.supCur.value) + usdOf(E.shipAmt.value, E.shipCur.value) + usdOf(E.dutyAmt.value, E.dutyCur.value) + usdOf(E.extraAmt.value, E.extraCur.value);
+    $('#cmdMarge').innerHTML = cost > 0 ? `<span>Votre marge sur cette commande</span><b class="num" style="color:${tot - cost >= 0 ? 'var(--ok)' : 'var(--bad)'}">${money(tot - cost)}</b><small>vente ${money(tot)} − coûts ${money(cost)}${tot > 0 ? ' · ' + Math.round((tot - cost) / tot * 100) + ' %' : ''}</small>` : `<span class="note">Entrez le prix fournisseur et les frais pour voir votre marge.</span>`;
+  };
+  f.addEventListener('input', upd); upd();
+  f.onsubmit = e => {
+    e.preventDefault(); e.stopPropagation();
+    let fid = E.fid.value;
+    if(fid === '__new'){ const n = E.fnew.value.trim(); if(n){ const F = {id:uid(), type:'fourn', date:today(), ts:Date.now(), name:n}; S.moves.push(F); fid = F.id; } else fid = ''; }
+    const base = {client:E.client.value.trim(), phone:E.phone.value.trim(), addr:E.addr.value.trim(), title:E.title.value.trim(), qty:Math.max(1, Math.round(num(E.qty.value) || 1)), price:num(E.price.value), cur:E.cur.value, photo,
+      fid, supAmt:num(E.supAmt.value), supCur:E.supCur.value, how:E.how.value, eta:E.eta.value, shipAmt:num(E.shipAmt.value), shipCur:E.shipCur.value, dutyAmt:num(E.dutyAmt.value), dutyCur:E.dutyCur.value, extraAmt:num(E.extraAmt.value), extraCur:E.extraCur.value,
+      track:E.track.value.trim(), lot:E.lot.value.trim(), note:E.note.value.trim()};
+    if(c){ Object.assign(c, base); save(); closeSheet(); render(); cmdSheet(c.id); toast('Commande modifiée'); return; }
+    const rec = Object.assign({id:uid(), type:'cmd', date:today(), ts:Date.now(), step:'acompte', steps:{acompte:today()}, pays:[]}, base);
+    if(num(E.depAmt.value) > 0) rec.pays.push({id:uid(), date:today(), amt:num(E.depAmt.value), cur:E.depCur.value, pay:E.depPay.value});
+    S.moves.push(rec); save(); closeSheet(); view = 'import'; impTab = 'cours'; render(); cmdSheet(rec.id);
+    toast('Commande ' + cmdNo(rec) + ' créée ✅');
+  };
+}
+
+function cmdMsg(c, step){
+  const st = S.settings, k = cmdCalc(c), hi = `Bonjour ${c.client || ''} 👋`, ref = `Commande N° ${cmdNo(c)} — ${c.title}${num(c.qty) > 1 ? ' × ' + c.qty : ''}`;
+  const money3 = `Total : ${amtX(k.total, k.cur)} · Déjà payé : ${amtX(k.paid, k.cur)}${k.reste > 0 ? ' · *Reste à payer : ' + amtX(k.reste, k.cur) + '*' : ' · ✅ Tout est payé'}`;
+  const eta = c.eta ? '\n📅 Arrivée prévue : ' + dAbs(c.eta, 1) : '';
+  const how = c.how === 'bateau' ? '🚢' : c.how === 'route' ? '🚚' : '✈️';
+  const T = {
+    acompte: `${hi}\n\nNous avons bien reçu votre paiement ✅\n${ref}\n${money3}${eta}\n\nNous vous informerons à chaque étape.`,
+    commande: `${hi}\n\n🛒 Votre commande a été passée auprès de notre fournisseur.\n${ref}${eta}\n\nNous vous prévenons dès l'expédition.`,
+    expedie: `${hi}\n\n${how} Bonne nouvelle : votre commande est en route !\n${ref}${eta}${c.track ? '\n🔎 N° de suivi : ' + c.track : ''}`,
+    arrive: `${hi}\n\n📦 Votre commande est arrivée et elle est prête !\n${ref}\n${money3}\n\nRépondez-nous pour la livraison ou le retrait.`,
+    livre: `${hi}\n\n✅ Merci pour votre confiance ! Votre commande vous a été remise.\n${ref}\n${money3}`,
+    annule: `${hi}\n\nVotre commande ${cmdNo(c)} (${c.title}) a été annulée. Contactez-nous pour toute question.`
+  };
+  return T[step || c.step] + `\n\n${st.shop}${st.wa ? ' · ' + st.wa : ''}`;
+}
+function cmdSheet(id){
+  const c = cmds().find(x => x.id === id); if(!c) return;
+  const k = cmdCalc(c), i = STEPK.indexOf(c.step), next = i >= 0 && i < STEPK.length - 1 ? STEPS[i + 1] : null;
+  const tl = STEPS.map((s, j) => `<div style="display:flex;gap:10px;align-items:center;padding:5px 0;opacity:${j <= i ? 1 : .45}"><span class="istep" style="${j <= i ? '' : 'background:var(--soft);color:var(--muted)'}">${j <= i ? '✓' : j + 1}</span><span style="flex:1">${s[2]} ${esc(s[1])}</span><span class="note">${(c.steps||{})[s[0]] ? dAbs(c.steps[s[0]]) : ''}</span></div>`).join('');
+  const pays = (c.pays || []).map(p => `<div class="row" style="display:flex;justify-content:space-between;align-items:center;padding:4px 0"><span>${dAbs(p.date)}${p.pay ? ' · ' + esc(p.pay) : ''}</span><span><b class="num">${amtX(p.amt, p.cur)}</b> <button class="btn sm" style="padding:2px 8px" data-a="paydel:${c.id}|${p.id}" aria-label="Supprimer">✕</button></span></div>`).join('') || '<p class="note">Aucun paiement enregistré.</p>';
+  const F = c.fid ? S.moves.find(m => m.id === c.fid) : null;
+  const h = `<div style="display:flex;gap:12px;align-items:center;margin-bottom:10px">${c.photo ? `<div class="ic pic" style="width:64px;height:64px"><img src="${c.photo}" alt=""></div>` : ''}<div><b style="font-size:17px">${esc(c.title)}${num(c.qty) > 1 ? ' × ' + c.qty : ''}</b><div class="note">${cmdNo(c)} · ${esc(c.client)}${c.phone ? ' · ' + esc(c.phone) : ''}</div><div>${stepBadge(c)}</div></div></div>
+    <div class="kpis"><div class="kpi"><div class="l">Total</div><div class="v num">${amtX(k.total, k.cur)}</div></div><div class="kpi"><div class="l">Déjà payé</div><div class="v num" style="color:var(--ok)">${amtX(k.paid, k.cur)}</div></div><div class="kpi"><div class="l">Reste à payer</div><div class="v num" style="color:${k.reste > 0 ? 'var(--bad)' : 'var(--ok)'}">${amtX(k.reste, k.cur)}</div></div></div>
+    ${c.step !== 'annule' && next ? `<button class="btn primary block" style="margin-top:12px" data-a="cmdstep:${c.id}|${next[0]}">${next[2]} Passer à : ${esc(next[1])}</button>` : ''}
+    ${c.phone ? `<a class="btn wa block" style="margin-top:8px" href="${waLink(c.phone, cmdMsg(c))}" target="_blank" rel="noopener">${ico('wa')} Prévenir le client (${esc(stepOf(c.step)[1])})</a>` : ''}
+    <div class="btns" style="margin-top:8px"><button class="btn" data-a="cmdpay:${c.id}">+ Paiement</button><button class="btn" data-a="cmdimg:${c.id}">🧾 ${k.reste > 0 ? "Reçu d'acompte" : 'Facture'}</button><button class="btn" data-a="cmdedit:${c.id}">Modifier</button></div>
+    <div class="card" style="margin-top:12px"><b>Étapes</b>${tl}${c.eta ? `<p class="note" style="margin-top:6px">📅 Arrivée prévue : ${dAbs(c.eta, 1)}${c.track ? ' · Suivi : ' + esc(c.track) : ''}${c.lot ? ' · Lot : ' + esc(c.lot) : ''}</p>` : ''}</div>
+    <div class="card" style="margin-top:10px"><b>Paiements du client</b>${pays}</div>
+    <details class="card" style="margin-top:10px;border:1.5px dashed var(--line)"><summary><b>🔒 Privé : fournisseur et marge</b></summary><div style="margin-top:8px;line-height:1.7">
+      Fournisseur : <b>${F ? esc(F.name) : '—'}</b>${F && F.phone ? ' · ' + esc(F.phone) : ''}<br>
+      Marchandise : ${c.supAmt ? amtX(c.supAmt, c.supCur) + ' (' + money(usdOf(c.supAmt, c.supCur)) + ')' : '—'}<br>
+      Transport ${c.how ? '(' + esc(c.how) + ')' : ''} : ${c.shipAmt ? amtX(c.shipAmt, c.shipCur) : '—'} · Douane : ${c.dutyAmt ? amtX(c.dutyAmt, c.dutyCur) : '—'} · Autres : ${c.extraAmt ? amtX(c.extraAmt, c.extraCur) : '—'}<br>
+      ${k.hasCost ? `Coût total : <b>${money(k.costU)}</b> · Marge : <b style="color:${k.margeU >= 0 ? 'var(--ok)' : 'var(--bad)'}">${money(k.margeU)}</b>${k.totalU ? ' (' + Math.round(k.margeU / k.totalU * 100) + ' %)' : ''}` : '<span class="note">Coûts non renseignés : touchez Modifier.</span>'}
+    </div></details>
+    ${c.note ? `<p class="note" style="margin-top:8px">📝 ${esc(c.note)}</p>` : ''}
+    <div class="btns" style="margin-top:12px">${c.step !== 'annule' && c.step !== 'livre' ? `<button class="btn" data-a="cmdcancel:${c.id}">Annuler la commande</button>` : ''}<button class="btn ghost-bad" data-a="cmddel:${c.id}">Supprimer</button></div>`;
+  sheet('📦 Commande ' + cmdNo(c), h);
+}
+function cmdPayForm(id){
+  const c = cmds().find(x => x.id === id); if(!c) return; const k = cmdCalc(c);
+  sheet('Paiement du client', `<form id="cpf"><p class="note" style="margin-bottom:10px">${esc(c.title)} · reste à payer <b>${amtX(k.reste, k.cur)}</b></p>
+    <div class="row3">${field('Montant *', `<input name="amt" type="number" step="any" min="0" required value="${k.reste || ''}">`)}${field('Devise', `<select name="cur">${curOpts(k.cur, [['$','$'],['FC',LC()]])}</select>`)}${field('Payé en', `<select name="pay">${PAYS.map(p => `<option>${p}</option>`).join('')}</select>`)}</div>
+    ${field('Date', `<input name="date" type="date" value="${today()}">`)}
+    <button class="btn primary block">Enregistrer le paiement</button></form>`);
+  $('#cpf').onsubmit = e => { e.preventDefault(); e.stopPropagation(); const E = e.target.elements; if(!(num(E.amt.value) > 0)) return;
+    c.pays = c.pays || []; c.pays.push({id:uid(), date:E.date.value || today(), amt:num(E.amt.value), cur:E.cur.value, pay:E.pay.value});
+    save(); closeSheet(); render(); cmdSheet(c.id); if(cmdCalc(c).reste <= 0){ cheer('Commande soldée 🎉', 60); } else toast('Paiement enregistré'); };
+}
+function fournSheet(){
+  const L = fourns(), C = cmds();
+  sheet('🔒 Fournisseurs', `<p class="note" style="margin-bottom:10px">Visible seulement par vous (jamais sur les reçus des clients).</p>
+    <div class="list">${L.length ? L.map(f => { const cs = C.filter(c => c.fid === f.id), tot = cs.reduce((t,c) => t + usdOf(c.supAmt, c.supCur), 0);
+      return `<div class="it" style="cursor:default"><div class="ic c-send">${esc(initials(f.name))}</div><div class="m"><div class="t">${esc(f.name)}</div><div class="d">${[f.phone, f.city].filter(Boolean).map(esc).join(' · ') || '—'} · ${cs.length} commande(s) · ${money(tot)} payés</div></div><div class="r"><button class="btn sm" data-a="fourndel:${f.id}">✕</button></div></div>`; }).join('') : '<div class="empty">Aucun fournisseur.</div>'}</div>
+    <form id="fnf" class="card" style="margin-top:12px"><b>Ajouter un fournisseur</b>
+      ${field('Nom *', `<input name="name" required maxlength="60">`)}
+      <div class="row2">${field('WhatsApp / WeChat', `<input name="phone">`)}${field('Ville / pays', `<input name="city" placeholder="Ex : Guangzhou">`)}</div>
+      <button class="btn primary block">Ajouter</button></form>`);
+  $('#fnf').onsubmit = e => { e.preventDefault(); e.stopPropagation(); const E = e.target.elements;
+    S.moves.push({id:uid(), type:'fourn', date:today(), ts:Date.now(), name:E.name.value.trim(), phone:E.phone.value.trim(), city:E.city.value.trim()}); save(); fournSheet(); toast('Fournisseur ajouté'); };
+}
+function lotNotify(cs, title){
+  sheet(title, `<p class="note" style="margin-bottom:10px">Prévenez chaque client (un message WhatsApp prêt pour chacun) :</p>
+    <div class="list">${cs.map(c => `<div class="it" style="cursor:default"><div class="m"><div class="t">${esc(c.client)} · ${esc(c.title)}</div><div class="d">${cmdNo(c)} · reste ${amtX(cmdCalc(c).reste, cmdCalc(c).cur)}</div></div><div class="r">${c.phone ? `<a class="btn wa sm" href="${waLink(c.phone, cmdMsg(c))}" target="_blank" rel="noopener">${ico('wa')} Envoyer</a>` : '<span class="note">pas de n°</span>'}</div></div>`).join('')}</div>`);
+}
+
+/* Reçu d'acompte / facture d'une commande (image) : jamais de fournisseur ni de coûts */
+async function cmdImage(c){
+  const st = S.settings, k = cmdCalc(c), done = k.reste <= 0;
+  const W = 1240, pad = 70, cv = document.createElement('canvas'), x = cv.getContext('2d'); cv.width = W; cv.height = 3200;
+  const brand = st.color || '#0F766E', [r,g,b] = hexRgb(brand), F = (w, sz) => `${w} ${sz}px -apple-system, "Segoe UI", Roboto, Arial, sans-serif`;
+  const [logo, ph] = await Promise.all([loadImg(st.logo), loadImg(c.photo)]);
+  const rr = (X,Y,w,h,R) => { x.beginPath(); x.moveTo(X+R,Y); x.arcTo(X+w,Y,X+w,Y+h,R); x.arcTo(X+w,Y+h,X,Y+h,R); x.arcTo(X,Y+h,X,Y,R); x.arcTo(X,Y,X+w,Y,R); x.closePath(); };
+  const T = (t, X, Y, f, col, al) => { x.font = f; x.fillStyle = col || '#16181d'; x.textAlign = al || 'left'; x.fillText(t, X, Y); x.textAlign = 'left'; };
+  x.fillStyle = '#fff'; x.fillRect(0, 0, W, cv.height);
+  const grad = x.createLinearGradient(0,0,W,0); grad.addColorStop(0, brand); grad.addColorStop(1, `rgb(${Math.round(r*.7)},${Math.round(g*.7)},${Math.round(b*.7)})`);
+  x.fillStyle = grad; x.fillRect(0,0,W,22);
+  let y = 80;
+  x.save(); rr(pad, y, 150, 150, 36); x.clip(); x.fillStyle = `rgba(${r},${g},${b},.12)`; x.fillRect(pad, y, 150, 150);
+  if(logo){ const kk = Math.max(150/logo.width, 150/logo.height); x.drawImage(logo, pad + (150-logo.width*kk)/2, y + (150-logo.height*kk)/2, logo.width*kk, logo.height*kk); } else T(initials(st.shop), pad + 75, y + 98, F(800, 58), brand, 'center');
+  x.restore();
+  const sx = pad + 180, bx = W - pad - 380;
+  T(String(st.shop || 'Ma Boutique').slice(0, 30), sx, y + 52, F(850, 50));
+  let iy = y + 92;
+  const info = [st.slogan, st.addr, [st.wa ? 'Tél./WhatsApp : ' + st.wa : '', st.tel2].filter(Boolean).join(' · '), st.email, st.legal].filter(Boolean);
+  x.font = F(500, 27); for(const l of info) for(const w of wrapText(x, l, bx - sx - 30)){ T(w, sx, iy, F(500, 27), '#6b7280'); iy += 36; }
+  x.fillStyle = `rgba(${r},${g},${b},.08)`; rr(bx, y, 380, 200, 26); x.fill();
+  T(done ? 'FACTURE' : "REÇU D'ACOMPTE", bx + 190, y + 58, F(850, done ? 44 : 34), brand, 'center');
+  T('N° ' + cmdNo(c), bx + 190, y + 108, F(700, 27), '#16181d', 'center');
+  T('Date : ' + new Date(today() + 'T12:00:00').toLocaleDateString('fr-FR'), bx + 190, y + 150, F(500, 26), '#6b7280', 'center');
+  T('Commande : ' + stepOf(c.step)[1].split(' — ')[0], bx + 190, y + 186, F(650, 22), done ? '#15803d' : '#b45309', 'center');
+  y = Math.max(iy, y + 230) + 30;
+  const cl = [['Client', c.client || '—'], ['Téléphone', c.phone || '—'], ['Adresse', c.addr || '—'], ['Commandé le', dAbs(c.date, 1)]].concat(c.eta && cmdActive(c) ? [['Arrivée prévue', dAbs(c.eta, 1)]] : []);
+  x.font = F(500, 28); const clL = cl.map(([kk,v]) => [kk, wrapText(x, v, W - pad*2 - 320)]);
+  const ch = 80 + clL.reduce((t,[,l]) => t + l.length*38 + 12, 0);
+  x.fillStyle = '#f4f5f7'; rr(pad, y, W - pad*2, ch, 22); x.fill();
+  T('CLIENT', pad + 30, y + 42, F(800, 22), brand);
+  let cy = y + 86; for(const [kk, lines] of clL){ T(kk, pad + 30, cy, F(600, 26), '#6b7280'); lines.forEach((l,j) => T(l, pad + 270, cy + j*38, F(500, 28))); cy += lines.length*38 + 12; }
+  y += ch + 40;
+  const c1 = W - pad - 520, c2 = W - pad - 340, c3 = W - pad;
+  x.fillStyle = brand; rr(pad, y, W - pad*2, 64, 16); x.fill();
+  T('Désignation', pad + 24, y + 42, F(700, 26), '#fff'); T('Qté', c1 + 40, y + 42, F(700, 26), '#fff', 'center'); T('Prix unit.', c2 + 10, y + 42, F(700, 26), '#fff', 'right'); T('Montant', c3 - 24, y + 42, F(700, 26), '#fff', 'right');
+  y += 64; x.font = F(600, 28);
+  const nl = wrapText(x, c.title || 'Commande', c1 - pad - (ph ? 130 : 40)).slice(0, 3), rh = Math.max(120, 40 + nl.length*38);
+  let tx = pad + 24; if(ph){ x.save(); rr(pad + 20, y + (rh-90)/2, 90, 90, 16); x.clip(); x.drawImage(ph, pad + 20, y + (rh-90)/2, 90, 90); x.restore(); tx = pad + 130; }
+  nl.forEach((l,j) => T(l, tx, y + rh/2 - (nl.length-1)*19 + j*38 + 10, F(600, 28)));
+  T(String(c.qty || 1), c1 + 40, y + rh/2 + 10, F(600, 28), '#16181d', 'center');
+  T(amtX(c.price, k.cur), c2 + 10, y + rh/2 + 10, F(500, 28), '#16181d', 'right');
+  T(amtX(k.total, k.cur), c3 - 24, y + rh/2 + 10, F(700, 28), '#16181d', 'right');
+  y += rh; x.fillStyle = '#e7e9ee'; x.fillRect(pad, y, W - pad*2, 2); y += 40;
+  // paiements
+  T('Total de la commande', W - pad - 300, y, F(500, 28), '#6b7280', 'right'); T(amtX(k.total, k.cur), W - pad - 24, y, F(700, 28), '#16181d', 'right'); y += 46;
+  (c.pays || []).forEach(p => { T('Payé le ' + new Date(p.date + 'T12:00:00').toLocaleDateString('fr-FR') + (p.pay ? ' (' + p.pay + ')' : ''), W - pad - 300, y, F(500, 26), '#15803d', 'right'); T('− ' + amtX(p.amt, p.cur), W - pad - 24, y, F(600, 26), '#15803d', 'right'); y += 40; });
+  y += 10;
+  x.fillStyle = `rgba(${r},${g},${b},.1)`; rr(W - pad - 640, y, 640, 100, 22); x.fill();
+  T(done ? 'TOUT EST PAYÉ' : 'RESTE À PAYER', W - pad - 610, y + 62, F(800, 30), '#16181d');
+  T(amtX(done ? k.total : k.reste, k.cur), W - pad - 30, y + 66, F(850, 46), done ? '#15803d' : brand, 'right');
+  if(done){ x.save(); x.translate(pad + 170, y + 50); x.rotate(-0.18); x.strokeStyle = '#15803d'; x.lineWidth = 5; rr(-140, -46, 280, 92, 18); x.stroke(); T('PAYÉE', 0, 18, F(900, 50), '#15803d', 'center'); x.restore(); }
+  y += 160;
+  const notes = [done ? '' : 'Le reste est à payer à la réception de la commande.', st.invNote].filter(Boolean);
+  x.font = F(500, 25); for(const n of notes){ for(const l of wrapText(x, n, W - pad*2)){ T(l, pad, y, F(500, 25), '#6b7280'); y += 34; } y += 6; }
+  y += 30; x.fillStyle = '#e7e9ee'; x.fillRect(pad, y, W - pad*2, 2); y += 60;
+  T('Merci pour votre confiance 🙏', W/2, y, F(750, 34), '#16181d', 'center'); y += 46;
+  T([st.shop, st.wa ? 'WhatsApp ' + st.wa : ''].filter(Boolean).join('  ·  '), W/2, y, F(500, 26), '#6b7280', 'center'); y += 50;
+  x.fillStyle = grad; x.fillRect(0, y, W, 18); y += 18;
+  const out = document.createElement('canvas'); out.width = W; out.height = y; out.getContext('2d').drawImage(cv, 0, 0, W, y, 0, 0, W, y);
+  return new Promise(res => out.toBlob(bl => res(bl), 'image/jpeg', .92));
+}
+async function shareCmdImage(id){
+  const c = cmds().find(x => x.id === id); if(!c) return;
+  toast('Préparation du reçu…');
+  const bl = await cmdImage(c), name = cmdNo(c) + '-' + (c.client || 'client').replace(/[^\w-]+/g,'_') + '.jpg', file = new File([bl], name, {type:'image/jpeg'});
+  const url = URL.createObjectURL(bl);
+  sheet('🧾 ' + cmdNo(c), `<img src="${url}" alt="Reçu" style="width:100%;border-radius:14px;box-shadow:0 4px 18px rgba(0,0,0,.12)">
+    <button class="btn primary block" style="margin-top:12px" id="cmdShare">Partager (WhatsApp…)</button>
+    <a class="btn block" style="margin-top:8px" href="${url}" download="${name}">Télécharger l'image</a>
+    ${c.phone ? `<a class="btn wa block" style="margin-top:8px" href="${waLink(c.phone, cmdMsg(c))}" target="_blank" rel="noopener">${ico('wa')} Envoyer aussi le message</a>` : ''}`);
+  $('#cmdShare').onclick = async () => { try{ if(navigator.canShare && navigator.canShare({files:[file]})) await navigator.share({files:[file], title:cmdNo(c)}); else { const a = document.createElement('a'); a.href = url; a.download = name; a.click(); } }catch(_){} };
+}
+Object.assign(A, {
+  cmdnew: () => cmdForm(),
+  cmd: id => cmdSheet(id),
+  cmdedit: id => { closeSheet(); cmdForm(id); },
+  cmdpay: id => cmdPayForm(id),
+  cmdimg: id => shareCmdImage(id),
+  imptab: k => { impTab = k; render(); },
+  fourns: () => fournSheet(),
+  fourndel: async id => { if(!await ask('Supprimer ce fournisseur ? (les commandes restent)', 'Supprimer')) return; S.moves = S.moves.filter(m => m.id !== id); save(); fournSheet(); },
+  cmdstep: v => { const [id, st] = v.split('|'), c = cmds().find(x => x.id === id); if(!c) return;
+    c.step = st; c.steps = Object.assign({}, c.steps, {[st]: today()}); save(); render(); cmdSheet(id);
+    if(st === 'livre') cheer('Commande livrée 🎉', 70); else toast(stepOf(st)[2] + ' ' + stepOf(st)[1]); },
+  cmdcancel: async id => { if(!await ask('Annuler cette commande ? Elle restera dans « Annulées ».', 'Annuler la commande')) return; const c = cmds().find(x => x.id === id); c.step = 'annule'; c.steps = Object.assign({}, c.steps, {annule: today()}); save(); closeSheet(); render(); },
+  cmddel: async id => { if(!await ask('Supprimer définitivement cette commande et ses paiements ?', 'Supprimer')) return; S.moves = S.moves.filter(m => m.id !== id); save(); closeSheet(); render(); toast('Commande supprimée'); },
+  paydel: async v => { const [id, pid] = v.split('|'), c = cmds().find(x => x.id === id); if(!c || !await ask('Supprimer ce paiement ?', 'Supprimer')) return; c.pays = (c.pays || []).filter(p => p.id !== pid); save(); render(); cmdSheet(id); },
+  lotarrive: async v => { const n = decodeURIComponent(v), cs = cmds().filter(c => c.lot === n && cmdActive(c) && STEPK.indexOf(c.step) < 3);
+    if(!cs.length){ lotNotify(cmds().filter(c => c.lot === n && cmdActive(c)), '📦 Lot « ' + n + ' »'); return; }
+    if(!await ask(`Marquer les ${cs.length} commande(s) du lot « ${n} » comme arrivées ?`, 'Oui, arrivé', false)) return;
+    cs.forEach(c => { c.step = 'arrive'; c.steps = Object.assign({}, c.steps, {arrive: today()}); }); save(); render(); lotNotify(cs, '📦 Lot « ' + n + ' » arrivé'); }
+});
+document.addEventListener('input', e => { if(e.target.id === 'impQ'){ impQ = e.target.value; const p = e.target.selectionStart; render(); const i = $('#impQ'); if(i){ i.focus(); try{ i.setSelectionRange(p, p); }catch(_){} } } });
+
 // les lignes « argent » du livre ouvrent le formulaire d'argent
 A.money = (t, el) => { if(['versement','paiecomm','depense'].includes(t)) moneyForm(t, {liv: el.dataset.liv, cat: el.dataset.cat}); else moneyForm(null, {id:t}); };
 document.addEventListener('click', e => {
@@ -2467,7 +2761,7 @@ document.addEventListener('click', e => {
 document.addEventListener('submit', e => {
   const f = e.target, E = f.elements;
   if(f.id === 'setf'){ e.preventDefault();
-    Object.assign(S.settings, {shop:E.shop.value.trim() || 'Ma Boutique', color:E.color.value, country:E.country.value, lc:E.lc.value.trim() || 'FC', rate:num(E.rate.value) || S.settings.rate, fee:num(E.fee.value), feeCur:E.feeCur.value, cc:E.cc.value.replace(/\D/g,''), wa:E.wa.value.trim(), mode:E.mode.value, slogan:E.slogan.value.trim(), addr:E.saddr.value.trim(), tel2:E.tel2.value.trim(), email:E.email.value.trim(), legal:E.legal.value.trim(), invNote:E.invNote.value.trim(), setup:true});
+    Object.assign(S.settings, {shop:E.shop.value.trim() || 'Ma Boutique', color:E.color.value, country:E.country.value, lc:E.lc.value.trim() || 'FC', rate:num(E.rate.value) || S.settings.rate, fee:num(E.fee.value), feeCur:E.feeCur.value, cc:E.cc.value.replace(/\D/g,''), wa:E.wa.value.trim(), mode:E.mode.value, imp:!!(E.imp && E.imp.checked), impFrom:(E.impFrom ? E.impFrom.value.trim() : '') || 'Chine', cny:num(E.cny && E.cny.value) || 7.1, slogan:E.slogan.value.trim(), addr:E.saddr.value.trim(), tel2:E.tel2.value.trim(), email:E.email.value.trim(), legal:E.legal.value.trim(), invNote:E.invNote.value.trim(), setup:true});
     save(); render(); toast('Réglages enregistrés'); }
   if(f.id === 'wf'){ e.preventDefault();
     Object.assign(S.settings, {shop:E.shop.value.trim() || 'Ma Boutique', country:E.country.value, lc:E.lc.value.trim() || 'FC', rate:num(E.rate.value) || 2300, cc:E.cc.value.replace(/\D/g,''), wa:E.wa.value.trim(), mode:E.mode.value, setup:true});
