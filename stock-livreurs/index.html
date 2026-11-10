@@ -430,7 +430,7 @@ const isKit = p => !!(p && p.kit && p.kit.length);
 const sortMoves = arr => arr.sort((a,b) => (b.date||'').localeCompare(a.date||'') || (b.ts||0) - (a.ts||0));
 const pic = (p, cls) => p && p.photo ? `<div class="ic pic"><img src="${p.photo}" alt=""></div>` : `<div class="ic ${cls||'c-brand'}">${esc(initials(p ? p.name : '?'))}</div>`;
 const initials = s => (s||'?').trim().split(/\s+/).slice(0,2).map(w => w[0]).join('').toUpperCase();
-const priceTxt = p => amt(p.sell||0, p.cur);
+const priceTxt = p => num(p.old) > num(p.sell) ? `${amt(p.sell||0, p.cur)} <s class="note">${amt(p.old, p.cur)}</s> 🏷️` : amt(p.sell||0, p.cur);
 function hexRgb(h){ h = (h||'#0F766E').replace('#',''); if(h.length===3) h = h.split('').map(c=>c+c).join(''); const n = parseInt(h,16); return [n>>16&255, n>>8&255, n&255]; }
 function phoneNorm(p){
   let d = String(p||'').replace(/\D/g,'');
@@ -1865,7 +1865,8 @@ function productForm(id){
     ${field('Détails', `<textarea name="details" placeholder="Description, taille, couleur, contenance…">${esc(p?.details)}</textarea>`)}
     <div class="row2">${field('Catégorie', `<input name="cat" list="catl" value="${esc(p?.cat)}" placeholder="Ex : Beauté"><datalist id="catl">${cats.map(c => `<option value="${esc(c)}">`).join('')}</datalist>`)}
       ${field('Devise du prix', `<select name="cur"><option value="$" ${p?.cur!=='FC'?'selected':''}>Dollar ($)</option><option value="FC" ${p?.cur==='FC'?'selected':''}>Monnaie locale (${esc(LC())})</option></select>`)}</div>
-    <div class="row2">${field('Prix de vente *', `<input name="sell" type="number" step="any" min="0" required value="${p ? p.sell : ''}" placeholder="0">`)}${field("Prix d'achat *", `<input name="buy" type="number" step="any" min="0" value="${p && num(p.buy) ? p.buy : ''}" placeholder="0">`, 'Coût par pièce (même devise)')}</div>
+    <div class="row2">${field('Prix de vente *', `<input name="sell" type="number" step="any" min="0" required value="${p ? p.sell : ''}" placeholder="0">`)}${field('Prix normal avant promo', `<input name="old" type="number" step="any" min="0" value="${p && num(p.old) ? p.old : ''}" placeholder="Optionnel">`, 'Si rempli et plus haut : promo affichée (prix barré)')}</div>
+    <div class="row2">${field("Prix d'achat *", `<input name="buy" type="number" step="any" min="0" value="${p && num(p.buy) ? p.buy : ''}" placeholder="0">`, 'Coût par pièce (même devise)')}</div>
     <div class="row2">${field('Commission livreur', `<select name="commMode"><option value="fixe" ${p?.commMode!=='pct'?'selected':''}>Montant fixe ($)</option><option value="pct" ${p?.commMode==='pct'?'selected':''}>Pourcentage (%)</option></select>`)}${field('Valeur', `<input name="comm" type="number" step="any" min="0" value="${p ? p.comm : ''}" placeholder="Ex : 2">`, '<span id="commHint">par pièce livrée</span>')}</div>
     <details class="card" style="margin-bottom:12px" ${p && p.commCity && Object.keys(p.commCity).length ? 'open' : ''}><summary><b>Commission différente selon la ville</b> <span class="note">(optionnel)</span></summary>
       <p class="note" style="margin:8px 0">Laissez vide pour utiliser la commission générale ci-dessus. <span id="cityUnit"></span></p>
@@ -1899,7 +1900,7 @@ function productForm(id){
     }
     if(p && S.moves.some(m => m.pid === p.id) && JSON.stringify(kitv) !== JSON.stringify(isKit(p) ? p.kit : null)){
       toast(isKit(p) ? 'Ce pack a déjà des ventes : sa composition ne peut plus changer' : 'Ce produit a déjà du stock : créez plutôt un nouveau pack'); return; }
-    const data = {name, details:E.details.value.trim(), cat:E.cat.value.trim(), cur:E.cur.value, sell:num(E.sell.value), buy:num(E.buy.value), comm:num(E.comm.value), commMode:E.commMode.value, commCity:readCityComm(f), alert:Math.max(0, Math.round(num(E.alert.value))), kit:kitv, photo, hide:!E.show.checked};
+    const data = {name, details:E.details.value.trim(), cat:E.cat.value.trim(), cur:E.cur.value, sell:num(E.sell.value), old:num(E.old.value) > num(E.sell.value) ? num(E.old.value) : 0, buy:num(E.buy.value), comm:num(E.comm.value), commMode:E.commMode.value, commCity:readCityComm(f), alert:Math.max(0, Math.round(num(E.alert.value))), kit:kitv, photo, hide:!E.show.checked};
     if(p){ Object.assign(p, data); toast('Produit modifié'); }
     else {
       const np = Object.assign({id:uid()}, data); S.products.push(np);

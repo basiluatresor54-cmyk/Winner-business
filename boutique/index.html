@@ -34,6 +34,10 @@ button,input,select,textarea{font:inherit;color:inherit}button{cursor:pointer;bo
 .pc .n{font-weight:700;font-size:14.5px;line-height:1.25}
 .pc .d{font-size:12px;color:var(--muted);display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
 .pc .p{font-weight:850;font-size:17px;color:var(--brand);margin-top:auto}
+.pc .ph{position:relative;cursor:pointer}.promo{position:absolute;top:10px;left:10px;background:#e11d48;color:#fff;font-weight:800;font-size:12.5px;padding:4px 9px;border-radius:999px;box-shadow:0 4px 12px rgba(225,29,72,.35)}
+.pc s,.det s{color:var(--muted);font-weight:600;font-size:13px;margin-left:6px}
+.pc .n{cursor:pointer}
+.det img{width:100%;border-radius:20px;aspect-ratio:1/1;object-fit:cover;margin-bottom:12px}
 .pc .p small{font-size:11.5px;color:var(--muted);font-weight:600}
 .add{margin-top:6px;padding:9px;border-radius:12px;background:var(--brand);color:#fff;font-weight:750;transition:transform .12s}
 .add:active{transform:scale(.96)}
@@ -95,21 +99,34 @@ function render(){
   const name = SHOP.shop || SHOP.name, cats = [...new Set(PRODS.map(p => p.cat).filter(Boolean))];
   const list = PRODS.filter(p => !CAT || p.cat === CAT);
   $('#app').innerHTML = `<div class="hero" style="${SHOP.cover ? `background-image:url('${SHOP.cover}')` : ''}"><div class="in"><div class="logo">${SHOP.logo ? `<img src="${SHOP.logo}" alt="">` : esc(initials(name))}</div><div><h1>${esc(name)}</h1><p>${esc(SHOP.intro || 'Commandez en quelques secondes, livraison rapide.')}</p></div></div></div>
-    <div class="badges"><span class="badge">🛵 Livraison rapide</span><span class="badge">💵 Paiement à la livraison</span><span class="badge">✅ Vérifiez avant de payer</span></div>
+    <div class="badges"><span class="badge">🛵 Livraison rapide${num(SHOP.fee) ? ' · ' + fmt(num(SHOP.fee)) + ' ' + (SHOP.feeCur === '$' ? '$' : esc(LC())) : ''}</span><span class="badge">💵 Paiement à la livraison</span><span class="badge">✅ Vérifiez avant de payer</span></div>
     ${cats.length > 1 ? `<div class="chips"><button class="chip ${!CAT?'on':''}" data-cat="">Tout</button>${cats.map(c => `<button class="chip ${CAT===c?'on':''}" data-cat="${esc(c)}">${esc(c)}</button>`).join('')}</div>` : ''}
     <div class="grid">${list.map((p,i) => { const q = CART[p.id] || 0; return `<div class="pc" style="animation-delay:${Math.min(i,10)*.03}s">
-      <div class="ph" style="${p.photo ? `background-image:url('${p.photo}')` : ''}">${p.photo ? '' : esc(initials(p.name))}</div>
-      <div class="b"><div class="n">${esc(p.name)}</div>${p.details ? `<div class="d">${esc(p.details)}</div>` : ''}
-      <div class="p">${amt(num(p.price), p.cur)}${p.cur !== 'FC' && num(SHOP.rate) ? `<br><small>≈ ${fmt(Math.round(num(p.price)*num(SHOP.rate)/100)*100)} ${esc(LC())}</small>` : ''}</div>
+      <div class="ph" data-det="${p.id}" style="${p.photo ? `background-image:url('${p.photo}')` : ''}">${p.photo ? '' : esc(initials(p.name))}${promoPct(p) ? `<span class="promo">-${promoPct(p)} %</span>` : ''}</div>
+      <div class="b"><div class="n" data-det="${p.id}">${esc(p.name)}</div>${p.details ? `<div class="d">${esc(p.details)}</div>` : ''}
+      <div class="p">${amt(num(p.price), p.cur)}${promoPct(p) ? `<s>${amt(num(p.old), p.cur)}</s>` : ''}${p.cur !== 'FC' && num(SHOP.rate) ? `<br><small>≈ ${fmt(Math.round(num(p.price)*num(SHOP.rate)/100)*100)} ${esc(LC())}</small>` : ''}</div>
       ${q ? `<div class="qty"><button data-dec="${p.id}">−</button><b>${q}</b><button data-inc="${p.id}">+</button></div>` : `<button class="add" data-inc="${p.id}">Ajouter</button>`}</div></div>`; }).join('') || '<div class="empty" style="grid-column:1/-1">Aucun produit pour le moment.</div>'}</div>
     <div class="foot">Boutique propulsée par <a href="../vente/" target="_blank" rel="noopener">Stock & Livreurs · BASILUA TECH</a></div>`;
   paintBar();
+}
+const promoPct = p => num(p.old) > num(p.price) && num(p.price) > 0 ? Math.round((1 - num(p.price) / num(p.old)) * 100) : 0;
+function openDetail(id){
+  const p = PRODS.find(x => x.id === id); if(!p) return;
+  $('#sh').innerHTML = `<h2>${esc(p.name)} <button class="x" onclick="document.getElementById('ov').hidden=true">×</button></h2><div class="det">
+    ${p.photo ? `<img src="${p.photo}" alt="">` : ''}
+    <div style="font-size:24px;font-weight:850;color:var(--brand)">${amt(num(p.price), p.cur)}${promoPct(p) ? `<s>${amt(num(p.old), p.cur)}</s> <span class="promo" style="position:static;margin-left:6px">-${promoPct(p)} %</span>` : ''}</div>
+    ${p.cur !== 'FC' && num(SHOP.rate) ? `<p class="note">≈ ${fmt(Math.round(num(p.price)*num(SHOP.rate)/100)*100)} ${esc(LC())}</p>` : ''}
+    ${p.details ? `<p style="margin:12px 0;white-space:pre-line">${esc(p.details)}</p>` : ''}
+    ${num(SHOP.fee) ? `<p class="note">🛵 Frais de livraison : ${fmt(num(SHOP.fee))} ${SHOP.feeCur === '$' ? '$' : esc(LC())}, à remettre au livreur. Paiement à la livraison.</p>` : ''}
+    <button class="go" style="background:var(--brand)" onclick="CART['${p.id}']=(CART['${p.id}']||0)+1;saveCart();render();document.getElementById('ov').hidden=true">🛒 Ajouter au panier</button></div>`;
+  $('#ov').hidden = false;
 }
 function cartLines(){ return Object.entries(CART).map(([id,q]) => [PRODS.find(p => p.id === id), q]).filter(([p,q]) => p && q > 0); }
 function totals(){ let usd = 0, fc = 0; for(const [p,q] of cartLines()){ if(p.cur === 'FC') fc += num(p.price)*q; else usd += num(p.price)*q; } return [usd, fc]; }
 const totTxt = () => { const [u,f] = totals(); return [u ? fmt(u) + ' $' : '', f ? fmt(f) + ' ' + LC() : ''].filter(Boolean).join(' + ') || '0'; };
 function paintBar(){ const n = cartLines().reduce((t,[,q]) => t + q, 0); $('#bar').classList.toggle('on', n > 0); $('#barT').innerHTML = `🛒 ${n} article${n>1?'s':''}<small>Total : ${totTxt()}</small>`; }
 document.addEventListener('click', e => {
+  const dt = e.target.closest('[data-det]'); if(dt){ openDetail(dt.dataset.det); return; }
   const t = e.target.closest('[data-inc],[data-dec],[data-cat],[data-when]'); if(!t) return;
   if(t.dataset.inc){ CART[t.dataset.inc] = (CART[t.dataset.inc] || 0) + 1; saveCart(); render(); try{ navigator.vibrate && navigator.vibrate(8); }catch(_){} }
   else if(t.dataset.dec){ CART[t.dataset.dec] = Math.max(0, (CART[t.dataset.dec] || 0) - 1); if(!CART[t.dataset.dec]) delete CART[t.dataset.dec]; saveCart(); render(); }
