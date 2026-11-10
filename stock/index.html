@@ -576,7 +576,8 @@ function livStats(id){
   return r;
 }
 // jour comptable d'une vente : le jour de livraison (prévu) sinon le jour de la commande
-const mday = m => m.type === 'vente' ? (m.ddate || m.date) : m.date;
+// jour comptable d'une vente : le jour où on a touché « Livré » (ldate), sinon le jour de livraison prévu, sinon le jour de la commande
+const mday = m => m.type === 'vente' ? (m.ldate || m.ddate || m.date) : m.date;
 function stats(p){
   const r = {ca:0, nv:0, cost:0, comm:0, loss:0, dep:0, depCat:{}, pending:0, pendingAmt:0, byProd:{}, byCity:{}, days:{}};
   for(const m of S.moves){
@@ -2198,6 +2199,7 @@ function moveForm(type, opt = {}){
       if(!m || m.pid !== p.id || m.cur !== p.cur) rec.rate = rate();
       rec.client = E.client.value.trim(); rec.phone = E.phone.value.trim(); rec.addr = E.addr.value.trim(); rec.status = status;
       rec.ddate = E.ddate.value || rec.date; rec.dtime = E.dtime.value; rec.pay = E.pay ? E.pay.value : (rec.pay || '');
+      if(rec.status === 'livre'){ if(!m) rec.ldate = rec.ddate; else if(m.status !== 'livre') rec.ldate = today(); else if(m.ddate !== rec.ddate) rec.ldate = rec.ddate; } else delete rec.ldate;
     }
     let next = m ? S.moves.map(x => x.id === m.id ? rec : x) : S.moves.concat([rec]);
     const more = type === 'vente' && !m ? extras.filter(x => prod(x.pid)).map((x, i) => { const P = prod(x.pid);
@@ -2293,7 +2295,7 @@ function setStatus(id, st, quiet){
   const rec = Object.assign({}, m, {status:st});
   const err = checkStock(S.moves.map(x => x.id === id ? rec : x), [m.pid]);
   if(err){ toast(err); return; }
-  m.status = st; save(); render(); if(!quiet) saleSheet(id);
+  m.status = st; if(st === 'livre') m.ldate = today(); else delete m.ldate; save(); render(); if(!quiet) saleSheet(id);
   if(st === 'livre') cheer('Livrée ✅ — commission comptée', 60); else toast(st === 'annule' ? 'Vente annulée — stock remis' : 'Statut : ' + STATUS[st]);
 }
 
