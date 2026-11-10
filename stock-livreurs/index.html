@@ -214,7 +214,48 @@ textarea.code{width:100%;min-height:90px;font:12px/1.4 ui-monospace,Menlo,monosp
 /* relevé */
 .relh .logo{background:var(--brand);color:var(--brand-ink);width:48px;height:48px}
 .sign{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:22px}.sign div{border-top:1px solid #999;padding-top:6px;font-size:12px;color:var(--muted,#666);text-align:center;margin-top:34px}
-@media print{ html[data-theme=dark]{--bg:#fff;--card:#fff;--ink:#16181d;--muted:#555;--line:#ddd;--field:#fff;--soft:#eee;--soft2:#eee;--ok:#15803d;--bad:#b91c1c;--warn:#b45309;--sum:#fafbfc;--brand-tx:var(--brand);color-scheme:light}  .relh .logo{border:1px solid #ddd} .tb{font-size:12px}  .top, nav.nav, .fab, .back, .noprint, #toast{display:none!important} body{padding:0!important;background:#fff} main{max-width:none;padding:0} .card,.kpi,.list{box-shadow:none;border:1px solid #ddd} }
+
+/* ===== Design « Verre » (style iPhone) — activé par html.glass ===== */
+html.glass{--gl:rgba(255,255,255,.66);--gl2:rgba(255,255,255,.78);--glb:rgba(255,255,255,.7);--gls:0 8px 28px rgba(16,24,40,.08),0 1px 2px rgba(16,24,40,.04)}
+html.glass[data-theme=dark]{--gl:rgba(32,35,43,.62);--gl2:rgba(36,40,48,.82);--glb:rgba(255,255,255,.08);--gls:0 10px 30px rgba(0,0,0,.35)}
+html.glass body{background:
+  radial-gradient(900px 520px at -10% -8%, rgba(var(--brand-rgb),.22), transparent 60%),
+  radial-gradient(700px 480px at 110% 18%, rgba(var(--brand-rgb),.12), transparent 60%),
+  radial-gradient(800px 600px at 50% 110%, rgba(122,162,255,.10), transparent 60%),
+  var(--bg);background-attachment:fixed;min-height:100vh}
+html.glass .top{background:rgba(var(--brand-rgb),.82);backdrop-filter:blur(22px) saturate(180%);-webkit-backdrop-filter:blur(22px) saturate(180%);box-shadow:0 1px 0 rgba(255,255,255,.12) inset,0 6px 24px rgba(var(--brand-rgb),.18)}
+html.glass .top h1{font-size:19px;font-weight:800;letter-spacing:-.02em}
+html.glass .logo{border-radius:14px;box-shadow:0 0 0 1.5px rgba(255,255,255,.35) inset}
+html.glass .card,html.glass .kpi,html.glass .list,html.glass .chip{background:var(--gl);border:1px solid var(--glb);box-shadow:var(--gls)}
+html.glass .card,html.glass .kpi,html.glass .list{border-radius:20px}
+html.glass .chip.on{background:var(--brand);color:var(--brand-ink);border-color:transparent}
+html.glass .kpi.hero{background:linear-gradient(135deg, var(--brand) 0%, rgba(var(--brand-rgb),.78) 100%);border:1px solid rgba(255,255,255,.22);position:relative;overflow:hidden;box-shadow:0 12px 30px rgba(var(--brand-rgb),.28)}
+html.glass .kpi.hero::after{content:"";position:absolute;inset:0;background:linear-gradient(160deg,rgba(255,255,255,.28) 0%,rgba(255,255,255,0) 42%);pointer-events:none}
+html.glass .kpi .v{font-weight:800;letter-spacing:-.02em}
+html.glass .sec h2{font-size:17px;font-weight:800;letter-spacing:-.015em}
+html.glass .btn{border-radius:14px}
+html.glass .btn:not(.primary):not(.wa):not(.ghost-bad){background:var(--gl2);border:1px solid var(--glb)}
+html.glass .btn.primary{box-shadow:0 8px 20px rgba(var(--brand-rgb),.28)}
+html.glass .f input,html.glass .f select,html.glass .f textarea,html.glass .search{border-radius:14px;background:var(--gl2)}
+html.glass .ov{background:rgba(10,12,18,.32);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px)}
+html.glass .sh{background:var(--gl2);backdrop-filter:blur(30px) saturate(180%);-webkit-backdrop-filter:blur(30px) saturate(180%);border:1px solid var(--glb);border-radius:28px 28px 0 0}
+html.glass .fab{border-radius:22px;box-shadow:0 10px 26px rgba(var(--brand-rgb),.4),0 0 0 1px rgba(255,255,255,.25) inset}
+@media (max-width:899px){
+  html.glass body{padding-bottom:calc(100px + env(safe-area-inset-bottom))}
+  html.glass nav.nav{left:12px;right:12px;bottom:calc(10px + env(safe-area-inset-bottom));border-radius:28px;background:var(--gl2);backdrop-filter:blur(26px) saturate(180%);-webkit-backdrop-filter:blur(26px) saturate(180%);border:1px solid var(--glb);box-shadow:0 12px 34px rgba(16,24,40,.16);padding:6px 6px}
+  html.glass nav.nav button.on{background:rgba(var(--brand-rgb),.14)}
+  html.glass .fab{bottom:calc(96px + env(safe-area-inset-bottom))}
+}
+@media (min-width:900px){ html.glass nav.nav{background:var(--gl);backdrop-filter:blur(26px) saturate(180%);-webkit-backdrop-filter:blur(26px) saturate(180%);border-right:1px solid var(--glb)} }
+/* Photo de couverture (accueil) */
+.cover{position:relative;border-radius:24px;overflow:hidden;min-height:150px;margin-bottom:14px;background:var(--brand) center/cover no-repeat;box-shadow:0 12px 30px rgba(16,24,40,.16);display:flex;align-items:flex-end}
+.cover::before{content:"";position:absolute;inset:0;background:linear-gradient(180deg,rgba(0,0,0,0) 30%,rgba(0,0,0,.62) 100%)}
+.cover .cv{position:relative;display:flex;gap:12px;align-items:center;padding:14px 16px;color:#fff;width:100%}
+.cover .cv .logo{width:48px;height:48px;background:rgba(255,255,255,.22);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);color:#fff}
+.cover b{font-size:20px;font-weight:800;letter-spacing:-.02em;display:block;line-height:1.15;text-shadow:0 1px 8px rgba(0,0,0,.35)}
+.cover span{font-size:13px;opacity:.92}
+@media (min-width:900px){ .cover{min-height:200px} }
+@media print{ html.glass body{background:#fff!important} html.glass .card,html.glass .kpi,html.glass .list{box-shadow:none;border:1px solid #ddd;background:#fff}  html[data-theme=dark]{--bg:#fff;--card:#fff;--ink:#16181d;--muted:#555;--line:#ddd;--field:#fff;--soft:#eee;--soft2:#eee;--ok:#15803d;--bad:#b91c1c;--warn:#b45309;--sum:#fafbfc;--brand-tx:var(--brand);color-scheme:light}  .relh .logo{border:1px solid #ddd} .tb{font-size:12px}  .top, nav.nav, .fab, .back, .noprint, #toast{display:none!important} body{padding:0!important;background:#fff} main{max-width:none;padding:0} .card,.kpi,.list{box-shadow:none;border:1px solid #ddd} }
 @media (min-width:900px){
   body{padding-bottom:24px;padding-left:220px}
   .top{padding-left:24px}
@@ -499,6 +540,10 @@ function applyTheme(){
 }
 applyTheme();
 if(darkMQ && darkMQ.addEventListener) darkMQ.addEventListener('change', () => { if(themePref() === 'auto') applyTheme(); });
+const glassPref = () => { try{ return localStorage.getItem('stock_style') || 'verre'; }catch(_){ return 'verre'; } };
+function applyStyle(){ document.documentElement.classList.toggle('glass', glassPref() === 'verre'); }
+applyStyle();
+function setStyle(v){ try{ localStorage.setItem('stock_style', v); }catch(_){} applyStyle(); }
 function setTheme(t){ try{ localStorage.setItem('stock_theme', t); }catch(_){} applyTheme(); }
 function applyBrand(){
   const c = S.settings.color || '#0F766E';
@@ -506,6 +551,7 @@ function applyBrand(){
   const lum = (0.299*r + 0.587*g + 0.114*b) / 255;
   const st = document.documentElement.style;
   st.setProperty('--brand', c);
+  st.setProperty('--brand-rgb', `${r},${g},${b}`);
   st.setProperty('--brand-ink', lum > 0.62 ? '#16181d' : '#fff');
   st.setProperty('--brand-soft', `rgba(${r},${g},${b},${isDark() ? .26 : .12})`);
   const mix = k => Math.round(k + (255 - k) * .45);
@@ -551,7 +597,8 @@ function vHome(){
   const td = dayReport(today());
   const quick = modeOf() !== 'livraison' ? `<button class="btn primary block quickbtn" data-a="quick">⚡ Vente rapide</button>
   <button class="card daycard" data-a="jourset:${today()}"><span>Aujourd'hui : <b>${td.n}</b> vente(s) · <b class="num">${money(td.ca)}</b></span><span class="note">Rapport du jour ›</span></button>` : '';
-  return `${quick}${alertsCard(st, low)}${periodChips(period,'per')}
+  const cv = S.settings.cover ? `<div class="cover" style="background-image:url('${S.settings.cover}')"><div class="cv"><div class="logo">${S.settings.logo ? `<img src="${S.settings.logo}" alt="">` : esc(initials(S.settings.shop))}</div><div><b>${esc(S.settings.shop || '')}</b><span>${greet()} · ${dAbs(today(), 1)}</span></div></div></div>` : '';
+  return `${cv}${quick}${alertsCard(st, low)}${periodChips(period,'per')}
   ${noBuy.length ? `<button class="warnbox" style="margin-top:10px" data-a="nav:stock">⚠️ ${noBuy.length} produit${noBuy.length>1?'s':''} sans prix d'achat : le bénéfice affiché est trop élevé. Touchez ici pour les compléter.</button>` : ''}
   <div class="kpis" style="margin-top:10px">
     <div class="kpi hero"><div class="l">Bénéfice net ${per}</div><div class="v num ${r.net<0?'neg':''}">${money(r.net)}</div><div class="s">sur ${money(r.ca)} de ventes livrées (${r.nv})</div></div>
@@ -776,7 +823,7 @@ function vPlus(){
   ];
   return `<div class="list menu">${items.map(([v,c,i,t,d]) => `<button class="it" data-a="nav:${v}"><div class="ic ${c}">${ico(i)}</div><div class="m"><div class="t">${t}</div><div class="d" style="white-space:normal">${d}</div></div>${ico('chev')}</button>`).join('')}</div>
   <div class="sec"><h2>Raccourcis</h2></div>
-  <div class="btns"><button class="btn" data-a="money:depense">+ Dépense</button><button class="btn" data-a="money:versement">+ Versement livreur</button><button class="btn" data-a="new:perte">− Sortie / perte</button><button class="btn" data-a="backup">Sauvegarde</button><button class="btn" data-a="soir">🌙 Point du soir</button><button class="btn" data-a="themetoggle">${isDark() ? '☀️ Mode clair' : '🌗 Mode sombre'}</button></div>
+  <div class="btns"><button class="btn" data-a="money:depense">+ Dépense</button><button class="btn" data-a="money:versement">+ Versement livreur</button><button class="btn" data-a="new:perte">− Sortie / perte</button><button class="btn" data-a="backup">Sauvegarde</button><button class="btn" data-a="soir">🌙 Point du soir</button><button class="btn" data-a="style:${glassPref()==='verre'?'simple':'verre'}">${glassPref()==='verre' ? 'Style simple' : '✨ Style verre'}</button><button class="btn" data-a="themetoggle">${isDark() ? '☀️ Mode clair' : '🌗 Mode sombre'}</button></div>
   <div style="margin-top:8px"><button class="btn block" data-a="tpl">📋 Modèle de commande pour WhatsApp</button></div>`;
 }
 
@@ -860,6 +907,11 @@ function vReglages(){
     <div class="f"><span>Couleur</span><div class="colors">${COLORS.map(c => `<button type="button" style="background:${c}" class="${c.toLowerCase()===String(st.color).toLowerCase()?'on':''}" data-a="color:${c}" aria-label="${c}"></button>`).join('')}</div>
       <div style="display:flex;gap:8px;align-items:center;margin-top:8px"><input type="color" id="colPick" name="color" value="${esc(st.color || '#0F766E')}" style="width:52px;height:42px;padding:2px;border:1.5px solid var(--line);border-radius:10px;background:var(--field)"><input id="colHex" maxlength="7" value="${esc(st.color || '#0F766E')}" placeholder="#8A3B12" style="flex:1;padding:10px 12px;border:1.5px solid var(--line);border-radius:11px;background:var(--field);font-family:monospace;font-size:15px"></div>
       <small class="note">Votre propre couleur : choisissez-la ou tapez son code (ex. #8A3B12).</small></div>
+    <div class="f"><span>Photo de couverture (accueil)</span><div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+      <div style="width:110px;height:52px;border-radius:12px;background:var(--soft) center/cover no-repeat${st.cover ? `;background-image:url('${st.cover}')` : ''};border:1px solid var(--line)"></div>
+      <label class="btn sm" style="cursor:pointer">Choisir une photo<input type="file" accept="image/*" id="coverIn" hidden></label>
+      ${st.cover ? `<button type="button" class="btn sm" data-a="rmcover">Retirer</button>` : ''}</div><small class="note">Une belle photo de vos produits ou de votre boutique, en haut de l'accueil.</small></div>
+    <div class="f"><span>Style (sur cet appareil)</span><div class="seg">${[['verre','✨ Verre (élégant)'],['simple','Simple (léger)']].map(([k,l]) => `<button type="button" class="${glassPref()===k?'on':''}" data-a="style:${k}">${l}</button>`).join('')}</div><small class="note">« Simple » est plus rapide sur les petits téléphones.</small></div>
     <div class="f"><span>Apparence (sur cet appareil)</span><div class="seg" id="segTheme">${Object.entries(THEMES).map(([k,l]) => `<button type="button" class="${themePref()===k?'on':''}" data-a="theme:${k}">${l}</button>`).join('')}</div><small class="note">Le mode sombre repose les yeux le soir. Automatique suit le réglage du téléphone.</small></div>
     ${modeField(st)}
     ${countryFields(st)}
@@ -913,6 +965,7 @@ function bestProduct(text){
   }
   return best;
 }
+const greet = () => { const h = new Date().getHours(); return h < 12 ? 'Bonjour ☀️' : h < 18 ? 'Bon après-midi 👋' : 'Bonsoir 🌙'; };
 const JOURS = ['dimanche','lundi','mardi','mercredi','jeudi','vendredi','samedi'];
 function parseOrder(txt){
   const lines = txt.replace(/\r/g,'').split('\n').map(l => l.replace(/^[\s*•\-–—📍📞👤📦🕒⏰📅🛵💵✅]+/u,'').replace(/\*/g,'').trim()).filter(Boolean);
@@ -1166,6 +1219,14 @@ function stockBilanCard(){
 }
 
 /* ---------- Photo : réduire une image (produits) ---------- */
+function coverImage(file){
+  return new Promise((res, rej) => { const r = new FileReader(); r.onerror = rej;
+    r.onload = () => { const img = new Image(); img.onerror = rej; img.onload = () => {
+      const W = 1100, H = 440, c = document.createElement('canvas'); c.width = W; c.height = H;
+      const x = c.getContext('2d'), k = Math.max(W/img.width, H/img.height), w = img.width*k, h = img.height*k;
+      x.drawImage(img, (W-w)/2, (H-h)/2, w, h); res(c.toDataURL('image/jpeg', .68)); }; img.src = r.result; };
+    r.readAsDataURL(file); });
+}
 function smallImage(file, size, q){
   return new Promise((res, rej) => { const r = new FileReader(); r.onerror = rej;
     r.onload = () => { const img = new Image(); img.onerror = rej; img.onload = () => {
@@ -1980,6 +2041,8 @@ const A = {
   rweek: v => { rapWeek = +v; render(); },
   relweek: v => { relWeek = +v; render(); },
   quick: () => quickSale(),
+  style: (v, el) => { setStyle(v); if(el && el.parentNode.classList.contains('seg')) [...el.parentNode.children].forEach(b => b.classList.toggle('on', b === el)); else render(); },
+  rmcover: () => { delete S.settings.cover; save(); render(); },
   theme: (v, el) => { setTheme(v); if(el) [...el.parentNode.children].forEach(b => b.classList.toggle('on', b === el)); toast(v === 'sombre' ? 'Mode sombre 🌙' : v === 'clair' ? 'Mode clair ☀️' : 'Automatique'); },
   themetoggle: () => { setTheme(isDark() ? 'clair' : 'sombre'); render(); },
   pastephone: (v, el) => pastePhone(el),
@@ -2022,6 +2085,7 @@ document.addEventListener('submit', e => {
     save(); closeSheet(); view = 'stock'; render(); toast('Boutique prête ✅ Ajoutez vos produits'); }
 });
 document.addEventListener('change', e => {
+  if(e.target.id === 'coverIn' && e.target.files[0]){ coverImage(e.target.files[0]).then(u => { S.settings.cover = u; save(); render(); toast('Photo de couverture ajoutée ✅'); }).catch(() => toast('Image illisible')); return; }
   if(e.target.id === 'colPick' || e.target.id === 'colHex'){ let v = String(e.target.value).trim(); if(!v.startsWith('#')) v = '#' + v;
     if(/^#[0-9a-f]{6}$/i.test(v)){ S.settings.color = v.toUpperCase(); applyBrand(); const o = e.target.id === 'colPick' ? $('#colHex') : $('#colPick'); if(o) o.value = v; document.querySelectorAll('.colors button').forEach(b => b.classList.remove('on')); if($('#setf')) save(); } else if(e.target.id === 'colHex') toast('Code couleur invalide (ex. #8A3B12)'); return; }
   if(e.target.id === 'jourIn' && e.target.value){ A.jourset(e.target.value); return; }
