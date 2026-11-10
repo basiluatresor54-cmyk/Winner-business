@@ -999,6 +999,14 @@ function vReglages(){
       ${field('Indicatif téléphone', `<input name="cc" inputmode="numeric" value="${esc(st.cc)}" placeholder="243">`)}
       ${field('WhatsApp boutique', `<input name="wa" type="tel" value="${esc(st.wa)}" placeholder="+243 …">`, 'Affiché sur les reçus clients')}
     </div>
+    <details class="card" style="margin-bottom:12px" ${st.addr || st.email || st.legal ? '' : 'open'}><summary><b>🧾 Informations sur les factures</b> <span class="note">(adresse, e-mail, RCCM…)</span></summary>
+      <div style="margin-top:10px">
+      ${field('Slogan (sous le nom)', `<input name="slogan" maxlength="60" value="${esc(st.slogan || '')}" placeholder="Ex : Produits capillaires 100 % naturels">`)}
+      ${field('Adresse de la boutique', `<input name="saddr" maxlength="120" value="${esc(st.addr || '')}" placeholder="Ex : 12 av. du Commerce, Gombe, Kinshasa">`)}
+      <div class="row2">${field('Autre téléphone', `<input name="tel2" type="tel" value="${esc(st.tel2 || '')}" placeholder="Optionnel">`)}${field('E-mail', `<input name="email" type="email" value="${esc(st.email || '')}" placeholder="Optionnel">`)}</div>
+      ${field('RCCM / ID NAT / N° impôt', `<input name="legal" maxlength="120" value="${esc(st.legal || '')}" placeholder="Ex : RCCM CD/KIN/RCCM/24-A-01234 · ID NAT 01-…">`, 'Optionnel — rend la facture plus officielle')}
+      ${field('Mention en bas de facture', `<input name="invNote" maxlength="140" value="${esc(st.invNote || '')}" placeholder="Ex : Produit vérifié à la livraison, ni repris ni échangé.">`)}
+      </div></details>
     <button class="btn primary block">Enregistrer</button>
   </form>
 
@@ -1113,8 +1121,11 @@ function tplSheet(){
 }
 function whenTxt(m){ const d = m.ddate || m.date; return fmtDate(d, true) + (m.dtime ? ' à ' + m.dtime.replace(':','h') : ''); }
 function receiptClient(m){
-  const st = S.settings, L = liv(m.liv), fee = L && feeTxt() ? feeTxt() : '', done = m.status === 'livre';
-  return `*${st.shop}* 🧾\n*${done ? 'REÇU DE PAIEMENT' : 'CONFIRMATION DE COMMANDE'}*\n\nBonjour ${m.client || ''} 👋\n${done ? 'Merci pour votre achat !' : 'Votre commande est bien enregistrée.'}\n\n📦 Produit : ${pname(m.pid)}\n🔢 Quantité : ${m.qty}\n💵 Prix unitaire : ${amt(m.price, m.cur)}\n*${done ? 'Total payé' : 'Total à payer'} : ${amt(m.qty*m.price, m.cur)}*${fee ? '\n🛵 Frais de livraison : ' + fee + ' (à remettre au livreur)' : ''}\n\n📅 Livraison : ${whenTxt(m)}\n📍 Adresse : ${m.addr || '-'}${L ? '\n🛵 Livreur : ' + L.name + (L.phone ? ' — ' + L.phone : '') : ''}\n\nMerci pour votre confiance 🙏\n${st.shop}${st.wa ? ' · ' + st.wa : ''}`;
+  const st = S.settings, L = liv(m.liv), fee = L && feeTxt() ? feeTxt() : '', items = orderLines(m), done = items.every(x => x.status === 'livre');
+  const tot = {}; items.forEach(it => tot[it.cur] = (tot[it.cur] || 0) + it.qty*it.price);
+  const lines = items.length > 1 ? items.map(it => `• ${pname(it.pid)} × ${it.qty} — ${amt(it.qty*it.price, it.cur)}`).join('\n') : `📦 Produit : ${pname(m.pid)}\n🔢 Quantité : ${m.qty}\n💵 Prix unitaire : ${amt(m.price, m.cur)}`;
+  const head = [st.slogan, st.addr ? '📍 ' + st.addr : '', st.wa ? '📞 ' + st.wa + (st.tel2 ? ' · ' + st.tel2 : '') : '', st.email ? '✉️ ' + st.email : '', st.legal].filter(Boolean).join('\n');
+  return `*${st.shop}* 🧾${head ? '\n' + head : ''}\n\n*${done ? 'FACTURE — PAYÉE' : 'FACTURE PRO FORMA'}*\nN° ${invNo(m)} · ${new Date((m.date || today()) + 'T12:00:00').toLocaleDateString('fr-FR')}\n\nBonjour ${m.client || ''} 👋\n${done ? 'Merci pour votre achat !' : 'Votre commande est bien enregistrée.'}\n\n${lines}\n*${done ? 'Total payé' : 'Total à payer'} : ${Object.entries(tot).map(([cu,v]) => amt(v, cu)).join(' + ')}*${fee ? '\n🛵 Frais de livraison : ' + fee + ' (à remettre au livreur)' : ''}${(items.find(it => it.pay) || {}).pay ? '\n💳 Paiement : ' + items.find(it => it.pay).pay : ''}\n\n📅 Livraison : ${whenTxt(m)}\n📍 Adresse : ${m.addr || '-'}${L ? '\n🛵 Livreur : ' + L.name + (L.phone ? ' — ' + L.phone : '') : ''}${st.invNote ? '\n\n_' + st.invNote + '_' : ''}\n\nMerci pour votre confiance 🙏\n${st.shop}${st.wa ? ' · ' + st.wa : ''}`;
 }
 function receiptLivreur(m){
   const st = S.settings, fee = feeTxt();
@@ -1124,56 +1135,94 @@ function receiptLivreur(m){
 /* ---------- Reçu en image (logo, couleurs, détail) ---------- */
 function loadImg(src){ return new Promise(res => { if(!src) return res(null); const i = new Image(); i.onload = () => res(i); i.onerror = () => res(null); i.src = src; }); }
 function wrapText(x, txt, maxW){ const words = String(txt).split(' '), out = []; let line = ''; for(const w of words){ const t = line ? line + ' ' + w : w; if(x.measureText(t).width > maxW && line){ out.push(line); line = w; } else line = t; } if(line) out.push(line); return out; }
+const invNo = m => 'FAC-' + String(m.date || today()).replace(/-/g,'') + '-' + String(m.ord || m.id).slice(-4).toUpperCase();
+const orderLines = m => m.ord ? S.moves.filter(x => x.type === 'vente' && x.ord === m.ord && x.status !== 'annule').sort((a,b) => (a.ts||0) - (b.ts||0)) : [m];
 async function receiptImage(m){
-  const st = S.settings, L = liv(m.liv), P = prod(m.pid), done = m.status === 'livre';
-  const W = 1080, pad = 70, c = document.createElement('canvas'), x = c.getContext('2d');
-  const brand = st.color || '#0F766E', [r,g,b] = hexRgb(brand);
-  const [logo, ph] = await Promise.all([loadImg(st.logo), loadImg(P && P.photo)]);
-  const rows = [['Date', dAbs(m.date, 1)], ['Livraison', dAbs(m.ddate || m.date, 1) + (m.dtime ? ' à ' + m.dtime.replace(':','h') : '')], ['Adresse', m.addr || '—'], L ? ['Livreur', L.name + (L.phone ? ' · ' + L.phone : '')] : null, feeTxt() && L ? ['Frais de livraison', feeTxt() + ' (au livreur)'] : null].filter(Boolean);
-  x.font = '500 34px -apple-system, Segoe UI, Roboto, Arial';
-  const rowLines = rows.map(([k,v]) => [k, wrapText(x, v, W - pad*2 - 300)]);
-  const H = 2600;
-  c.width = W; c.height = H;
-  x.fillStyle = '#f4f5f7'; x.fillRect(0,0,W,H);
-  const grad = x.createLinearGradient(0,0,W,360); grad.addColorStop(0, brand); grad.addColorStop(1, `rgb(${Math.round(r*.7)},${Math.round(g*.7)},${Math.round(b*.7)})`);
-  x.fillStyle = grad; x.fillRect(0,0,W,360);
+  const st = S.settings, L = liv(m.liv), items = orderLines(m), done = items.every(x => x.status === 'livre');
+  const W = 1240, pad = 70, c = document.createElement('canvas'), x = c.getContext('2d');
+  c.width = W; c.height = 3600;
+  const brand = st.color || '#0F766E', [r,g,b] = hexRgb(brand), F = (w, sz) => `${w} ${sz}px -apple-system, "Segoe UI", Roboto, Arial, sans-serif`;
+  const imgs = await Promise.all([loadImg(st.logo)].concat(items.map(it => loadImg((prod(it.pid) || {}).photo))));
+  const logo = imgs[0];
   const rr = (X,Y,w,h,R) => { x.beginPath(); x.moveTo(X+R,Y); x.arcTo(X+w,Y,X+w,Y+h,R); x.arcTo(X+w,Y+h,X,Y+h,R); x.arcTo(X,Y+h,X,Y,R); x.arcTo(X,Y,X+w,Y,R); x.closePath(); };
-  // logo
-  x.save(); rr(pad, 70, 130, 130, 34); x.clip(); x.fillStyle = 'rgba(255,255,255,.2)'; x.fillRect(pad,70,130,130);
-  if(logo){ const k = Math.max(130/logo.width, 130/logo.height); x.drawImage(logo, pad + (130 - logo.width*k)/2, 70 + (130 - logo.height*k)/2, logo.width*k, logo.height*k); }
-  else { x.fillStyle = '#fff'; x.font = '800 52px -apple-system, Segoe UI, Roboto, Arial'; x.textAlign = 'center'; x.fillText(initials(st.shop), pad + 65, 154); x.textAlign = 'left'; }
+  const T = (t, X, Y, f, col, al) => { x.font = f; x.fillStyle = col || '#16181d'; x.textAlign = al || 'left'; x.fillText(t, X, Y); x.textAlign = 'left'; };
+  x.fillStyle = '#ffffff'; x.fillRect(0, 0, W, c.height);
+  // bandeau
+  const grad = x.createLinearGradient(0,0,W,0); grad.addColorStop(0, brand); grad.addColorStop(1, `rgb(${Math.round(r*.7)},${Math.round(g*.7)},${Math.round(b*.7)})`);
+  x.fillStyle = grad; x.fillRect(0,0,W,22);
+  // logo + boutique
+  let y = 80;
+  x.save(); rr(pad, y, 150, 150, 36); x.clip(); x.fillStyle = `rgba(${r},${g},${b},.12)`; x.fillRect(pad, y, 150, 150);
+  if(logo){ const k = Math.max(150/logo.width, 150/logo.height); x.drawImage(logo, pad + (150-logo.width*k)/2, y + (150-logo.height*k)/2, logo.width*k, logo.height*k); }
+  else T(initials(st.shop), pad + 75, y + 98, F(800, 58), brand, 'center');
   x.restore();
-  x.fillStyle = '#fff'; x.font = '800 54px -apple-system, Segoe UI, Roboto, Arial'; x.fillText(String(st.shop || '').slice(0, 26), pad + 160, 128);
-  x.font = '600 32px -apple-system, Segoe UI, Roboto, Arial'; x.globalAlpha = .9; x.fillText(done ? 'REÇU DE PAIEMENT' : 'CONFIRMATION DE COMMANDE', pad + 160, 180); x.globalAlpha = 1;
-  x.font = '500 30px -apple-system, Segoe UI, Roboto, Arial'; x.globalAlpha = .85; x.fillText('N° ' + String(m.id).slice(-6).toUpperCase() + (m.client ? '  ·  ' + m.client : ''), pad, 300); x.globalAlpha = 1;
-  // carte produit
-  let y = 400; x.fillStyle = '#fff'; rr(pad - 20, y, W - (pad-20)*2, 230, 34); x.fill();
-  if(ph){ x.save(); rr(pad, y + 25, 180, 180, 26); x.clip(); x.drawImage(ph, pad, y + 25, 180, 180); x.restore(); }
-  const tx = ph ? pad + 210 : pad;
-  x.fillStyle = '#16181d'; x.font = '750 40px -apple-system, Segoe UI, Roboto, Arial';
-  wrapText(x, pname(m.pid), W - tx - pad).slice(0,2).forEach((l,i) => x.fillText(l, tx, y + 75 + i*48));
-  x.fillStyle = '#6b7280'; x.font = '500 32px -apple-system, Segoe UI, Roboto, Arial'; x.fillText(`${m.qty} × ${amt(m.price, m.cur)}`, tx, y + 185);
-  // total
-  y += 270; x.fillStyle = `rgba(${r},${g},${b},.1)`; rr(pad - 20, y, W - (pad-20)*2, 120, 30); x.fill();
-  x.fillStyle = '#16181d'; x.font = '650 36px -apple-system, Segoe UI, Roboto, Arial'; x.fillText(done ? 'Total payé' : 'Total à payer', pad + 10, y + 75);
-  x.fillStyle = brand; x.font = '850 56px -apple-system, Segoe UI, Roboto, Arial'; x.textAlign = 'right'; x.fillText(amt(m.qty*m.price, m.cur), W - pad - 10, y + 80); x.textAlign = 'left';
-  // détails
-  y += 200;
-  for(const [k, lines] of rowLines){ x.fillStyle = '#6b7280'; x.font = '600 30px -apple-system, Segoe UI, Roboto, Arial'; x.fillText(k, pad, y);
-    x.fillStyle = '#16181d'; x.font = '500 34px -apple-system, Segoe UI, Roboto, Arial'; lines.forEach((l,i) => x.fillText(l, pad + 300, y + i*44)); y += 26 + lines.length*44;
-    x.fillStyle = '#e7e9ee'; x.fillRect(pad, y - 18, W - pad*2, 2); y += 18; }
+  const sx = pad + 180;
+  T(String(st.shop || 'Ma Boutique').slice(0, 30), sx, y + 52, F(850, 50));
+  let iy = y + 92; x.font = F(500, 27);
+  const info = [st.slogan, st.addr, [st.wa ? 'Tél./WhatsApp : ' + st.wa : '', st.tel2].filter(Boolean).join(' · '), st.email, st.legal].filter(Boolean);
+  for(const l of info){ for(const w of wrapText(x, l, W - pad - 380 - sx - 30)){ T(w, sx, iy, F(500, 27), '#6b7280'); iy += 36; } }
+  // bloc facture (droite)
+  const bx = W - pad - 380;
+  x.fillStyle = `rgba(${r},${g},${b},.08)`; rr(bx, y, 380, 200, 26); x.fill();
+  T(done ? 'FACTURE' : 'FACTURE PRO FORMA', bx + 190, y + 58, F(850, done ? 44 : 32), brand, 'center');
+  T('N° ' + invNo(m), bx + 190, y + 108, F(700, 28), '#16181d', 'center');
+  T('Date : ' + new Date((m.date || today()) + 'T12:00:00').toLocaleDateString('fr-FR'), bx + 190, y + 150, F(500, 26), '#6b7280', 'center');
+  T(done ? 'Statut : PAYÉE' : 'Statut : à payer à la livraison', bx + 190, y + 186, F(650, 24), done ? '#15803d' : '#b45309', 'center');
+  y = Math.max(iy, y + 230) + 30;
+  // client
+  const cl = [['Client', m.client || '—'], ['Téléphone', m.phone || '—'], ['Adresse', m.addr || '—'], ['Livraison', dAbs(m.ddate || m.date, 1) + (m.dtime ? ' à ' + m.dtime.replace(':','h') : '') + (L ? ' · ' + L.name : '')]];
+  x.font = F(500, 28); const clL = cl.map(([k,v]) => [k, wrapText(x, v, W - pad*2 - 300)]);
+  const ch = 80 + clL.reduce((t,[,l]) => t + l.length*38 + 12, 0);
+  x.fillStyle = '#f4f5f7'; rr(pad, y, W - pad*2, ch, 22); x.fill();
+  T('FACTURÉ À', pad + 30, y + 42, F(800, 22), brand);
+  let cy = y + 86; for(const [k, lines] of clL){ T(k, pad + 30, cy, F(600, 26), '#6b7280'); lines.forEach((l,i) => T(l, pad + 250, cy + i*38, F(500, 28))); cy += lines.length*38 + 12; }
+  y += ch + 40;
+  // tableau
+  const cols = [pad, W - pad - 520, W - pad - 340, W - pad];
+  x.fillStyle = brand; rr(pad, y, W - pad*2, 64, 16); x.fill();
+  T('Désignation', pad + 24, y + 42, F(700, 26), '#fff'); T('Qté', cols[1] + 40, y + 42, F(700, 26), '#fff', 'center'); T('Prix unit.', cols[2] + 10, y + 42, F(700, 26), '#fff', 'right'); T('Montant', cols[3] - 24, y + 42, F(700, 26), '#fff', 'right');
+  y += 64;
+  const tot = {}; items.forEach((it, i) => {
+    const P = prod(it.pid) || {}, ph = imgs[i + 1]; x.font = F(600, 28);
+    const nl = wrapText(x, pname(it.pid), cols[1] - pad - (ph ? 130 : 40)).slice(0, 2), rh = Math.max(110, 40 + nl.length*38);
+    if(i % 2) { x.fillStyle = '#fafbfc'; x.fillRect(pad, y, W - pad*2, rh); }
+    let tx = pad + 24; if(ph){ x.save(); rr(pad + 20, y + (rh-84)/2, 84, 84, 16); x.clip(); x.drawImage(ph, pad + 20, y + (rh-84)/2, 84, 84); x.restore(); tx = pad + 124; }
+    nl.forEach((l,k) => T(l, tx, y + rh/2 - (nl.length-1)*19 + k*38 + 10, F(600, 28)));
+    T(String(it.qty), cols[1] + 40, y + rh/2 + 10, F(600, 28), '#16181d', 'center');
+    T(amt(it.price, it.cur), cols[2] + 10, y + rh/2 + 10, F(500, 28), '#16181d', 'right');
+    T(amt(it.qty*it.price, it.cur), cols[3] - 24, y + rh/2 + 10, F(700, 28), '#16181d', 'right');
+    tot[it.cur] = (tot[it.cur] || 0) + it.qty*it.price;
+    y += rh; x.fillStyle = '#e7e9ee'; x.fillRect(pad, y, W - pad*2, 2);
+  });
+  y += 30;
+  // totaux
+  const totTxt = Object.entries(tot).map(([cu,v]) => amt(v, cu)).join(' + ');
+  const fee = L && feeTxt() ? feeTxt() : '';
+  if(fee){ T('Frais de livraison (payés au livreur)', W - pad - 220, y + 30, F(500, 26), '#6b7280', 'right'); T(fee, W - pad - 24, y + 30, F(600, 26), '#16181d', 'right'); y += 50; }
+  x.fillStyle = `rgba(${r},${g},${b},.1)`; rr(W - pad - 640, y, 640, 100, 22); x.fill();
+  T(done ? 'TOTAL PAYÉ' : 'TOTAL À PAYER', W - pad - 610, y + 62, F(800, 30), '#16181d');
+  T(totTxt, W - pad - 30, y + 66, F(850, 46), brand, 'right');
+  const fcEq = Object.entries(tot).reduce((t,[cu,v]) => t + (cu === 'FC' ? v : v * rate()), 0);
+  if(Object.keys(tot).some(cu => cu !== 'FC')) T('≈ ' + fmt(Math.round(fcEq/50)*50) + ' ' + LC(), W - pad - 30, y + 132, F(500, 24), '#6b7280', 'right');
+  if(done){ x.save(); x.translate(pad + 170, y + 50); x.rotate(-0.18); x.strokeStyle = '#15803d'; x.lineWidth = 5; rr(-140, -46, 280, 92, 18); x.stroke(); T('PAYÉE', 0, 18, F(900, 50), '#15803d', 'center'); x.restore(); }
+  y += 170;
+  const pm = (items.find(it => it.pay) || {}).pay, pay = pm ? (done ? 'Payé par : ' : 'Mode de paiement : ') + pm : (L ? (done ? 'Payé en espèces à la livraison' : 'Paiement en espèces à la livraison') : '');
+  if(pay){ T(pay, pad, y, F(500, 26), '#6b7280'); y += 44; }
+  if(st.invNote){ x.font = F(500, 25); for(const l of wrapText(x, st.invNote, W - pad*2)){ T(l, pad, y, F(500, 25), '#6b7280'); y += 34; } y += 10; }
   // pied
-  y += 70; x.fillStyle = '#16181d'; x.font = '700 36px -apple-system, Segoe UI, Roboto, Arial'; x.textAlign = 'center'; x.fillText('Merci pour votre confiance 🙏', W/2, y);
-  x.fillStyle = '#6b7280'; x.font = '500 30px -apple-system, Segoe UI, Roboto, Arial'; x.fillText((st.shop || '') + (st.wa ? '  ·  WhatsApp ' + st.wa : ''), W/2, y + 52); x.textAlign = 'left';
-  const out = document.createElement('canvas'), Hf = y + 110; out.width = W; out.height = Hf; out.getContext('2d').drawImage(c, 0, 0, W, Hf, 0, 0, W, Hf);
-  return new Promise(res => out.toBlob(bl => res(bl), 'image/jpeg', .9));
+  y += 30; x.fillStyle = '#e7e9ee'; x.fillRect(pad, y, W - pad*2, 2); y += 60;
+  T('Merci pour votre confiance 🙏', W/2, y, F(750, 34), '#16181d', 'center'); y += 46;
+  T([st.shop, st.wa ? 'WhatsApp ' + st.wa : ''].filter(Boolean).join('  ·  '), W/2, y, F(500, 26), '#6b7280', 'center'); y += 50;
+  x.fillStyle = grad; x.fillRect(0, y, W, 18); y += 18;
+  const out = document.createElement('canvas'); out.width = W; out.height = y; out.getContext('2d').drawImage(c, 0, 0, W, y, 0, 0, W, y);
+  return new Promise(res => out.toBlob(bl => res(bl), 'image/jpeg', .92));
 }
 async function shareReceiptImage(id){
   const m = S.moves.find(x => x.id === id); if(!m) return;
   toast('Préparation du reçu…');
-  const bl = await receiptImage(m), name = 'recu-' + (m.client || 'client').replace(/[^\w-]+/g,'_') + '.jpg', file = new File([bl], name, {type:'image/jpeg'});
+  const bl = await receiptImage(m), name = invNo(m) + '-' + (m.client || 'client').replace(/[^\w-]+/g,'_') + '.jpg', file = new File([bl], name, {type:'image/jpeg'});
   const url = URL.createObjectURL(bl);
-  sheet('🖼️ Reçu en image', `<img src="${url}" alt="Reçu" style="width:100%;border-radius:14px;box-shadow:var(--shadow)">
+  sheet('🧾 Facture ' + invNo(m), `<img src="${url}" alt="Facture" style="width:100%;border-radius:14px;box-shadow:var(--shadow)">
     <div class="stack" style="margin-top:12px">${navigator.canShare && navigator.canShare({files:[file]}) ? `<button class="btn wa block" id="rShare">${ico('wa')} Partager (WhatsApp, etc.)</button>` : ''}
     <a class="btn block" href="${url}" download="${name}">⬇️ Enregistrer l'image</a>
     <p class="note">Sur iPhone : « Partager » puis WhatsApp, et choisissez ${esc(m.client || 'le client')}. Vous pouvez aussi faire un appui long sur l'image → Enregistrer.</p></div>`);
@@ -2066,7 +2115,7 @@ function moveForm(type, opt = {}){
     }
     let next = m ? S.moves.map(x => x.id === m.id ? rec : x) : S.moves.concat([rec]);
     const more = type === 'vente' && !m ? extras.filter(x => prod(x.pid)).map((x, i) => { const P = prod(x.pid);
-      return Object.assign({}, rec, {id:uid(), ts:rec.ts + i + 1, pid:P.id, qty:x.qty, price:x.price, cur:P.cur, rate:rate(), costU:unitCostUSD(P), commU:commUFor(P, liv(rec.liv), toUSD(x.price, P.cur))}); }) : [];
+      rec.ord = rec.id; return Object.assign({}, rec, {id:uid(), ord:rec.id, ts:rec.ts + i + 1, pid:P.id, qty:x.qty, price:x.price, cur:P.cur, rate:rate(), costU:unitCostUSD(P), commU:commUFor(P, liv(rec.liv), toUSD(x.price, P.cur))}); }) : [];
     next = next.concat(more);
     const err = checkStock(next, [p.id].concat(m ? [m.pid] : []).concat(more.map(x => x.pid)));
     if(err){ toast(err); return; }
@@ -2134,7 +2183,7 @@ function saleSheet(id, fresh){
     <div class="stack" style="margin-bottom:6px">
       ${L ? `<a class="btn wa block" href="${waLink(L.phone, rl)}" target="_blank" rel="noopener">${ico('wa')} 1. Bon de livraison → ${esc(L.name)}${L.phone ? '' : ' (choisir le contact)'}</a>` : ''}
       <a class="btn wa block" href="${waLink(m.phone, rc)}" target="_blank" rel="noopener">${ico('wa')} ${L ? '2. ' : ''}Reçu → ${esc(m.client || 'client')}${m.phone ? '' : ' (choisir le contact)'}</a>
-      <button class="btn block" data-a="recimg:${m.id}">🖼️ Reçu en image (plus professionnel)</button>
+      <button class="btn block" data-a="recimg:${m.id}">🧾 Facture en image (logo, N°, détails)</button>
     </div>
     <details class="card" style="margin:10px 0 12px"><summary class="note"><b>Voir les messages qui seront envoyés</b></summary>
       ${L ? `<p class="note" style="margin-top:8px"><b>Au livreur :</b></p><pre class="msg">${esc(rl)}</pre>` : ''}
@@ -2379,7 +2428,7 @@ document.addEventListener('click', e => {
 document.addEventListener('submit', e => {
   const f = e.target, E = f.elements;
   if(f.id === 'setf'){ e.preventDefault();
-    Object.assign(S.settings, {shop:E.shop.value.trim() || 'Ma Boutique', color:E.color.value, country:E.country.value, lc:E.lc.value.trim() || 'FC', rate:num(E.rate.value) || S.settings.rate, fee:num(E.fee.value), feeCur:E.feeCur.value, cc:E.cc.value.replace(/\D/g,''), wa:E.wa.value.trim(), mode:E.mode.value, setup:true});
+    Object.assign(S.settings, {shop:E.shop.value.trim() || 'Ma Boutique', color:E.color.value, country:E.country.value, lc:E.lc.value.trim() || 'FC', rate:num(E.rate.value) || S.settings.rate, fee:num(E.fee.value), feeCur:E.feeCur.value, cc:E.cc.value.replace(/\D/g,''), wa:E.wa.value.trim(), mode:E.mode.value, slogan:E.slogan.value.trim(), addr:E.saddr.value.trim(), tel2:E.tel2.value.trim(), email:E.email.value.trim(), legal:E.legal.value.trim(), invNote:E.invNote.value.trim(), setup:true});
     save(); render(); toast('Réglages enregistrés'); }
   if(f.id === 'wf'){ e.preventDefault();
     Object.assign(S.settings, {shop:E.shop.value.trim() || 'Ma Boutique', country:E.country.value, lc:E.lc.value.trim() || 'FC', rate:num(E.rate.value) || 2300, cc:E.cc.value.replace(/\D/g,''), wa:E.wa.value.trim(), mode:E.mode.value, setup:true});
