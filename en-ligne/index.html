@@ -3272,7 +3272,7 @@ livSheet = function(id){
   if(!sb){ authShell(`<p class="auth-msg">Impossible de charger le module de connexion. Vérifiez votre connexion internet puis rechargez la page.</p><button class="btn primary block" onclick="location.reload()">Recharger</button>`); return; }
   authShell(`<p class="note">Chargement…</p>`);
   const {data:{session}} = await sb.auth.getSession();
-  if(session) afterLogin(); else showAuth('login');
+  if(session) afterLogin(); else showAuth(/[?&](essai|inscription|signup)\b/.test(location.search) ? 'signup' : 'login');
   sb.auth.onAuthStateChange((ev) => { if(ev === 'SIGNED_OUT' && ONLINE.shop){ ONLINE.shop = null; showAuth('login'); } });
 })();
 
