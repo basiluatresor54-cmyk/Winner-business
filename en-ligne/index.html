@@ -475,7 +475,23 @@ function phoneNorm(p){
 }
 const waLink = (phone, text) => 'https://wa.me/' + phoneNorm(phone) + '?text=' + encodeURIComponent(text);
 const cities = () => [...new Set(S.livreurs.map(l => l.city || 'Sans ville'))].sort((a,b) => a.localeCompare(b,'fr'));
-const feeTxt = () => num(S.settings.fee) ? amt(num(S.settings.fee), S.settings.feeCur) : '';
+// Frais de livraison payés par le client au livreur : un prix par ville (sinon le prix « autres villes »)
+function feeFor(x){
+  const lid = x && typeof x === 'object' ? x.liv : x, c = ((liv(lid) || {}).city || '').trim().toLowerCase(), FC = S.settings.feeCity || {};
+  const k = c ? Object.keys(FC).find(k => k.trim().toLowerCase() === c) : null;
+  return k != null && FC[k] !== '' && FC[k] != null ? num(FC[k]) : num(S.settings.fee);
+}
+const feeTxt = x => { const v = feeFor(x); return v ? amt(v, S.settings.feeCur) : ''; };
+function feeRowHTML(city, v){ return `<div class="row2" data-feerow style="align-items:end">${field('Ville', `<input data-fc="c" list="feeCities" value="${esc(city || '')}" placeholder="Ex : Kinshasa">`)}${field('Frais', `<input data-fc="v" type="number" step="any" min="0" value="${v ?? ''}" placeholder="Ex : 6000">`)}</div>`; }
+function feeCityHTML(st){
+  const FC = st.feeCity || {}, cs = [...new Set(Object.keys(FC).concat(S.livreurs.map(l => l.city).filter(c => c && c !== 'Sans ville')))].sort((a, b) => a.localeCompare(b, 'fr'));
+  return `<div class="card" style="margin-bottom:12px"><b>🛵 Frais de livraison par ville</b> <span class="note">(payés par le client au livreur)</span>
+    <div id="feeRows" style="margin-top:10px">${(cs.length ? cs : ['']).map(c => feeRowHTML(c, FC[c])).join('')}</div>
+    <button type="button" class="btn sm" data-a="feeadd" style="margin-bottom:10px">+ Ajouter une ville</button>
+    <div class="row2">${field('Autres villes', `<input name="fee" type="number" step="any" min="0" value="${esc(st.fee)}">`, 'Prix utilisé si la ville n\'est pas dans la liste')}${field('Devise des frais', `<select name="feeCur"><option value="FC" ${st.feeCur==='FC'?'selected':''}>${esc(LC())}</option><option value="$" ${st.feeCur==='$'?'selected':''}>$</option></select>`)}</div>
+    <p class="note" style="margin-top:-4px">Ils ne comptent pas dans vos ventes. Ils apparaissent sur le reçu du client et le bon du livreur, selon la ville du livreur.</p>
+    <datalist id="feeCities">${[...new Set(countryCities().concat(cities()))].map(c => `<option value="${esc(c)}">`).join('')}</datalist></div>`;
+}
 
 /* ---------- Calculs : stock ---------- */
 // Un pack (kit) se décompose en ses produits ; le stock est tenu sur les produits simples.
@@ -1081,11 +1097,7 @@ function vReglages(){
     ${actsField(st, 'Mes activités')}
     <div class="row2">${field('Pays du fournisseur', `<input name="impFrom" value="${esc(st.impFrom || 'Chine')}">`)}${field('Taux du yuan', `<input name="cny" type="number" step="any" min="0" value="${st.cny || 7.1}">`, '¥ pour 1 $')}</div>
     ${countryFields(st)}
-    <div class="row2">
-      ${field('Frais de livraison client', `<input name="fee" type="number" step="any" min="0" value="${esc(st.fee)}">`)}
-      ${field('Devise des frais', `<select name="feeCur"><option value="FC" ${st.feeCur==='FC'?'selected':''}>${esc(LC())}</option><option value="$" ${st.feeCur==='$'?'selected':''}>$</option></select>`)}
-    </div>
-    <p class="note" style="margin:-4px 0 12px">Les frais de livraison sont payés par le client au livreur : ils ne comptent pas dans vos ventes.</p>
+    ${feeCityHTML(st)}
     <div class="row2">
       ${field('Indicatif téléphone', `<input name="cc" inputmode="numeric" value="${esc(st.cc)}" placeholder="243">`)}
       ${field('WhatsApp boutique', `<input name="wa" type="tel" value="${esc(st.wa)}" placeholder="+243 …">`, 'Affiché sur les reçus clients')}
@@ -1216,14 +1228,14 @@ function tplSheet(){
 }
 function whenTxt(m){ const d = m.ddate || m.date; return fmtDate(d, true) + (m.dtime ? ' à ' + m.dtime.replace(':','h') : ''); }
 function receiptClient(m){
-  const st = S.settings, L = liv(m.liv), fee = L && feeTxt() ? feeTxt() : '', items = orderLines(m), done = items.every(x => x.status === 'livre');
+  const st = S.settings, L = liv(m.liv), fee = L && feeTxt(m) ? feeTxt(m) : '', items = orderLines(m), done = items.every(x => x.status === 'livre');
   const tot = {}; items.forEach(it => tot[it.cur] = (tot[it.cur] || 0) + it.qty*it.price);
   const lines = items.length > 1 ? items.map(it => `• ${pname(it.pid)} × ${it.qty} — ${amt(it.qty*it.price, it.cur)}`).join('\n') : `📦 Produit : ${pname(m.pid)}\n🔢 Quantité : ${m.qty}\n💵 Prix unitaire : ${amt(m.price, m.cur)}`;
   const head = [st.slogan, st.addr ? '📍 ' + st.addr : '', st.wa ? '📞 ' + st.wa + (st.tel2 ? ' · ' + st.tel2 : '') : '', st.email ? '✉️ ' + st.email : '', st.legal].filter(Boolean).join('\n');
   return `*${st.shop}* 🧾${head ? '\n' + head : ''}\n\n*${done || m.pre ? 'FACTURE — PAYÉE' : 'FACTURE PRO FORMA'}*\nN° ${invNo(m)} · ${new Date((m.date || today()) + 'T12:00:00').toLocaleDateString('fr-FR')}\n\nBonjour ${m.client || ''} 👋\n${done ? 'Merci pour votre achat !' : 'Votre commande est bien enregistrée.'}\n\n${lines}\n${(() => { const sh = shipOf(m); if(!sh) return ''; return `\n🚚 Expédition vers ${shipLine(sh)} : ${amt(num(sh.fee), sh.cur)}`; })()}\n*${done || m.pre ? 'Total payé' : 'Total à payer'} : ${(() => { const sh = shipOf(m), t2 = Object.assign({}, tot); if(sh && num(sh.fee)) t2[sh.cur] = (t2[sh.cur] || 0) + num(sh.fee); return Object.entries(t2).map(([cu,v]) => amt(v, cu)).join(' + '); })()}*${m.pre ? '\n✅ Payé par Mobile Money' : ''}${fee && !shipOf(m) ? '\n🛵 Frais de livraison : ' + fee + ' (à remettre au livreur)' : ''}${(items.find(it => it.pay) || {}).pay && !m.pre ? '\n💳 Paiement : ' + items.find(it => it.pay).pay : ''}\n\n📅 ${shipOf(m) ? 'Expédition' : 'Livraison'} : ${whenTxt(m)}${shipOf(m) ? '\n🚚 Colis envoyé par ' + (shipOf(m).co || 'l\'agence') + ' vers ' + (shipOf(m).city || '') + ' : retirez-le à l\'agence' : ''}\n📍 Adresse : ${m.addr || '-'}${L ? '\n🛵 Livreur : ' + L.name + (L.phone ? ' — ' + L.phone : '') : ''}${st.invNote ? '\n\n_' + st.invNote + '_' : ''}\n\nMerci pour votre confiance 🙏\n${st.shop}${st.wa ? ' · ' + st.wa : ''}`;
 }
 function receiptLivreur(m){
-  const st = S.settings, fee = feeTxt(), its = orderLines(m).filter(x => (x.liv || '') === (m.liv || '')), items = its.length ? its : [m];
+  const st = S.settings, fee = feeTxt(m), its = orderLines(m).filter(x => (x.liv || '') === (m.liv || '')), items = its.length ? its : [m];
   const tot = {}; items.forEach(it => tot[it.cur] = (tot[it.cur] || 0) + it.qty*it.price);
   const com = items.reduce((t, it) => t + it.qty*num(it.commU), 0);
   const prodTxt = items.length > 1 ? '📦 Produits :\n' + items.map(it => `• ${pname(it.pid)} × ${it.qty} — ${amt(it.qty*it.price, it.cur)}`).join('\n') : `📦 Produit : ${pname(m.pid)} × ${m.qty}`;
@@ -1297,7 +1309,7 @@ async function receiptImage(m){
   });
   y += 30;
   // totaux
-  const fee = L && feeTxt() ? feeTxt() : '';
+  const fee = L && feeTxt(m) ? feeTxt(m) : '';
   const shp = shipOf(m);
   if(shp && num(shp.fee)){ T('Expédition vers ' + shipLine(shp), W - pad - 220, y + 30, F(500, 26), '#6b7280', 'right'); T(amt(num(shp.fee), shp.cur), W - pad - 24, y + 30, F(600, 26), '#16181d', 'right'); y += 50; tot[shp.cur] = (tot[shp.cur] || 0) + num(shp.fee); }
   else if(fee){ T('Frais de livraison (payés au livreur)', W - pad - 220, y + 30, F(500, 26), '#6b7280', 'right'); T(fee, W - pad - 24, y + 30, F(600, 26), '#16181d', 'right'); y += 50; }
@@ -2196,8 +2208,8 @@ function moveForm(type, opt = {}){
       xs.forEach(x => { const P = prod(x.pid), u = toUSD(x.qty*x.price, P.cur); gU += u; gC += x.qty*unitCostUSD(P); gK += x.qty*commUFor(P, liv(E.loc.value), toUSD(x.price, P.cur)); byCur[P.cur] = (byCur[P.cur] || 0) + x.qty*x.price; });
       const gTxt = Object.entries(byCur).map(([cu, v]) => amt(v, cu)).join(' + ');
       $('#tot').innerHTML = xs.length
-        ? `<span>Total de la commande (${xs.length + 1} produits)</span><b class="num">${gTxt}</b><small>${Object.keys(byCur).some(c => c === 'FC') ? '≈ ' + money(gU) + ' · ' : ''}Commission livreur : ${money(gK)} · Bénéfice : ${money(gU - gC - gK)}${E.loc.value && feeTxt() ? ' · + frais livraison ' + feeTxt() + ' (pour le livreur)' : ''}</small>`
-        : `<span>Total client</span><b class="num">${amt(q*pr, p.cur)}</b><small>${p.cur==='FC' ? '≈ ' + money(totU) + ' · ' : ''}Commission livreur : ${money(comm)} · Bénéfice : ${money(totU - cost - comm)}${E.loc.value && feeTxt() ? ' · + frais livraison ' + feeTxt() + ' (pour le livreur)' : ''}</small>`;
+        ? `<span>Total de la commande (${xs.length + 1} produits)</span><b class="num">${gTxt}</b><small>${Object.keys(byCur).some(c => c === 'FC') ? '≈ ' + money(gU) + ' · ' : ''}Commission livreur : ${money(gK)} · Bénéfice : ${money(gU - gC - gK)}${E.loc.value && feeTxt(E.loc.value) ? ' · + frais livraison ' + feeTxt(E.loc.value) + ' (pour le livreur)' : ''}</small>`
+        : `<span>Total client</span><b class="num">${amt(q*pr, p.cur)}</b><small>${p.cur==='FC' ? '≈ ' + money(totU) + ' · ' : ''}Commission livreur : ${money(comm)} · Bénéfice : ${money(totU - cost - comm)}${E.loc.value && feeTxt(E.loc.value) ? ' · + frais livraison ' + feeTxt(E.loc.value) + ' (pour le livreur)' : ''}</small>`;
       if(E.shipOn && E.shipOn.checked){ const sf = num(E.shipFee.value), sc = E.shipCur.value;
         $('#tot').querySelector('small').insertAdjacentHTML('beforeend', `<br>🚚 + expédition ${E.shipCity.value ? 'vers ' + esc(E.shipCity.value) + ' ' : ''}: <b>${amt(sf, sc)}</b> (payée par le client) · le client paie en tout : <b>${(() => { const bc = {}; bc[p.cur] = q*pr; xl.filter(x => prod(x.pid) && x.qty > 0).forEach(x => { const P = prod(x.pid); bc[P.cur] = (bc[P.cur] || 0) + x.qty*x.price; }); if(sf) bc[sc] = (bc[sc] || 0) + sf; return Object.entries(bc).map(([cu, v]) => amt(v, cu)).join(' + '); })()}</b>${E.pre && E.pre.checked ? ' · ✅ déjà payé' : ''}`);
         $('#tot').querySelector('small').innerHTML = $('#tot').querySelector('small').innerHTML.replace(/ · \+ frais livraison [^<]*\(pour le livreur\)/, ''); }
@@ -2593,6 +2605,7 @@ const A = {
   planform: v => planForm(v || null),
   plandel: async id => { if(!await ask('Supprimer cet achat prévu ?', 'Supprimer')) return; S.moves = S.moves.filter(m => m.id !== id); save(); closeSheet(); render(); },
   shipform: id => shipForm(id),
+  feeadd: () => { const b = $('#feeRows'); if(!b) return; b.insertAdjacentHTML('beforeend', feeRowHTML('', '')); const i = b.querySelectorAll('[data-fc=c]'); i[i.length - 1].focus(); },
   shipcoadd: () => { sheet('➕ Nouvelle agence', `<form id="scf">${field('Nom de l\'agence *', `<input name="co" required placeholder="Ex : Molykap">`)}<button class="btn primary block">Ajouter</button></form>`); $('#scf').onsubmit = e => { e.preventDefault(); e.stopPropagation(); const co = e.target.elements.co.value.trim(); if(!co) return; addShipCo(co); save(); closeSheet(); render(); toast('Agence ajoutée : ' + co); }; },
   shipcodel: async (_, el) => { const co = el.dataset.co; if(!await ask(`Retirer l'agence « ${esc(co)} » de la liste ? (les tarifs déjà enregistrés restent)`, 'Retirer')) return; S.settings.shipCos = (S.settings.shipCos || []).filter(c => c !== co); S.settings.shipCosOff = [...new Set((S.settings.shipCosOff || []).concat(co))]; save(); render(); toast('Agence retirée'); },
   shipdel: async id => { if(!await ask('Supprimer ce tarif d\'expédition ?', 'Supprimer')) return; S.settings.ships = ships().filter(t => t.id !== id); save(); closeSheet(); render(); toast('Tarif supprimé'); },
@@ -3181,7 +3194,7 @@ document.addEventListener('click', e => {
 document.addEventListener('submit', e => {
   const f = e.target, E = f.elements;
   if(f.id === 'setf'){ e.preventDefault();
-    Object.assign(S.settings, {shop:E.shop.value.trim() || 'Ma Boutique', color:E.color.value, country:E.country.value, lc:E.lc.value.trim() || 'FC', rate:num(E.rate.value) || S.settings.rate, fee:num(E.fee.value), feeCur:E.feeCur.value, cc:E.cc.value.replace(/\D/g,''), wa:E.wa.value.trim(), ...actsSettings(readActs(E)), impFrom:(E.impFrom ? E.impFrom.value.trim() : '') || 'Chine', cny:num(E.cny && E.cny.value) || 7.1, slogan:E.slogan.value.trim(), addr:E.saddr.value.trim(), tel2:E.tel2.value.trim(), email:E.email.value.trim(), legal:E.legal.value.trim(), invNote:E.invNote.value.trim(), setup:true});
+    Object.assign(S.settings, {shop:E.shop.value.trim() || 'Ma Boutique', color:E.color.value, country:E.country.value, lc:E.lc.value.trim() || 'FC', rate:num(E.rate.value) || S.settings.rate, fee:num(E.fee.value), feeCur:E.feeCur.value, feeCity:Object.fromEntries([...f.querySelectorAll('[data-feerow]')].map(r => [r.querySelector('[data-fc=c]').value.trim(), r.querySelector('[data-fc=v]').value.trim()]).filter(([c, v]) => c && v !== '').map(([c, v]) => [c, num(v)])), cc:E.cc.value.replace(/\D/g,''), wa:E.wa.value.trim(), ...actsSettings(readActs(E)), impFrom:(E.impFrom ? E.impFrom.value.trim() : '') || 'Chine', cny:num(E.cny && E.cny.value) || 7.1, slogan:E.slogan.value.trim(), addr:E.saddr.value.trim(), tel2:E.tel2.value.trim(), email:E.email.value.trim(), legal:E.legal.value.trim(), invNote:E.invNote.value.trim(), setup:true});
     save(); render(); toast('Réglages enregistrés'); }
   if(f.id === 'wf'){ e.preventDefault();
     Object.assign(S.settings, {shop:E.shop.value.trim() || 'Ma Boutique', country:E.country.value, lc:E.lc.value.trim() || 'FC', rate:num(E.rate.value) || 2300, cc:E.cc.value.replace(/\D/g,''), wa:E.wa.value.trim(), ...actsSettings(readActs(E)), setup:true});
