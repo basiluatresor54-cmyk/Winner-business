@@ -1199,8 +1199,11 @@ function receiptClient(m){
   return `*${st.shop}* 🧾${head ? '\n' + head : ''}\n\n*${done ? 'FACTURE — PAYÉE' : 'FACTURE PRO FORMA'}*\nN° ${invNo(m)} · ${new Date((m.date || today()) + 'T12:00:00').toLocaleDateString('fr-FR')}\n\nBonjour ${m.client || ''} 👋\n${done ? 'Merci pour votre achat !' : 'Votre commande est bien enregistrée.'}\n\n${lines}\n*${done ? 'Total payé' : 'Total à payer'} : ${Object.entries(tot).map(([cu,v]) => amt(v, cu)).join(' + ')}*${fee ? '\n🛵 Frais de livraison : ' + fee + ' (à remettre au livreur)' : ''}${(items.find(it => it.pay) || {}).pay ? '\n💳 Paiement : ' + items.find(it => it.pay).pay : ''}\n\n📅 Livraison : ${whenTxt(m)}\n📍 Adresse : ${m.addr || '-'}${L ? '\n🛵 Livreur : ' + L.name + (L.phone ? ' — ' + L.phone : '') : ''}${st.invNote ? '\n\n_' + st.invNote + '_' : ''}\n\nMerci pour votre confiance 🙏\n${st.shop}${st.wa ? ' · ' + st.wa : ''}`;
 }
 function receiptLivreur(m){
-  const st = S.settings, fee = feeTxt();
-  return `*BON DE LIVRAISON — ${st.shop}* 🛵\n\n📅 ${whenTxt(m)}\n👤 Client : ${m.client || '-'}\n📞 Téléphone : ${m.phone || '-'}\n📍 Adresse : ${m.addr || '-'}\n\n📦 Produit : ${pname(m.pid)} × ${m.qty}\n*💵 Montant à encaisser : ${amt(m.qty*m.price, m.cur)}*${fee ? '\n🛵 Frais de livraison (pour vous) : ' + fee : ''}${num(m.commU) ? '\n💰 Votre commission : ' + money(m.qty*num(m.commU)) : ''}${m.note ? '\n📝 Note : ' + m.note : ''}\n\nMerci de confirmer la livraison et de verser la recette ce soir par Mobile Money 🙏`;
+  const st = S.settings, fee = feeTxt(), its = orderLines(m).filter(x => (x.liv || '') === (m.liv || '')), items = its.length ? its : [m];
+  const tot = {}; items.forEach(it => tot[it.cur] = (tot[it.cur] || 0) + it.qty*it.price);
+  const com = items.reduce((t, it) => t + it.qty*num(it.commU), 0);
+  const prodTxt = items.length > 1 ? '📦 Produits :\n' + items.map(it => `• ${pname(it.pid)} × ${it.qty} — ${amt(it.qty*it.price, it.cur)}`).join('\n') : `📦 Produit : ${pname(m.pid)} × ${m.qty}`;
+  return `*BON DE LIVRAISON — ${st.shop}* 🛵\n\n📅 ${whenTxt(m)}\n👤 Client : ${m.client || '-'}\n📞 Téléphone : ${m.phone || '-'}\n📍 Adresse : ${m.addr || '-'}\n\n${prodTxt}\n*💵 Montant à encaisser : ${Object.entries(tot).map(([cu, v]) => amt(v, cu)).join(' + ')}*${fee ? '\n🛵 Frais de livraison (pour vous) : ' + fee : ''}${com ? '\n💰 Votre commission : ' + money(com) : ''}${m.note ? '\n📝 Note : ' + m.note : ''}\n\nMerci de confirmer la livraison et de verser la recette ce soir par Mobile Money 🙏`;
 }
 
 /* ---------- Reçu en image (logo, couleurs, détail) ---------- */
@@ -2109,6 +2112,8 @@ function moveForm(type, opt = {}){
   const T = {entree:['Entrée de stock','Ajouter au dépôt'], envoi:['Envoyer du stock à un livreur','Enregistrer l\'envoi'], retour:['Retour de stock au dépôt','Enregistrer le retour'],
              vente:[m ? 'Modifier la vente' : 'Nouvelle vente', m ? 'Enregistrer' : 'Enregistrer la vente'], perte:['Sortie / perte de stock','Enregistrer la sortie']}[type];
   const livOpts = (withDepot, label) => (withDepot ? `<option value="">${label}</option>` : '') + cities().map(c => `<optgroup label="${esc(c)}">${S.livreurs.filter(l => (l.city||'Sans ville') === c).sort(byName).map(l => `<option value="${l.id}" ${l.id===liv0?'selected':''}>${esc(l.name)}</option>`).join('')}</optgroup>`).join('');
+  const sibs = m && type === 'vente' ? S.moves.filter(x => x.type === 'vente' && x.id !== m.id && (m.ord ? x.ord === m.ord : x.ord === m.id)) : [];
+  const sibTxt = sibs.length ? `<p class="note" style="margin:0 0 10px">🛒 Déjà dans cette commande : <b>${sibs.map(x => esc(pname(x.pid)) + ' × ' + x.qty).join(', ')}</b></p>` : '';
   let h = `<form id="mf">`;
   if(type === 'vente' && !m) h += `<details class="card paste" style="margin-bottom:14px" open><summary><b>📋 Coller une commande WhatsApp</b><span class="note"> — remplit le formulaire</span></summary>
       <textarea id="pasteTx" placeholder="Copiez le message du client sur WhatsApp et collez-le ici…"></textarea>
@@ -2122,6 +2127,7 @@ function moveForm(type, opt = {}){
   if(type === 'entree') h += field('Coût unitaire', `<input name="cost" type="number" step="any" min="0" value="${m ? (m.cost ?? '') : ''}">`, '<span id="curl"></span>') + `</div>`;
   else if(type === 'perte') h += field('Motif', `<select name="motif">${MOTIFS.map(x => `<option ${m?.motif===x?'selected':''}>${x}</option>`).join('')}</select>`) + `</div>`;
   else if(type === 'vente') h += field('Prix unitaire', `<input name="price" type="number" step="any" min="0" value="${m ? m.price : ''}">`, '<span id="curl"></span>') + `</div><div class="tot" id="tot"></div>
+      ${sibTxt}<div id="xlines"></div><button type="button" class="btn block" id="xadd" style="margin:0 0 14px">➕ Ajouter un autre produit à cette commande</button>
       ${field('Nom du client', `<input name="client" value="${esc(m?.client)}" placeholder="Ex : Mme Nsimba">`)}
       ${field('Téléphone client (WhatsApp)', `<input name="phone" type="tel" value="${esc(m?.phone)}" placeholder="08… ou +243…">${phoneTools()}`)}
       ${field('Adresse complète de livraison', `<textarea name="addr" placeholder="Commune, quartier, avenue, n°, point de repère…">${esc(m?.addr)}</textarea>`)}
@@ -2140,6 +2146,7 @@ function moveForm(type, opt = {}){
   const paintSeg = () => { if($('#segS')) [...$('#segS').children].forEach(b => b.classList.toggle('on', b.dataset.s === status)); };
   paintSeg();
   if($('#segS')) $('#segS').onclick = e => { const b = e.target.closest('button'); if(b){ status = b.dataset.s; paintSeg(); } };
+  var xl = [];
   const srcLoc = () => type === 'entree' ? null : type === 'envoi' ? '' : (E.loc ? E.loc.value : '');
   const upd = () => {
     const p = prod(E.pid.value), loc = srcLoc();
@@ -2148,9 +2155,27 @@ function moveForm(type, opt = {}){
     if(type === 'vente' && p){
       const q = num(E.qty.value), pr = num(E.price.value), totU = toUSD(q*pr, p.cur), cost = q * (m && m.pid === p.id ? num(m.costU) : unitCostUSD(p));
       const comm = q * commUFor(p, liv(E.loc.value), toUSD(pr, p.cur));
-      $('#tot').innerHTML = `<span>Total client</span><b class="num">${amt(q*pr, p.cur)}</b><small>${p.cur==='FC' ? '≈ ' + money(totU) + ' · ' : ''}Commission livreur : ${money(comm)} · Bénéfice : ${money(totU - cost - comm)}${E.loc.value && feeTxt() ? ' · + frais livraison ' + feeTxt() + ' (pour le livreur)' : ''}</small>`;
+      const xs = xl.filter(x => prod(x.pid) && x.qty > 0);
+      let gU = totU, gC = cost, gK = comm; const byCur = {}; byCur[p.cur] = q*pr;
+      xs.forEach(x => { const P = prod(x.pid), u = toUSD(x.qty*x.price, P.cur); gU += u; gC += x.qty*unitCostUSD(P); gK += x.qty*commUFor(P, liv(E.loc.value), toUSD(x.price, P.cur)); byCur[P.cur] = (byCur[P.cur] || 0) + x.qty*x.price; });
+      const gTxt = Object.entries(byCur).map(([cu, v]) => amt(v, cu)).join(' + ');
+      $('#tot').innerHTML = xs.length
+        ? `<span>Total de la commande (${xs.length + 1} produits)</span><b class="num">${gTxt}</b><small>${Object.keys(byCur).some(c => c === 'FC') ? '≈ ' + money(gU) + ' · ' : ''}Commission livreur : ${money(gK)} · Bénéfice : ${money(gU - gC - gK)}${E.loc.value && feeTxt() ? ' · + frais livraison ' + feeTxt() + ' (pour le livreur)' : ''}</small>`
+        : `<span>Total client</span><b class="num">${amt(q*pr, p.cur)}</b><small>${p.cur==='FC' ? '≈ ' + money(totU) + ' · ' : ''}Commission livreur : ${money(comm)} · Bénéfice : ${money(totU - cost - comm)}${E.loc.value && feeTxt() ? ' · + frais livraison ' + feeTxt() + ' (pour le livreur)' : ''}</small>`;
     }
   };
+  const drawX = () => { const box = $('#xlines'); if(!box) return;
+    box.innerHTML = xl.map((x, i) => { const P = prod(x.pid);
+      return `<div class="card" style="padding:10px 12px;margin-bottom:8px"><div style="display:flex;gap:8px;align-items:center"><b style="flex:none">${i + 2}.</b><label class="f" style="flex:1;min-width:0;margin:0"><select data-xi="${i}" data-xk="pid">${prods.filter(p => p.id).map(p => `<option value="${p.id}" ${p.id === x.pid ? 'selected' : ''}>${esc(p.name)}</option>`).join('')}</select></label><button type="button" class="btn sm ghost-bad" data-xdel="${i}" title="Retirer">✕</button></div>
+        <div class="row2" style="margin-top:8px">${field('Quantité', `<input type="number" min="1" step="1" data-xi="${i}" data-xk="qty" value="${x.qty}">`)}${field('Prix unitaire' + (P && P.cur === 'FC' ? ' (' + LC() + ')' : ' ($)'), `<input type="number" step="any" min="0" data-xi="${i}" data-xk="price" value="${x.price}">`)}</div></div>`; }).join('');
+    upd(); };
+  if($('#xadd')){
+    $('#xadd').onclick = () => { const P = prods.find(p => p.id !== E.pid.value) || prods[0]; if(!P) return; xl.push({pid:P.id, qty:1, price:num(P.sell)}); drawX(); };
+    const xbox = $('#xlines');
+    xbox.addEventListener('input', e => { const t = e.target, i = +t.dataset.xi; if(isNaN(i) || !xl[i]) return; if(t.dataset.xk === 'qty') xl[i].qty = Math.max(0, Math.round(num(t.value))); if(t.dataset.xk === 'price') xl[i].price = num(t.value); upd(); });
+    xbox.addEventListener('change', e => { const t = e.target, i = +t.dataset.xi; if(t.dataset.xk !== 'pid' || !xl[i]) return; const P = prod(t.value); xl[i].pid = t.value; xl[i].price = num(P && P.sell); drawX(); });
+    xbox.addEventListener('click', e => { const b = e.target.closest('[data-xdel]'); if(!b) return; xl.splice(+b.dataset.xdel, 1); drawX(); });
+  }
   E.pid.onchange = () => { const p = prod(E.pid.value); if(p){ if(E.price) E.price.value = p.sell || ''; if(E.cost) E.cost.value = num(p.buy) || ''; } upd(); };
   if(E.loc) E.loc.onchange = () => { if(type === 'vente' && !m){ status = E.loc.value ? 'attente' : 'livre'; paintSeg(); } upd(); };
   E.qty.oninput = upd; if(E.price) E.price.oninput = upd;
@@ -2170,7 +2195,8 @@ function moveForm(type, opt = {}){
     if(o.when && (!o.dtime || o.slot)) E.note.value = (E.note.value ? E.note.value + ' · ' : '') + 'Livraison : ' + o.when;
     upd();
     extras = o.items && o.items.length > 1 ? o.items.slice(1) : [];
-    $('#pasteMsg').innerHTML = (extras.length ? `<b>🛒 Commande de ${o.items.length} produits :</b> le 1er est rempli ci-dessous, ${extras.map(x => esc(pname(x.pid)) + ' × ' + x.qty).join(', ')} ${extras.length > 1 ? 'seront ajoutés' : 'sera ajouté'} automatiquement à l'enregistrement.<br>` : '') + (got.length ? '✅ Rempli : ' + got.join(', ') + '. ' : '') + (miss.length ? '<span class="red">À compléter : ' + miss.join(', ') + '.</span>' : '') + ' Vérifiez avant d\'enregistrer.';
+    xl.length = 0; extras.filter(x => prod(x.pid)).forEach(x => xl.push({pid:x.pid, qty:x.qty || 1, price:x.price != null ? num(x.price) : num(prod(x.pid).sell)})); drawX();
+    $('#pasteMsg').innerHTML = (extras.length ? `<b>🛒 Commande de ${o.items.length} produits :</b> le 1er est rempli ci-dessous, ${extras.map(x => esc(pname(x.pid)) + ' × ' + x.qty).join(', ')} ${extras.length > 1 ? 'sont ajoutés' : 'est ajouté'} en dessous (vérifiez les quantités et les prix).<br>` : '') + (got.length ? '✅ Rempli : ' + got.join(', ') + '. ' : '') + (miss.length ? '<span class="red">À compléter : ' + miss.join(', ') + '.</span>' : '') + ' Vérifiez avant d\'enregistrer.';
   };
 
   f.onsubmit = e => {
@@ -2192,8 +2218,9 @@ function moveForm(type, opt = {}){
       if(rec.status === 'livre'){ if(!m) rec.ldate = rec.ddate; else if(m.status !== 'livre') rec.ldate = today(); else if(m.ddate !== rec.ddate) rec.ldate = rec.ddate; } else delete rec.ldate;
     }
     let next = m ? S.moves.map(x => x.id === m.id ? rec : x) : S.moves.concat([rec]);
-    const more = type === 'vente' && !m ? extras.filter(x => prod(x.pid)).map((x, i) => { const P = prod(x.pid);
-      rec.ord = rec.id; return Object.assign({}, rec, {id:uid(), ord:rec.id, ts:rec.ts + i + 1, pid:P.id, qty:x.qty, price:x.price, cur:P.cur, rate:rate(), costU:unitCostUSD(P), commU:commUFor(P, liv(rec.liv), toUSD(x.price, P.cur))}); }) : [];
+    const oid = m ? (m.ord || m.id) : rec.id;
+    const more = type === 'vente' ? xl.filter(x => prod(x.pid) && x.qty > 0).map((x, i) => { const P = prod(x.pid);
+      rec.ord = oid; return Object.assign({}, rec, {id:uid(), ord:oid, ts:Date.now() + i + 1, pid:P.id, qty:x.qty, price:x.price, cur:P.cur, rate:rate(), costU:unitCostUSD(P), commU:commUFor(P, liv(rec.liv), toUSD(x.price, P.cur))}); }) : [];
     next = next.concat(more);
     const err = checkStock(next, [p.id].concat(m ? [m.pid] : []).concat(more.map(x => x.pid)));
     if(err){ toast(err); return; }
@@ -2201,7 +2228,7 @@ function moveForm(type, opt = {}){
     if(type === 'entree' && !m && rec.cost > 0) p.buy = rec.cost;
     if(type === 'entree' && !m && opt.plan){ const pl = S.moves.find(x => x.id === opt.plan); if(pl) pl.done = rec.date; }
     S.settings.setup = true; save();
-    toast(m ? 'Modification enregistrée' : more.length ? `${more.length + 1} ventes enregistrées (une par produit)` : {entree:'Entrée ajoutée au dépôt', envoi:'Stock envoyé au livreur', retour:'Retour enregistré', vente:'Vente enregistrée', perte:'Sortie enregistrée'}[type]);
+    toast(m ? 'Modification enregistrée' + (more.length ? ` · ${more.length} produit(s) ajouté(s) à la commande` : '') : more.length ? `${more.length + 1} ventes enregistrées (une par produit)` : {entree:'Entrée ajoutée au dépôt', envoi:'Stock envoyé au livreur', retour:'Retour enregistré', vente:'Vente enregistrée', perte:'Sortie enregistrée'}[type]);
     if(type === 'vente' && !m){ if(window.onSaleCreated) try{ onSaleCreated(rec); }catch(_){} saleTab = status; render(); saleSheet(rec.id, true); }
     else if((type === 'envoi' || type === 'retour') && opt.liv){ render(); livSheet(opt.liv); }
     else { closeSheet(); render(); }
@@ -2258,6 +2285,8 @@ function saleSheet(id, fresh){
     <div class="card" style="margin-bottom:12px">
       <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px"><div><div style="font-weight:700;font-size:16px">${esc(pname(m.pid))} × ${m.qty} · ${total}</div><div class="note">${esc(m.client || 'Client')} · 📅 ${whenTxt(m)}</div></div><span class="pill p-${m.status}">${STATUS[m.status]}</span></div>
     </div>
+    ${(() => { const ol = orderLines(m); if(ol.length < 2) return ''; const tot = {}; ol.forEach(it => tot[it.cur] = (tot[it.cur] || 0) + it.qty*it.price);
+      return `<div class="card" style="margin-bottom:12px"><b>🛒 Commande de ${ol.length} produits</b><div class="list" style="margin-top:8px">${ol.map(it => `<button class="it" data-a="sale:${it.id}" style="${it.id === m.id ? 'background:var(--brand-soft,#eef)' : ''}"><div class="m"><div class="t">${esc(pname(it.pid))} × ${it.qty}</div><div class="d">${amt(it.qty*it.price, it.cur)} · ${STATUS[it.status] || ''}</div></div></button>`).join('')}</div><div class="dl strong" style="margin-top:6px"><span>Total de la commande</span><span class="num">${Object.entries(tot).map(([cu, v]) => amt(v, cu)).join(' + ')}</span></div></div>`; })()}
     <div class="sec" style="margin-top:4px"><h2>Envoyer les reçus par WhatsApp</h2></div>
     <div class="stack" style="margin-bottom:6px">
       ${L ? `<a class="btn wa block" href="${waLink(L.phone, rl)}" target="_blank" rel="noopener">${ico('wa')} 1. Bon de livraison → ${esc(L.name)}${L.phone ? '' : ' (choisir le contact)'}</a>` : ''}
@@ -2284,10 +2313,12 @@ function saleSheet(id, fresh){
 }
 function setStatus(id, st, quiet, ld){
   const m = S.moves.find(x => x.id === id); if(!m || m.status === st) return;
-  const rec = Object.assign({}, m, {status:st});
-  const err = checkStock(S.moves.map(x => x.id === id ? rec : x), [m.pid]);
+  // Commande de plusieurs produits : « En route » / « Livré » s'appliquent à toute la commande (même livreur, même statut)
+  const grp = st !== 'annule' && m.ord ? S.moves.filter(x => x.type === 'vente' && x.ord === m.ord && x.status === m.status && (x.liv || '') === (m.liv || '')) : [m];
+  const ids = grp.map(x => x.id);
+  const err = checkStock(S.moves.map(x => ids.includes(x.id) ? Object.assign({}, x, {status:st}) : x), grp.map(x => x.pid));
   if(err){ toast(err); return; }
-  m.status = st; if(st === 'livre') m.ldate = ld || today(); else delete m.ldate; save(); render(); if(!quiet) saleSheet(id);
+  grp.forEach(x => { x.status = st; if(st === 'livre') x.ldate = ld || today(); else delete x.ldate; }); save(); render(); if(!quiet) saleSheet(id);
   if(st === 'livre') cheer('Livrée ✅ — commission comptée', 60); else toast(st === 'annule' ? 'Vente annulée — stock remis' : 'Statut : ' + STATUS[st]);
 }
 
@@ -2515,7 +2546,7 @@ function livreDatePick(id, cb, extra){
   document.querySelectorAll('[data-ld]').forEach(b => b.onclick = () => cb(b.dataset.ld));
   $('#ldOk').onclick = () => { const v = $('#ldIn').value; if(!v) return; if(v > t){ toast('La date ne peut pas être dans le futur'); return; } cb(v); };
 }
-A.ldate = id => livreDatePick(id, d => { const m = S.moves.find(x => x.id === id); if(!m) return; m.ldate = d; save(); render(); saleSheet(id); toast('Date de livraison : ' + dAbs(d, 1)); });
+A.ldate = id => livreDatePick(id, d => { const m = S.moves.find(x => x.id === id); if(!m) return; (m.ord ? S.moves.filter(x => x.type === 'vente' && x.ord === m.ord && x.status === 'livre' && (x.liv || '') === (m.liv || '') && x.ldate === m.ldate) : [m]).forEach(x => x.ldate = d); save(); render(); saleSheet(id); toast('Date de livraison : ' + dAbs(d, 1)); });
 
 
 /* ---------- Historique du stock (avec dates) ---------- */
