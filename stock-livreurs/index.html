@@ -1026,7 +1026,50 @@ function livReport(l, s, rows){
 
 /* ---------- Plus ---------- */
 /* ---------- Recherche partout : produits, clients, ventes, livreurs, commandes import ---------- */
-const gsBar = () => `<button class="search" data-a="gsearch" style="display:flex;align-items:center;gap:8px;text-align:left;color:var(--muted);margin-bottom:12px;width:100%">🔍 Rechercher partout : produit, client, numéro, livreur…</button>`;
+const gsBar = () => `<div style="display:flex;gap:8px;margin-bottom:12px"><button class="search" data-a="gsearch" style="display:flex;align-items:center;gap:8px;text-align:left;color:var(--muted);margin:0;flex:1;min-width:0;overflow:hidden;white-space:nowrap;text-overflow:ellipsis">🔍 Rechercher partout…</button><button class="search" data-a="calendar" title="Calendrier" aria-label="Calendrier" style="margin:0;width:56px;flex:none;display:grid;place-items:center;font-size:22px;padding:0">📅</button></div>`;
+/* ---------- Calendrier : chaque jour avec ses commandes, livraisons, rappels ---------- */
+let calMonth = '';
+function calDayInfo(){
+  const I = {}, g = d => I[d] = I[d] || {cmd:0, liv:0, todo:0, plan:0, prom:0};
+  for(const m of S.moves){
+    if(m.type === 'vente'){ if(m.date) g(m.date).cmd++; if(m.status === 'livre'){ const d = mday(m); if(d) g(d).liv++; } else if(m.status !== 'annule'){ const d = m.ddate || m.date; if(d) g(d).todo++; } }
+    else if(m.type === 'plan' && !m.done && m.date) g(m.date).plan++;
+    else if(m.type === 'promesse' && !m.done && m.date) g(m.date).prom++;
+  }
+  return I;
+}
+function calSheet(month){
+  calMonth = month || calMonth || today().slice(0, 7);
+  const [y, mo] = calMonth.split('-').map(Number), first = new Date(y, mo - 1, 1), days = new Date(y, mo, 0).getDate(), lead = (first.getDay() + 6) % 7, I = calDayInfo(), t = today();
+  const prev = iso10(new Date(y, mo - 2, 1)).slice(0, 7), next = iso10(new Date(y, mo, 1)).slice(0, 7);
+  const label = first.toLocaleDateString('fr-FR', {month:'long', year:'numeric'});
+  let cells = ''; for(let i = 0; i < lead; i++) cells += '<div></div>';
+  for(let d = 1; d <= days; d++){ const iso = `${calMonth}-${String(d).padStart(2, '0')}`, x = I[iso] || {}, isT = iso === t;
+    const dots = [x.liv ? `<i style="background:var(--pos,#16a34a)"></i>` : '', x.todo ? `<i style="background:var(--warn,#d97706)"></i>` : '', (x.plan || x.prom) ? `<i style="background:var(--brand)"></i>` : ''].join('');
+    cells += `<button type="button" data-a="calday" data-d="${iso}" style="aspect-ratio:1;border-radius:12px;border:${isT ? '2px solid var(--brand)' : '1px solid var(--line,#e5e7eb)'};background:${x.cmd || x.liv || x.todo ? 'var(--card,#fff)' : 'transparent'};display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;font:inherit;cursor:pointer;padding:2px"><b style="font-size:15px;${isT ? 'color:var(--brand)' : ''}">${d}</b>${x.cmd ? `<small style="font-size:10px;line-height:1">${x.cmd} cmd</small>` : ''}<span class="caldots" style="display:flex;gap:2px">${dots}</span></button>`; }
+  sheet('📅 Calendrier', `<style>.caldots i{width:6px;height:6px;border-radius:50%;display:block}</style>
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px"><button class="btn sm" data-a="calmonth" data-d="${prev}">‹</button><b style="text-transform:capitalize;font-size:16px">${label}</b><button class="btn sm" data-a="calmonth" data-d="${next}">›</button></div>
+    <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:4px;text-align:center;font-size:12px;color:var(--muted);margin-bottom:4px">${['L','M','M','J','V','S','D'].map(x => `<div>${x}</div>`).join('')}</div>
+    <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:4px">${cells}</div>
+    <p class="note" style="margin-top:10px">« cmd » = commandes enregistrées ce jour · <span style="color:var(--pos,#16a34a)">●</span> livré · <span style="color:var(--warn,#d97706)">●</span> à livrer · <span style="color:var(--brand)">●</span> achat prévu / client à relancer</p>
+    <button class="btn block" data-a="calmonth" data-d="${t.slice(0, 7)}" style="margin-top:6px">Revenir à aujourd'hui</button>`);
+}
+function calDaySheet(d){
+  const t = today(), x = calDayInfo()[d] || {cmd:0, liv:0, todo:0, plan:0, prom:0}, past = d <= t;
+  const todo = S.moves.filter(m => m.type === 'vente' && m.status !== 'livre' && m.status !== 'annule' && (m.ddate || m.date) === d);
+  const pl = S.moves.filter(m => m.type === 'plan' && !m.done && m.date === d), pr = S.moves.filter(m => m.type === 'promesse' && !m.done && m.date === d);
+  const r = past ? dayReport(d) : null;
+  sheet('📅 ' + dAbs(d, 1), `
+    <div class="kv"><div><b class="num">${x.cmd}</b><span>Commandes enregistrées</span></div><div><b class="num">${x.liv}</b><span>Livrées</span></div><div><b class="num">${x.todo}</b><span>À livrer</span></div></div>
+    ${r ? `<div class="card" style="margin-bottom:12px"><div class="dl"><span>Chiffre d'affaires</span><span class="num">${money(r.ca || 0)}</span></div><div class="dl strong"><span>Bénéfice du jour</span><span class="num">${money(r.profit ?? r.net ?? 0)}</span></div></div>` : ''}
+    ${todo.length ? `<div class="sec"><h2>🛵 À livrer ce jour (${todo.length})</h2></div><div class="list">${sortMoves(todo).map(rowSale).join('')}</div>` : ''}
+    ${pl.length ? `<div class="sec"><h2>🛒 Achats prévus</h2></div><div class="list">${pl.map(m => `<div class="it" style="cursor:default"><div class="ic c-in">🛒</div><div class="m"><div class="t">${esc(pname(m.pid))} × ${m.qty}</div><div class="d">${esc(m.sup || '')}</div></div></div>`).join('')}</div>` : ''}
+    ${pr.length ? `<div class="sec"><h2>🤝 Clients à relancer</h2></div><div class="list">${pr.map(m => `<button class="it" data-a="promrel:${m.id}"><div class="ic c-out">${esc(initials(m.client || '?'))}</div><div class="m"><div class="t">${esc(m.client || m.phone)}</div><div class="d">${m.pid ? esc(pname(m.pid)) : ''}${m.note ? ' · ' + esc(m.note) : ''}</div></div>${ico('chev')}</button>`).join('')}</div>` : ''}
+    <div class="stack" style="margin-top:12px">
+      <button class="btn primary block" data-a="calgo" data-d="${d}" data-to="ventes">🧾 Voir les ventes de ce jour</button>
+      ${past ? `<button class="btn block" data-a="jourset:${d}">📊 Rapport du jour (argent, bénéfice)</button><button class="btn block" data-a="calgo" data-d="${d}" data-to="stock">📦 Stock à la fin de ce jour</button>` : ''}
+      <button class="btn block" data-a="calmonth" data-d="${d.slice(0, 7)}">‹ Retour au calendrier</button></div>`);
+}
 function gsResults(qq){
   const q = norm0(qq); if(q.length < 2) return '<p class="note">Tapez au moins 2 lettres ou chiffres.</p>';
   const has_ = t => norm0(t).includes(q), out = [];
@@ -2849,6 +2892,10 @@ const A = {
   shper: v => { shPer = v; shDay = ''; render(); },
   shday: (_, el) => { shDay = el.dataset.d || ''; if(view !== 'stockhist') A.nav('stockhist'); else render(); },
   gsearch: () => gsSheet(),
+  calendar: () => calSheet(),
+  calmonth: (_, el) => calSheet(el.dataset.d),
+  calday: (_, el) => calDaySheet(el.dataset.d),
+  calgo: (_, el) => { const d = el.dataset.d; closeSheet(); if(el.dataset.to === 'stock'){ stockAsOf = d < today() ? d : ''; A.nav('stock'); } else { saleDay = d; saleTab = 'tous'; saleDayBy = d > today() ? 'liv' : 'cmd'; A.nav('ventes'); } },
   livday: (id, el) => livDaySheet(id, el && el.dataset.d),
   sasof: (_, el) => { stockAsOf = el.dataset.d || ''; render(); },
   planform: v => planForm(v || null),
