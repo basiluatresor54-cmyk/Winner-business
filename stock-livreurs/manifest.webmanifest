@@ -1,6 +1,6 @@
 {
-  "name": "Réseau & Vente",
-  "short_name": "Réseau Vente",
+  "name": "Stock & Livreurs · Réseau & Vente",
+  "short_name": "Stock Réseau",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
