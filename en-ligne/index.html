@@ -3791,41 +3791,60 @@ function ccOptions(sel){
   const seen = new Set();
   return COUNTRIES.filter(c => c[2] && !seen.has(c[2]) && seen.add(c[2])).map(c => `<option value="${c[2]}" ${c[2]===sel?'selected':''}>+${c[2]} ${esc(c[0])}</option>`).join('');
 }
+/* Livreur / gérant invité : inscription simplifiée (numéro + mot de passe) */
+const JOIN_KEY = 'stock_join';
+const joinGet = () => { try{ return localStorage.getItem(JOIN_KEY) || ''; }catch(_){ return ''; } };
+const joinSet = v => { try{ v ? localStorage.setItem(JOIN_KEY, v) : localStorage.removeItem(JOIN_KEY); }catch(_){} };
+function joinSplit(d){ // 243812345678 -> ['243', '0812345678']
+  d = String(d||'').replace(/\D/g,''); if(d.length < 8) return null;
+  const ccs = [...new Set(COUNTRIES.map(c => c[2]).filter(Boolean))].sort((a, b) => b.length - a.length);
+  const c = ccs.find(x => d.startsWith(x)); if(!c) return null;
+  const rest = d.slice(c.length); return [c, KEEP0[c] || rest.startsWith('0') ? rest : '0' + rest];
+}
 function showAuth(mode = 'login', msg = ''){
-  const cc = localStorage.getItem('stock_online_cc') || '243';
+  const join = joinGet(), js = joinSplit(join);
+  const cc = (js && js[0]) || localStorage.getItem('stock_online_cc') || '243';
   const login = mode === 'login';
+  const simple = !!join && !login;
   const el = authShell(`
+    ${join ? `<div style="background:var(--soft,#eef6f4);border-radius:12px;padding:10px 12px;margin-bottom:14px;text-align:left;font-size:14px;line-height:1.45"><b>🛵 Compte livreur / équipe</b><br>${login ? 'Tapez votre numéro et votre mot de passe.' : `Le patron vous a invité. Votre numéro est déjà rempli : choisissez seulement un <b>mot de passe</b>.`}</div>` : ''}
     <div class="seg seg2" style="margin-bottom:16px"><button type="button" class="${login?'on':''}" data-auth="login">Se connecter</button><button type="button" class="${login?'':'on'}" data-auth="signup">Créer un compte</button></div>
     <form id="authf" autocomplete="on">
-      ${login ? '' : field('Votre nom *', `<input name="fullname" required maxlength="60" autocomplete="name" placeholder="Ex : Jean Mbuyi">`)}
-      <div class="row3" style="grid-template-columns:1.1fr 2fr">${field('Pays', `<select name="cc">${ccOptions(cc)}</select>`)}${field('Numéro de téléphone *', `<input name="phone" type="tel" required autocomplete="tel" placeholder="0812345678">`)}</div>
+      ${login || simple ? '' : field('Votre nom *', `<input name="fullname" required maxlength="60" autocomplete="name" placeholder="Ex : Jean Mbuyi">`)}
+      <div class="row3" style="grid-template-columns:1.1fr 2fr">${field('Pays', `<select name="cc">${ccOptions(cc)}</select>`)}${field('Numéro de téléphone *', `<input name="phone" type="tel" required autocomplete="tel" placeholder="0812345678" value="${esc(js ? js[1] : '')}">`)}</div>
       <p class="note telprev" style="margin:-4px 0 10px"></p>
       ${field('Mot de passe *', `<input name="pw" type="password" required minlength="6" autocomplete="${login?'current-password':'new-password'}" placeholder="6 caractères minimum">`)}
-      ${login ? '' : field('Confirmer le mot de passe *', `<input name="pw2" type="password" required minlength="6" autocomplete="new-password">`)}
+      ${login || simple ? '' : field('Confirmer le mot de passe *', `<input name="pw2" type="password" required minlength="6" autocomplete="new-password">`)}
+      ${simple || (join && login) ? `<label style="display:flex;gap:8px;align-items:center;margin:-4px 0 10px;font-size:14px"><input type="checkbox" id="pwShow"> Afficher le mot de passe</label>` : ''}
       <p class="auth-msg" id="authMsg">${esc(msg)}</p>
       <button class="btn primary block" id="authGo">${login ? 'Se connecter' : 'Créer mon compte'}</button>
     </form>
+    ${join ? `<p class="note" style="margin-top:12px">Vous voulez plutôt créer <b>votre propre boutique</b> ? <a href="#" class="link" id="joinOff">Cliquez ici</a></p>` : ''}
     <p class="note" style="margin-top:10px">${login ? '' : 'En créant un compte, vous acceptez les <a href="conditions.html" target="_blank" rel="noopener" class="link">conditions d\'utilisation</a>.'}</p>
     <p class="note" style="margin-top:14px">${login ? `Mot de passe oublié ? <a class="link" href="${supportLink('Bonjour BASILUA TECH, j\'ai oublié mon mot de passe Stock & Livreurs. Mon numéro de compte : ')}" target="_blank" rel="noopener">Contactez BASILUA TECH sur WhatsApp</a>` : 'Votre numéro sert d\'identifiant. Aucun SMS n\'est envoyé.'}</p>`);
   el.querySelectorAll('[data-auth]').forEach(b => b.onclick = () => showAuth(b.dataset.auth));
   if(!login) telPreview($('#authf'));
+  if($('#pwShow')) $('#pwShow').onchange = e => { $('#authf').elements.pw.type = e.target.checked ? 'text' : 'password'; };
+  if($('#joinOff')) $('#joinOff').onclick = e => { e.preventDefault(); joinSet(''); showAuth(mode); };
   $('#authf').onsubmit = async e => {
     e.preventDefault();
     const E = e.target.elements, m = $('#authMsg'), go = $('#authGo');
     const d = telDigits(E.cc.value, E.phone.value);
     if(d.length < 8){ m.textContent = 'Numéro de téléphone invalide.'; return; }
     if(!login){ const te = telCheck(E.cc.value, d); if(te){ m.textContent = te; E.phone.focus(); return; } }
-    if(!login && E.pw.value !== E.pw2.value){ m.textContent = 'Les deux mots de passe ne sont pas identiques.'; return; }
+    if(!login && E.pw2 && E.pw.value !== E.pw2.value){ m.textContent = 'Les deux mots de passe ne sont pas identiques.'; return; }
     try{ localStorage.setItem('stock_online_cc', E.cc.value); }catch(_){}
     go.disabled = true; go.textContent = 'Patientez…'; m.textContent = '';
     try{
       let res;
       if(login) res = await sb.auth.signInWithPassword({email:telEmail(d), password:E.pw.value});
-      else res = await sb.auth.signUp({email:telEmail(d), password:E.pw.value, options:{data:{name:E.fullname.value.trim(), phone:d}}});
+      else res = await sb.auth.signUp({email:telEmail(d), password:E.pw.value, options:{data:E.fullname ? {name:E.fullname.value.trim(), phone:d} : {phone:d}}});
       if(res.error) throw res.error;
       if(!res.data.session){ m.textContent = 'Compte créé, mais la validation par email est activée dans Supabase. Contactez BASILUA TECH.'; go.disabled = false; go.textContent = 'Se connecter'; return; }
       await afterLogin();
-    }catch(err){ m.textContent = authErr(err); go.disabled = false; go.textContent = login ? 'Se connecter' : 'Créer mon compte'; }
+    }catch(err){
+      if(!login && join && /already registered|already exists/i.test(String(err && err.message || err))) return showAuth('login', 'Ce numéro a déjà un compte : tapez votre mot de passe puis « Se connecter ».');
+      m.textContent = authErr(err); go.disabled = false; go.textContent = login ? 'Se connecter' : 'Créer mon compte'; }
   };
 }
 
@@ -3852,7 +3871,11 @@ async function afterLogin(){
     authShell(`<p class="auth-msg">${esc(authErr(err))}</p><button class="btn primary block" id="retry">Réessayer</button><button class="btn block" style="margin-top:8px" id="lo">Se déconnecter</button>`);
     $('#retry').onclick = afterLogin; $('#lo').onclick = logout; return;
   }
-  if(!ONLINE.shops.length) return showCreateShop();
+  if(!ONLINE.shops.length){
+    try{ const u = await sb.auth.getUser(); if(u.error || !u.data || !u.data.user){ await sb.auth.signOut(); return showAuth(joinGet() ? 'signup' : 'login', "Ce compte n'existe plus. Créez un nouveau compte."); } }catch(_){}
+    return joinGet() ? showNoShop() : showCreateShop();
+  }
+  joinSet('');
   let lastId = null; try{ lastId = (JSON.parse(localStorage.getItem(LAST_KEY) || 'null') || {}).shop?.id; }catch(_){}
   if(ONLINE.shops.length === 1) return openShop(ONLINE.shops[0]);
   const pick = ONLINE.shops.find(s => s.id === lastId);
@@ -3868,10 +3891,25 @@ function showShopChooser(){
   el.querySelectorAll('[data-shop]').forEach(b => b.onclick = () => openShop(ONLINE.shops.find(s => s.id === b.dataset.shop)));
   $('#newShop').onclick = showCreateShop; $('#lo').onclick = logout;
 }
+function showNoShop(){
+  const meta = (ONLINE.user && ONLINE.user.user_metadata) || {}, d = meta.phone || String(ONLINE.user && ONLINE.user.email || '').split('@')[0];
+  const txt = `Bonjour, j'ai créé mon compte sur Stock & Livreurs avec le numéro ${telPretty(d)}. Invitez-moi dans l'équipe s'il vous plaît (Plus → Équipe → Inviter).`;
+  authShell(`<h2 style="font-size:17px;margin-bottom:6px">🛵 Compte livreur / équipe</h2>
+    <p class="note" style="margin-bottom:12px">Votre compte est créé avec le numéro <b>${esc(telPretty(d))}</b>, mais le patron ne vous a pas encore ajouté à sa boutique.</p>
+    <div style="text-align:left;background:var(--soft,#eef6f4);border-radius:12px;padding:10px 12px;margin-bottom:14px;font-size:14px;line-height:1.5">
+      1️⃣ Envoyez votre numéro au patron.<br>2️⃣ Il vous invite : Plus → Équipe → Inviter, avec <b>ce même numéro</b>.<br>3️⃣ Touchez « Vérifier mon invitation ».</div>
+    <a class="btn block" style="text-decoration:none;text-align:center;margin-bottom:8px" href="https://wa.me/?text=${encodeURIComponent(txt)}" target="_blank" rel="noopener">💬 Envoyer mon numéro au patron</a>
+    <button class="btn primary block" id="joinChk">🔄 Vérifier mon invitation</button>
+    <a class="btn block" style="text-decoration:none;text-align:center;margin-top:8px" href="guide-livreur.html" target="_blank" rel="noopener">📘 Guide du livreur</a>
+    <button class="btn block" style="margin-top:8px" id="lo">Mauvais numéro ? Se déconnecter</button>
+    <p class="note" style="margin-top:14px">Vous êtes le patron et voulez créer votre boutique ? <a href="#" class="link" id="toCreate">Créer ma boutique</a></p>`);
+  $('#joinChk').onclick = afterLogin; $('#lo').onclick = logout;
+  $('#toCreate').onclick = e => { e.preventDefault(); joinSet(''); showCreateShop(); };
+}
 function showCreateShop(){
   const meta = (ONLINE.user && ONLINE.user.user_metadata) || {};
   const st = Object.assign(defaults().settings, {shop:'', color:'#0F766E'});
-  const el = authShell(`<h2 style="font-size:17px;margin-bottom:4px">Créez votre boutique</h2><p class="note" style="margin-bottom:14px">Essai gratuit de 7 jours.</p>
+  const el = authShell(`${!(ONLINE.shops || []).length ? `<button type="button" id="iamLiv" style="width:100%;text-align:left;border:2px dashed var(--brand);background:transparent;border-radius:12px;padding:10px 12px;margin-bottom:14px;font:inherit;font-size:14px;line-height:1.45;color:inherit;cursor:pointer">🛵 <b>Vous êtes livreur ou gérant ?</b><br>Ne remplissez pas ce formulaire. <u>Touchez ici</u>.</button>` : ''}<h2 style="font-size:17px;margin-bottom:4px">Créez votre boutique</h2><p class="note" style="margin-bottom:14px">Essai gratuit de 7 jours.</p>
     <form id="csf" style="text-align:left">
       ${field("Nom de l'entreprise *", `<input name="shop" required maxlength="60" placeholder="Ex : Boutique Mbuyi">`)}
       ${actsField(st)}
@@ -3886,6 +3924,7 @@ function showCreateShop(){
   let color = st.color;
   $('#cscol').onclick = e => { const b = e.target.closest('button'); if(!b) return; color = b.dataset.c; [...$('#cscol').children].forEach(x => x.classList.toggle('on', x === b)); };
   $('#lo').onclick = logout; if($('#back')) $('#back').onclick = showShopChooser;
+  if($('#iamLiv')) $('#iamLiv').onclick = () => { joinSet('1'); showNoShop(); };
   $('#csf').onsubmit = async e => {
     e.preventDefault();
     const E = e.target.elements, m = $('#csMsg'), go = $('#csGo');
@@ -4202,7 +4241,7 @@ CUSTOM.equipe = () => {
 CUSTOM_AFTER.equipe = () => { if(TEAM.members === null && !TEAM.loading) loadTeam(); };
 function inviteMsg(i){
   const role = i.role === 'livreur' ? 'livreur' : 'gérant(e)';
-  return `Bonjour ${i.display_name || ''} 👋\n\nVous êtes invité(e) comme *${role}* de *${S.settings.shop}* sur l'application Stock & Livreurs.\n\n1️⃣ Ouvrez : ${APP_LINK}\n2️⃣ Touchez « Créer un compte » (ou « Se connecter » si vous avez déjà un compte)\n3️⃣ Utilisez *ce numéro* : +${i.phone}\n\n${i.role === 'livreur' ? 'Vous verrez vos livraisons, votre stock et votre commission de la semaine.\n\n📘 Guide du livreur (à lire avant de commencer) : ' + new URL('guide-livreur.html', APP_LINK).href : 'Vous aurez accès aux ventes, au stock et aux livreurs de la boutique.\n\n📘 Guide : ' + new URL('guide.html', APP_LINK).href}`;
+  return `Bonjour ${i.display_name || ''} 👋\n\nVous êtes invité(e) comme *${role}* de *${S.settings.shop}* sur l'application Stock & Livreurs.\n\n1️⃣ Ouvrez ce lien : ${APP_LINK}?rejoindre=${i.phone}\n2️⃣ Votre numéro est déjà rempli (+${i.phone}) : choisissez juste un *mot de passe* et touchez « Créer mon compte »\n3️⃣ C'est tout ✅ (déjà un compte ? touchez « Se connecter »)\n\n${i.role === 'livreur' ? 'Vous verrez vos livraisons, votre stock et votre commission de la semaine.\n\n📘 Guide du livreur (à lire avant de commencer) : ' + new URL('guide-livreur.html', APP_LINK).href : 'Vous aurez accès aux ventes, au stock et aux livreurs de la boutique.\n\n📘 Guide : ' + new URL('guide.html', APP_LINK).href}`;
 }
 function inviteSheet(pre = {}){
   const cc = String(S.settings.cc || '243');
@@ -4579,7 +4618,9 @@ livSheet = function(id){
   if(!sb){ authShell(`<p class="auth-msg">Impossible de charger le module de connexion. Vérifiez votre connexion internet puis rechargez la page.</p><button class="btn primary block" onclick="location.reload()">Recharger</button>`); return; }
   authShell(`<p class="note">Chargement…</p>`);
   const {data:{session}} = await sb.auth.getSession();
-  if(session) afterLogin(); else showAuth(/[?&](essai|inscription|signup)\b/.test(location.search) ? 'signup' : 'login');
+  const jm = location.search.match(/[?&]rejoindre(?:=(\d*))?/);
+  if(jm){ joinSet(jm[1] || '1'); try{ history.replaceState(null, '', location.pathname); }catch(_){} }
+  if(session) afterLogin(); else showAuth(jm || /[?&](essai|inscription|signup)\b/.test(location.search) ? 'signup' : 'login');
   sb.auth.onAuthStateChange((ev) => { if(ev === 'SIGNED_OUT' && ONLINE.shop){ ONLINE.shop = null; showAuth('login'); } });
 })();
 
