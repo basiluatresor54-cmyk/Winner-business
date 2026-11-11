@@ -896,7 +896,7 @@ function saleRows(){
 function rowSale(m){
   const L = liv(m.liv);
   return `<button class="it" data-a="sale:${m.id}"${m.status === 'attente' || m.status === 'encours' ? ` data-sw="${m.id}"` : ''}>${prod(m.pid) && prod(m.pid).photo ? pic(prod(m.pid)) : `<div class="ic c-out">${ico('cart')}</div>`}
-    <div class="m"><div class="t">${esc(pname(m.pid))} × ${m.qty}${m.partial ? ` <span class="note">(sur ${m.qtyAsked})</span>` : ''}</div>
+    <div class="m"><div class="t">${esc(pname(m.pid))} × ${m.qty}${m.partial ? ` <span class="note">(sur ${m.qtyAsked})</span>` : ''}${m.swapped ? ` <span class="note">(au lieu de ${esc(pname(m.origPid))})</span>` : ''}</div>
     <div class="d">${esc(m.client || 'Client')}${m.addr ? ' · ' + esc(m.addr) : ''}</div>
     <div class="d">🕐 Commandé ${m.date === today() ? "aujourd'hui" : 'le ' + fmtDate(m.date)}${m.ts ? ' à ' + hhmm(m.ts) : ''}</div>
     <div class="d">${m.status === 'livre' ? '✅ Livré ' + fmtDate(mday(m)) : '📅 ' + fmtDate(m.ddate || m.date) + (m.dtime ? ' ' + m.dtime.replace(':','h') : '')} · ${L ? '🛵 ' + esc(L.name) + ' (' + esc(L.city||'') + ')' : 'Vente directe'}</div></div>
@@ -2656,6 +2656,8 @@ function saleSheet(id, fresh){
       ${L ? `<p class="note" style="margin-top:8px"><b>Au livreur :</b></p><pre class="msg">${esc(rl)}</pre>` : ''}
       <p class="note" style="margin-top:8px"><b>Au client :</b></p><pre class="msg">${esc(rc)}</pre></details>
     <div class="f"><span>Statut</span><div class="seg">${Object.entries(STATUS).map(([k,l]) => `<button type="button" class="${m.status===k?'on':''}" data-a="status:${k}" data-id="${m.id}">${l}</button>`).join('')}</div></div>
+    ${(m.status === 'attente' || m.status === 'encours') && isKit(prod(m.pid)) ? `<button class="btn block" style="margin:-4px 0 12px" data-a="ownswap:${m.id}">🔁 Le client a pris seulement une partie du pack</button>` : ''}
+    ${m.swapped ? `<p class="note" style="margin:-4px 0 12px">🔁 Commande initiale : <b>${esc(pname(m.origPid))} × ${m.origQty}</b> (${amt(m.origQty * num(m.origPrice), m.cur)}) → livré : <b>${esc(pname(m.pid))} × ${m.qty}</b></p>` : ''}
     ${(m.status === 'attente' || m.status === 'encours') && m.qty > 1 ? `<button class="btn block" style="margin:-4px 0 12px" data-a="ownpart:${m.id}">🔢 Livré en partie (le client a pris moins)</button>` : ''}
     ${m.partial ? `<p class="note" style="margin:-4px 0 12px">🔢 Livré en partie : <b>${m.qty} sur ${m.qtyAsked}</b> commandé(s)</p>` : ''}
     ${(() => { const ol = orderLines(m).filter(x => x.status !== 'annule' && x.status !== 'livre'); return ol.length > 1 ? `<button class="btn ghost-bad block" style="margin:-4px 0 12px" data-a="cancelorder:${m.id}">❌ Annuler toute la commande (${ol.length} produits)</button>` : ''; })()}
@@ -2688,6 +2690,22 @@ function partialSheet(m, onOk){
   const E = $('#ptf').elements, up = () => { const q = Math.round(num(E.q.value)); $('#ptSum').innerHTML = q >= 1 && q < m.qty ? `Montant encaissé : <b>${amt(q * m.price, m.cur)}</b> au lieu de ${amt(m.qty * m.price, m.cur)} · ${m.qty - q} pièce(s) restent en stock` : '<span style="color:var(--bad,#dc2626)">Quantité invalide</span>'; };
   E.q.oninput = up; up();
   $('#ptf').onsubmit = async e => { e.preventDefault(); e.stopPropagation(); const q = Math.round(num(E.q.value)); if(!(q >= 1 && q < m.qty)){ toast('Quantité entre 1 et ' + (m.qty - 1)); return; } await onOk(q, E.d.value || t); };
+}
+// Pack : le client n'a pris qu'une partie (ex. Pommade seule au lieu de Huile + Pommade) — prix du catalogue
+function swapSheet(m, onOk){
+  const P = prod(m.pid), t = today(); if(!isKit(P)) return;
+  const comps = P.kit.map(c => [prod(c.pid), c.q * m.qty]).filter(([x]) => x);
+  sheet('🔁 Le client a pris une partie du pack', `<p class="note" style="margin-bottom:10px">Commande : <b>${esc(P.name)} × ${m.qty}</b> — ${amt(m.qty * m.price, m.cur)}${m.client ? ' · ' + esc(m.client) : ''}</p>
+    <form id="swf"><div class="f"><span>Qu'est-ce que le client a pris ?</span><div class="list">${comps.map(([x, mx], i) => `<label class="it" style="cursor:pointer"><input type="radio" name="pid" value="${x.id}" ${i ? '' : 'checked'} data-max="${mx}" style="width:22px;height:22px;min-height:0;flex:none"><div class="m"><div class="t">${esc(x.name)}</div><div class="d">Prix normal : ${amt(num(x.sell), x.cur)}</div></div></label>`).join('')}</div></div>
+    ${field('Quantité prise', `<input name="q" type="number" min="1" step="1" value="${Math.max(1, comps[0] ? Math.min(m.qty, comps[0][1]) : 1)}" required inputmode="numeric">`)}
+    ${field('Livré le', `<input name="d" type="date" max="${t}" value="${t}">`)}
+    <div id="swSum" class="note" style="margin:-4px 0 12px"></div>
+    <button class="btn primary block">✅ Confirmer : livré</button></form>`);
+  const f = $('#swf'), E = f.elements, cur = () => f.querySelector('[name=pid]:checked');
+  const up = () => { const r = cur(), x = r && prod(r.value), q = Math.round(num(E.q.value)), mx = r ? +r.dataset.max : 0;
+    E.q.max = mx; $('#swSum').innerHTML = x && q >= 1 && q <= mx ? `Montant encaissé : <b>${amt(q * num(x.sell), x.cur)}</b> au lieu de ${amt(m.qty * m.price, m.cur)} · le reste du pack reste en stock` : `<span style="color:var(--bad,#dc2626)">Quantité entre 1 et ${mx}</span>`; };
+  f.addEventListener('change', up); E.q.oninput = up; up();
+  f.onsubmit = async e => { e.preventDefault(); e.stopPropagation(); const r = cur(), q = Math.round(num(E.q.value)); if(!r || !(q >= 1 && q <= +r.dataset.max)){ toast('Quantité invalide'); return; } await onOk(r.value, q, E.d.value || t); };
 }
 function setStatus(id, st, quiet, ld){
   const m = S.moves.find(x => x.id === id); if(!m || m.status === st) return;
@@ -2830,6 +2848,11 @@ const A = {
   scity: v => { saleCity = v; render(); },
   close: () => closeSheet(),
   fab: () => fabSheet(),
+  ownswap: id => { const m = S.moves.find(x => x.id === id); if(!m) return; swapSheet(m, (pid, q, d) => {
+    const x = prod(pid), rec = Object.assign({}, m, {pid, qty:q, price:num(x.sell), cur:x.cur, rate:rate(), costU:unitCostUSD(x), commU:commUFor(x, liv(m.liv), toUSD(num(x.sell), x.cur)),
+      origPid:m.origPid || m.pid, origQty:m.origQty || m.qty, origPrice:m.origPrice ?? m.price, swapped:true, status:'livre', ldate:d});
+    const err = checkStock(S.moves.map(y => y.id === id ? rec : y), [pid]); if(err){ toast(err); return false; }
+    Object.assign(m, rec); save(); closeSheet(); render(); saleSheet(id); toast(`Livré : ${pname(pid)} × ${q} ✅`); return true; }); },
   ownpart: id => { const m = S.moves.find(x => x.id === id); if(!m) return; partialSheet(m, (q, d) => {
     const asked = m.qtyAsked || m.qty, rec = Object.assign({}, m, {qty:q, qtyAsked:asked, partial:true, status:'livre', ldate:d});
     const err = checkStock(S.moves.map(x => x.id === id ? rec : x), [m.pid]); if(err){ toast(err); return false; }
