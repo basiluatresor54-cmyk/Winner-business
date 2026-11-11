@@ -806,7 +806,11 @@ function vHome(){
 
 /* ---------- Stock ---------- */
 function vStock(){
-  return `<input class="search" type="search" placeholder="Rechercher un produit…" value="${esc(stockQ)}" oninput="stockQ=this.value;refreshList('stock')">
+  const t = today();
+  return `<div class="card" style="margin-bottom:10px;padding:10px 12px;${stockAsOf ? 'border:2px solid var(--brand)' : ''}"><div style="display:flex;gap:8px;align-items:center"><b style="font-size:14px;flex:none">📅 Stock au :</b><label class="f" style="margin:0;flex:1;min-width:0"><input type="date" id="stockAsOfIn" max="${t}" value="${esc(stockAsOf)}"></label></div>
+    <div class="chips" style="margin:8px 0 0"><button class="chip ${!stockAsOf ? 'on' : ''}" data-a="sasof" data-d="">Aujourd'hui (actuel)</button><button class="chip ${stockAsOf === addDays(t, -1) ? 'on' : ''}" data-a="sasof" data-d="${addDays(t, -1)}">Hier soir</button><button class="chip ${stockAsOf === addDays(t, -7) ? 'on' : ''}" data-a="sasof" data-d="${addDays(t, -7)}">Il y a 7 jours</button></div>
+    ${stockAsOf ? `<p class="note" style="margin:8px 0 0">⏪ Vous voyez le stock tel qu'il était <b>à la fin du ${esc(dAbs(stockAsOf, 1))}</b>. <button class="link" data-a="sasof" data-d="">Revenir au stock actuel</button> · <button class="link" data-a="shday" data-d="${stockAsOf}">Mouvements de ce jour ›</button></p>` : ''}</div>
+  <input class="search" type="search" placeholder="Rechercher un produit…" value="${esc(stockQ)}" oninput="stockQ=this.value;refreshList('stock')">
   ${plansCard()}
   <div id="lst">${stockRows()}</div>
   ${recentStockHTML()}
@@ -816,9 +820,10 @@ function vStock(){
   ${invHistHTML('')}`;
 }
 // Par produit : entré, vendu (livré, packs décomposés), en cours, perdu ; packs vendus
-function prodFlow(){
+let stockAsOf = '';
+function prodFlow(moves = S.moves){
   const F = {}, g = id => F[id] = F[id] || {in:0, sold:0, pend:0, lost:0, packs:0};
-  for(const m of S.moves){
+  for(const m of moves){
     if(!m.pid) continue;
     if(m.type === 'vente' && m.status !== 'annule' && isKit(prod(m.pid)) && m.status === 'livre') g(m.pid).packs += m.qty;
     for(const [pid, q] of lines(m.pid, m.qty)){
@@ -832,12 +837,13 @@ function prodFlow(){
 }
 function stockRows(){
   if(!S.products.length) return `<div class="list"><div class="empty"><b>Aucun produit</b>Ajoutez votre premier produit.</div></div>`;
-  const st = stockAt(), q = stockQ.trim().toLowerCase();
+  const MV = stockAsOf ? S.moves.filter(m => (mday(m) || '') <= stockAsOf && !(m.type === 'vente' && m.status !== 'livre' && (m.date || '') > stockAsOf)) : S.moves;
+  const st = stockAt(MV), q = stockQ.trim().toLowerCase();
   const match = p => !q || (p.name + ' ' + (p.cat||'')).toLowerCase().includes(q);
   const simple = S.products.filter(p => !isKit(p) && match(p)).sort(byName);
   const kits = S.products.filter(p => isKit(p) && match(p)).sort(byName);
   let units = 0, dep = 0, hand = 0, soldAll = 0;
-  const F = prodFlow();
+  const F = prodFlow(MV);
   S.products.filter(p => !isKit(p)).forEach(p => { units += totalOf(st,p.id); dep += qAt(st,'',p.id); hand += inHands(st,p.id); soldAll += (F[p.id] || {}).sold || 0; });
   const fl = id => { const f = F[id] || {}; return `<div class="d">Entré <b>${f.in || 0}</b> · <span class="green">Vendu <b>${f.sold || 0}</b></span>${f.pend ? ' · En cours <b>' + f.pend + '</b>' : ''}${f.lost ? ' · Perdu <b>' + f.lost + '</b>' : ''}</div>`; };
   const row = p => { const tot = totalOf(st,p.id), cls = tot<=0 ? 'qty-zero' : tot<=(p.alert||0) ? 'qty-low' : '';
@@ -954,6 +960,28 @@ function livForm(id){
     if(l) Object.assign(l, d); else S.livreurs.push(Object.assign({id:uid()}, d));
     save(); closeSheet(); render(); toast(l ? 'Livreur modifié' : 'Livreur ajouté'); };
 }
+// Une journée d'un livreur : livraisons, commandes prévues, stock reçu/rendu, versements, commission
+function livDaySheet(id, day){
+  const l = liv(id); if(!l) return; day = day || today(); const t = today();
+  const mine = S.moves.filter(m => m.liv === id || m.loc === id);
+  const liv_ = mine.filter(m => m.type === 'vente' && m.status === 'livre' && mday(m) === day);
+  const plan = mine.filter(m => m.type === 'vente' && (m.status === 'attente' || m.status === 'encours') && (m.ddate || m.date) === day);
+  const ann = mine.filter(m => m.type === 'vente' && m.status === 'annule' && (m.ddate || m.date) === day);
+  const stk = mine.filter(m => ['envoi', 'retour', 'perte', 'ajust', 'inventaire'].includes(m.type) && m.date === day);
+  const vers = mine.filter(m => m.type === 'versement' && m.date === day);
+  const cash = liv_.reduce((t, m) => t + livCash(m), 0), comm = liv_.reduce((t, m) => t + m.qty * num(m.commU), 0), pcs = liv_.reduce((t, m) => t + m.qty, 0);
+  const vTot = vers.reduce((t, m) => t + moneyUSD(m), 0);
+  const chip = (d, lb) => `<button class="chip ${day === d ? 'on' : ''}" data-a="livday:${id}" data-d="${d}">${lb}</button>`;
+  sheet(`📅 ${l.name} · ${dAbs(day, 1)}`, `
+    <div class="chips" style="margin-bottom:8px">${chip(addDays(t, -2), 'Avant-hier')}${chip(addDays(t, -1), 'Hier')}${chip(t, "Aujourd'hui")}${chip(addDays(t, 1), 'Demain')}</div>
+    <label class="f"><span>Choisir une date</span><input type="date" id="livDayIn" data-id="${id}" value="${day}"></label>
+    <div class="kv"><div><b class="num">${pcs}</b><span>Pièces livrées</span></div><div><b class="num">${money(cash)}</b><span>Encaissé</span></div><div><b class="num">${money(comm)}</b><span>Commission</span></div></div>
+    ${vers.length ? `<div class="card" style="margin-bottom:12px"><div class="dl strong"><span>💵 Versé ce jour</span><span class="num">${money(vTot)}</span></div></div>` : ''}
+    <div class="sec"><h2>✅ Livré ce jour (${liv_.length})</h2></div><div class="list">${liv_.length ? sortMoves(liv_).map(rowSale).join('') : '<div class="empty">Aucune livraison ce jour-là</div>'}</div>
+    ${plan.length ? `<div class="sec"><h2>🛵 Prévu ce jour, pas encore livré (${plan.length})</h2></div><div class="list">${sortMoves(plan).map(rowSale).join('')}</div>` : ''}
+    ${ann.length ? `<div class="sec"><h2>❌ Annulé (${ann.length})</h2></div><div class="list">${sortMoves(ann).map(rowSale).join('')}</div>` : ''}
+    ${stk.length || vers.length ? `<div class="sec"><h2>📦 Stock et argent ce jour</h2></div><div class="list">${sortMoves(stk.concat(vers)).map(rowMove).join('')}</div>` : ''}`);
+}
 function livSheet(id){
   const l = liv(id); if(!l) return;
   const s = livStats(id), st = stockAt();
@@ -992,6 +1020,7 @@ function livSheet(id){
     <button class="btn block" style="margin-top:8px" data-a="invform:${id}">📋 Contrôle de stock (compter ce qu'il a en main)</button>
     ${(() => { const t = taux(id, 'tout'); return t.done + t.ko ? `<div class="card" style="margin-top:10px"><div class="dl"><span>Taux de réussite (depuis le début)</span><span class="num"><b>${t.pct} %</b></span></div><p class="note">${t.done} livrée(s) · ${t.ko} annulée(s)${t.pend ? ' · ' + t.pend + ' en cours' : ''}</p></div>` : ''; })()}
     <button class="btn primary block" style="margin-top:8px" data-a="releve:${id}">📄 Relevé de la semaine (commissions · PDF)</button>
+    <button class="btn block" style="margin-top:8px" data-a="livday:${id}">📅 Voir une journée de ${esc(l.name)} (calendrier)</button>
     ${Object.keys(s.weekByProd).length ? `<div class="sec"><h2>Cette semaine, produit par produit</h2></div><div class="card tbw"><table class="tb"><tr><th>Produit</th><th class="rt">Pièces</th><th class="rt">Ventes</th><th class="rt">${l.pay==='salaire'?'':'Commission'}</th></tr>
       ${Object.entries(s.weekByProd).map(([pid,v]) => `<tr><td>${esc(pname(pid))}</td><td class="rt num">${v.q}</td><td class="rt num">${money(v.a)}</td><td class="rt num">${l.pay==='salaire'?'':money(v.c)}</td></tr>`).join('')}</table></div>` : ''}
     <div class="sec"><h2>Stock confié par produit</h2></div>
@@ -1426,7 +1455,7 @@ function alertsCard(st, low){
 }
 
 /* ---------- Clients : historique et relance WhatsApp ---------- */
-let clientTab = 'tous', clientQ = '';
+let clientTab = 'tous', clientQ = '', clientDay = '';
 function clientsList(){
   const map = new Map();
   for(const m of S.moves){
@@ -1450,9 +1479,12 @@ function vClients(){
   const all = clientsList(), q = norm0(clientQ);
   const tabs = [['tous','Tous',() => true],['annules','❌ Ont annulé',annToRelance],['promesses','🤝 Promesses',() => false],['relancer','⏰ Sans achat +30 j',c => c.n && daysSince(c.last) > 30],['fideles','⭐ Fidèles',c => c.n >= 2]];
   if(clientTab === 'promesses') return clientsHead(all, tabs) + promisesHTML();
+  const dayKeys = clientDay ? new Set(S.moves.filter(m => m.type === 'vente' && m.date === clientDay).map(m => phoneNorm(m.phone) || norm0(m.client))) : null;
   const f = (tabs.find(x => x[0] === clientTab) || tabs[0])[2];
-  const list = all.filter(f).filter(c => !q || norm0(c.name + ' ' + c.phone + ' ' + c.addr).includes(q)).sort((a,b) => b.last.localeCompare(a.last));
-  return clientsHead(all, tabs) + `<input class="search" type="search" placeholder="Rechercher un client, un numéro, une commune…" value="${esc(clientQ)}" oninput="clientQ=this.value;refreshList('clients')">
+  const list = all.filter(f).filter(c => !dayKeys || dayKeys.has(c.key)).filter(c => !q || norm0(c.name + ' ' + c.phone + ' ' + c.addr).includes(q)).sort((a,b) => b.last.localeCompare(a.last));
+  const t = today();
+  return clientsHead(all, tabs) + `<div style="display:flex;gap:8px;align-items:center;margin-bottom:10px;flex-wrap:wrap"><b style="font-size:14px">📅 Clients qui ont commandé le :</b><label class="f" style="margin:0;flex:1;min-width:140px"><input type="date" id="clientDayIn" max="${t}" value="${esc(clientDay)}"></label>${clientDay ? `<button class="link" data-a="cday">✕ Tous</button>` : `<button class="chip" data-a="cday" data-d="${t}">Aujourd'hui</button>`}</div>
+  ${clientDay ? `<p class="note" style="margin:-4px 0 8px">${list.length} client(s) ont commandé le <b>${esc(dAbs(clientDay, 1))}</b>.</p>` : ''}` + `<input class="search" type="search" placeholder="Rechercher un client, un numéro, une commune…" value="${esc(clientQ)}" oninput="clientQ=this.value;refreshList('clients')">
   <div class="list" id="lst">${clientRows(list)}</div>
   <button class="btn block" style="margin-top:12px" data-a="clientcsv">📥 Télécharger la liste des clients (Excel)</button>`;
 }
@@ -2753,6 +2785,7 @@ const A = {
   demo: async () => { if(S.moves.length && !await ask('Remplacer vos données par des exemples ?', 'Remplacer')) return; seedDemo(); },
   preset: () => loadPreset(),
   ctab: v => { clientTab = v; render(); },
+  cday: (_, el) => { clientDay = (el && el.dataset.d) || ''; render(); },
   promsale: id => { const m = S.moves.find(x => x.id === id); if(!m) return; promForm(null, null); const E = $('#prf').elements; E.client.value = m.client || ''; E.phone.value = m.phone || ''; E.pid.value = m.pid || ''; E.qty.value = m.qty || 1; E.note.value = 'Commande annulée le ' + dAbs(m.date); },
   clientsprom: () => { clientTab = 'promesses'; A.nav('clients'); },
   promform: (id, el) => promForm(id || null, el && el.dataset.key),
@@ -2792,7 +2825,10 @@ const A = {
   startempty: () => setupSheet(),
   stockupd: () => stockUpdateForm(),
   shtype: v => { shType = v; render(); },
-  shper: v => { shPer = v; render(); },
+  shper: v => { shPer = v; shDay = ''; render(); },
+  shday: (_, el) => { shDay = el.dataset.d || ''; if(view !== 'stockhist') A.nav('stockhist'); else render(); },
+  livday: (id, el) => livDaySheet(id, el && el.dataset.d),
+  sasof: (_, el) => { stockAsOf = el.dataset.d || ''; render(); },
   planform: v => planForm(v || null),
   plandel: async id => { if(!await ask('Supprimer cet achat prévu ?', 'Supprimer')) return; S.moves = S.moves.filter(m => m.id !== id); save(); closeSheet(); render(); },
   shipform: id => shipForm(id),
@@ -2823,10 +2859,10 @@ A.ldate = id => livreDatePick(id, d => { const m = S.moves.find(x => x.id === id
 
 /* ---------- Historique du stock (avec dates) ---------- */
 const STOCK_TYPES = ['entree','envoi','retour','perte','ajust','inventaire'];
-let shType = 'all', shPid = '', shLoc = '*', shPer = 'tout';
+let shType = 'all', shPid = '', shLoc = '*', shPer = 'tout', shDay = '';
 const shLabel = m => ({entree:['📥','Achat / entrée au dépôt','green'], envoi:['🛵','Donné à ' + lname(m.liv),''], retour:['↩️','Rendu au dépôt par ' + lname(m.liv),''], perte:['❌', (m.motif === 'Écart inventaire' ? 'Manquant (contrôle)' : 'Perte' + (m.motif ? ' · ' + m.motif : '')) + ' · ' + (m.loc ? lname(m.loc) : 'Dépôt'),'red'], ajust:['➕','En trop (contrôle) · ' + (m.loc ? lname(m.loc) : 'Dépôt'),'green'], inventaire:['📋','Contrôle de stock · ' + (m.loc ? lname(m.loc) : 'Dépôt'),''], vente:['🛒','Vendu' + (m.liv ? ' par ' + lname(m.liv) : ' (dépôt)') + (m.client ? ' · ' + m.client : ''),'']})[m.type];
 function stockHistMoves(){
-  const inPerSh = d => shPer === 'tout' || inPer(d, shPer);
+  const inPerSh = d => shDay ? d === shDay : (shPer === 'tout' || inPer(d, shPer));
   return S.moves.filter(m => {
     const isSale = m.type === 'vente' && m.status === 'livre';
     if(!(STOCK_TYPES.includes(m.type) || isSale)) return false;
@@ -2856,7 +2892,8 @@ function vStockHist(){
   <div style="display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:8px;margin:10px 0">
     <select id="shPid" style="width:100%;min-width:0">${[['', 'Tous les produits']].concat(S.products.filter(p => !isKit(p)).map(p => [p.id, p.name])).map(([v, l]) => `<option value="${v}" ${shPid === v ? 'selected' : ''}>${esc(l)}</option>`).join('')}</select>
     <select id="shLoc" style="width:100%;min-width:0">${[['*', 'Tous les endroits'], ['', 'Dépôt']].concat(S.livreurs.map(l => [l.id, l.name])).map(([v, l]) => `<option value="${v}" ${shLoc === v ? 'selected' : ''}>${esc(l)}</option>`).join('')}</select></div>
-  <div class="chips" style="margin-bottom:10px">${[['tout','Depuis le début'],['mois','Ce mois'],['sem','Cette semaine']].map(([k, l]) => `<button class="chip ${shPer === k ? 'on' : ''}" data-a="shper:${k}">${l}</button>`).join('')}</div>
+  <div class="chips" style="margin-bottom:6px">${[['tout','Depuis le début'],['mois','Ce mois'],['sem','Cette semaine']].map(([k, l]) => `<button class="chip ${shPer === k && !shDay ? 'on' : ''}" data-a="shper:${k}">${l}</button>`).join('')}</div>
+  <div style="display:flex;gap:8px;align-items:center;margin-bottom:10px"><b style="font-size:14px">📅 Un jour précis :</b><label class="f" style="margin:0;flex:1"><input type="date" id="shDayIn" max="${today()}" value="${esc(shDay)}"></label>${shDay ? `<button class="link" data-a="shday" data-d="">✕</button>` : ''}</div>
   ${L.length ? Object.entries(groups).map(([d, ms]) => `<div class="sec" style="margin-top:14px"><h2>📅 ${esc(dAbs(d, 1))}</h2></div><div class="list">${ms.map(shRow).join('')}</div>`).join('') : '<div class="card empty"><b>Aucun mouvement</b>Rien pour ce filtre.</div>'}`;
 }
 function recentStockHTML(){
@@ -3371,6 +3408,11 @@ Object.assign(A, {
     if(!await ask(`Marquer les ${cs.length} commande(s) du lot « ${n} » comme arrivées ?`, 'Oui, arrivé', false)) return;
     cs.forEach(c => { c.step = 'arrive'; c.steps = Object.assign({}, c.steps, {arrive: today()}); }); save(); render(); lotNotify(cs, '📦 Lot « ' + n + ' » arrivé'); }
 });
+document.addEventListener('change', e => { const id = e.target.id;
+  if(id === 'stockAsOfIn'){ stockAsOf = e.target.value && e.target.value < today() ? e.target.value : ''; render(); }
+  else if(id === 'shDayIn'){ shDay = e.target.value || ''; render(); }
+  else if(id === 'livDayIn'){ if(e.target.value) livDaySheet(e.target.dataset.id, e.target.value); }
+  else if(id === 'clientDayIn'){ clientDay = e.target.value || ''; render(); } });
 document.addEventListener('change', e => { if(e.target.id === 'saleDayIn'){ saleDay = e.target.value || ''; if(saleDay) saleTab = 'tous'; render(); } else if(e.target.id === 'saleDayBy'){ saleDayBy = e.target.value; render(); } });
 document.addEventListener('change', e => { if(e.target.id === 'shPid'){ shPid = e.target.value; render(); } else if(e.target.id === 'shLoc'){ shLoc = e.target.value; render(); } });
 document.addEventListener('input', e => { if(e.target.id === 'impQ'){ impQ = e.target.value; const p = e.target.selectionStart; render(); const i = $('#impQ'); if(i){ i.focus(); try{ i.setSelectionRange(p, p); }catch(_){} } } });
