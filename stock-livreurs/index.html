@@ -603,6 +603,7 @@ function stats(p){
 }
 
 /* ---------- Interface ---------- */
+let saleDay = '', saleDayBy = 'cmd';
 let view = 'home', period = 'mois', saleTab = 'attente', saleCity = '', bookType = 'all', bookPeriod = 'mois', depPeriod = 'mois';
 let stockQ = '', saleQ = '', bookQ = '';
 const NAV = [['home','Accueil','home'],['stock','Stock','box'],['ventes','Ventes','truck'],['livreurs','Livreurs','user'],['plus','Plus','more']];
@@ -836,9 +837,16 @@ function stockRows(){
 /* ---------- Ventes ---------- */
 function vVentes(){
   const all = S.moves.filter(m => m.type === 'vente' && (!saleCity || cityOfSale(m) === saleCity));
-  const cnt = k => all.filter(m => m.status === k).length;
+  const inDay = m => !saleDay || saleDayOf(m) === saleDay;
+  const cnt = k => all.filter(m => (k === 'tous' || m.status === k) && inDay(m)).length;
   const cs = [...new Set(S.moves.filter(m => m.type === 'vente').map(cityOfSale))].sort();
-  return `<div class="chips">${Object.entries(STATUS).map(([k,l]) => `<button class="chip ${saleTab===k?'on':''}" data-a="stab:${k}">${l}<b>${cnt(k)}</b></button>`).join('')}</div>
+  const t = today(), dchip = (d, l) => `<button class="chip ${saleDay === d ? 'on' : ''}" data-a="sday" data-d="${d}">${l}</button>`;
+  return `<div class="chips">${[['tous', 'Toutes']].concat(Object.entries(STATUS)).map(([k,l]) => `<button class="chip ${saleTab===k?'on':''}" data-a="stab:${k}">${l}<b>${cnt(k)}</b></button>`).join('')}</div>
+  <div class="card" style="margin-top:8px;padding:10px 12px"><div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><b style="font-size:14px">📅 Jour :</b>
+    <div class="chips" style="flex:1;margin:0">${dchip('', 'Tous les jours')}${dchip(addDays(t, -1), 'Hier')}${dchip(t, "Aujourd'hui")}${dchip(addDays(t, 1), 'Demain')}</div></div>
+    <div style="display:flex;gap:8px;align-items:center;margin-top:8px"><label class="f" style="flex:1;min-width:0;margin:0"><input type="date" id="saleDayIn" value="${esc(saleDay)}" title="Choisir une date"></label>
+    <label class="f" style="flex:1;min-width:0;margin:0"><select id="saleDayBy"><option value="cmd" ${saleDayBy === 'cmd' ? 'selected' : ''}>Date de la commande</option><option value="liv" ${saleDayBy === 'liv' ? 'selected' : ''}>Date de livraison</option></select></label></div>
+    ${saleDay ? `<p class="note" style="margin:8px 0 0">${saleDayBy === 'liv' ? 'Livraisons' : 'Commandes enregistrées'} du <b>${esc(dAbs(saleDay, 1))}</b> · <button class="link" data-a="sday" data-d="">voir tous les jours</button></p>` : ''}</div>
   ${cs.length > 1 ? `<div class="chips" style="margin-top:6px"><button class="chip ${!saleCity?'on':''}" data-a="scity:">Toutes les villes</button>${cs.map(c => `<button class="chip ${saleCity===c?'on':''}" data-a="scity:${esc(c)}">${esc(c)}</button>`).join('')}</div>` : ''}
   <div style="height:10px"></div>
   <input class="search" type="search" placeholder="Rechercher client, produit, livreur…" value="${esc(saleQ)}" oninput="saleQ=this.value;refreshList('ventes')">
@@ -846,21 +854,28 @@ function vVentes(){
   <div class="list swwrap" id="lst">${saleRows()}</div>
   <div style="margin-top:12px"><button class="btn primary block" data-a="new:vente">+ Nouvelle vente</button></div>`;
 }
+const hhmm = ts => { if(!ts) return ''; const d = new Date(ts); return String(d.getHours()).padStart(2, '0') + 'h' + String(d.getMinutes()).padStart(2, '0'); };
+const saleDayOf = m => saleDayBy === 'liv' ? (m.status === 'livre' ? mday(m) : (m.ddate || m.date)) : m.date;
 const cityOfSale = m => m.liv ? (liv(m.liv)?.city || 'Sans ville') : 'Dépôt';
 function saleRows(){
   const q = saleQ.trim().toLowerCase();
-  const list = sortMoves(S.moves.filter(m => m.type === 'vente' && m.status === saleTab && (!saleCity || cityOfSale(m) === saleCity) &&
+  const list = sortMoves(S.moves.filter(m => m.type === 'vente' && (saleTab === 'tous' || m.status === saleTab) && (!saleDay || saleDayOf(m) === saleDay) && (!saleCity || cityOfSale(m) === saleCity) &&
     (!q || [pname(m.pid), m.client, m.phone, m.addr, lname(m.liv)].join(' ').toLowerCase().includes(q))));
   if(saleTab === 'attente' || saleTab === 'encours') list.sort((a,b) => ((a.ddate||a.date) + (a.dtime||'99')).localeCompare((b.ddate||b.date) + (b.dtime||'99')));
-  if(!list.length) return `<div class="empty"><b>Aucune vente « ${STATUS[saleTab]} »</b>${saleTab==='attente'?'Les commandes à livrer apparaîtront ici.':''}</div>`;
+  if(!list.length) return `<div class="empty"><b>Aucune vente${saleTab === 'tous' ? '' : ' « ' + STATUS[saleTab] + ' »'}${saleDay ? ' le ' + esc(dAbs(saleDay, 1)) : ''}</b>${saleTab==='attente' && !saleDay ?'Les commandes à livrer apparaîtront ici.':''}</div>`;
   const tot = list.reduce((s,m) => s + saleUSD(m), 0);
-  return `<div class="it" style="background:var(--sum)"><div class="m"><div class="d">${list.length} vente${list.length>1?'s':''}</div></div><div class="r"><b class="num">${money(tot)}</b></div></div>` + list.map(rowSale).join('');
+  let html = `<div class="it" style="background:var(--sum)"><div class="m"><div class="d">${list.length} vente${list.length>1?'s':''}${saleDay ? ' · ' + esc(dAbs(saleDay, 1)) : ''}</div></div><div class="r"><b class="num">${money(tot)}</b></div></div>`;
+  if(saleDay) return html + list.map(rowSale).join('');
+  // Regroupé par jour (commande ou livraison) avec le nombre et le total du jour
+  const groups = []; list.forEach(m => { const d = saleDayOf(m) || ''; const g = groups.find(x => x.d === d); if(g) g.l.push(m); else groups.push({d, l:[m]}); });
+  return html + groups.map(g => `<button class="it" data-a="sday" data-d="${g.d}" style="background:transparent;box-shadow:none;min-height:0;padding:12px 4px 4px"><div class="m"><div class="t" style="font-size:14px;color:var(--brand)">📅 ${esc(g.d ? dAbs(g.d, 1) : 'Sans date')}</div></div><div class="r note">${g.l.length} · ${money(g.l.reduce((s, m) => s + saleUSD(m), 0))} ›</div></button>` + g.l.map(rowSale).join('')).join('');
 }
 function rowSale(m){
   const L = liv(m.liv);
   return `<button class="it" data-a="sale:${m.id}"${m.status === 'attente' || m.status === 'encours' ? ` data-sw="${m.id}"` : ''}>${prod(m.pid) && prod(m.pid).photo ? pic(prod(m.pid)) : `<div class="ic c-out">${ico('cart')}</div>`}
     <div class="m"><div class="t">${esc(pname(m.pid))} × ${m.qty}</div>
     <div class="d">${esc(m.client || 'Client')}${m.addr ? ' · ' + esc(m.addr) : ''}</div>
+    <div class="d">🕐 Commandé ${m.date === today() ? "aujourd'hui" : 'le ' + fmtDate(m.date)}${m.ts ? ' à ' + hhmm(m.ts) : ''}</div>
     <div class="d">${m.status === 'livre' ? '✅ Livré ' + fmtDate(mday(m)) : '📅 ' + fmtDate(m.ddate || m.date) + (m.dtime ? ' ' + m.dtime.replace(':','h') : '')} · ${L ? '🛵 ' + esc(L.name) + ' (' + esc(L.city||'') + ')' : 'Vente directe'}</div></div>
     <div class="r"><div class="num ${m.status==='annule'?'strike':''}" style="font-weight:700">${amt(m.qty*m.price, m.cur)}</div><span class="pill p-${m.status}">${STATUS[m.status]}</span></div></button>`;
 }
@@ -2522,7 +2537,7 @@ function saleSheet(id, fresh){
       ${m.pre ? `<div class="dl"><span>Paiement</span><span>✅ Déjà payé par le client (Mobile Money) — le livreur n'encaisse rien</span></div>` : ''}
       <div class="dl"><span>Livraison</span><span>${whenTxt(m)}</span></div>
       ${m.rem && m.status !== 'livre' && m.status !== 'annule' ? `<div class="dl"><span>🔔 Rappel</span><span>${esc(dAbs(m.rem.slice(0, 10), 1))} à ${m.rem.slice(11, 13)} h</span></div>` : ''}
-      <div class="dl"><span>Commande du</span><span>${fmtDate(m.date, true)}</span></div>
+      <div class="dl"><span>Commande du</span><span>${fmtDate(m.date, true)}${m.ts ? ' à ' + hhmm(m.ts) : ''}</span></div>
       ${m.note ? `<div class="dl"><span>Note</span><span>${esc(m.note)}</span></div>` : ''}
     </div>
     <div class="btns"><button class="btn" data-a="editsale:${m.id}">Modifier</button><button class="btn ghost-bad" data-a="delmove:${m.id}">Supprimer</button></div>`);
@@ -2664,6 +2679,7 @@ const A = {
   bper: v => { bookPeriod = v; render(); },
   btype: v => { bookType = v; render(); },
   stab: v => { saleTab = v; render(); },
+  sday: (_, el) => { saleDay = el.dataset.d || ''; if(saleDay && saleTab !== 'tous') saleTab = 'tous'; render(); window.scrollTo(0, 0); },
   scity: v => { saleCity = v; render(); },
   close: () => closeSheet(),
   fab: () => fabSheet(),
@@ -3334,6 +3350,7 @@ Object.assign(A, {
     if(!await ask(`Marquer les ${cs.length} commande(s) du lot « ${n} » comme arrivées ?`, 'Oui, arrivé', false)) return;
     cs.forEach(c => { c.step = 'arrive'; c.steps = Object.assign({}, c.steps, {arrive: today()}); }); save(); render(); lotNotify(cs, '📦 Lot « ' + n + ' » arrivé'); }
 });
+document.addEventListener('change', e => { if(e.target.id === 'saleDayIn'){ saleDay = e.target.value || ''; if(saleDay) saleTab = 'tous'; render(); } else if(e.target.id === 'saleDayBy'){ saleDayBy = e.target.value; render(); } });
 document.addEventListener('change', e => { if(e.target.id === 'shPid'){ shPid = e.target.value; render(); } else if(e.target.id === 'shLoc'){ shLoc = e.target.value; render(); } });
 document.addEventListener('input', e => { if(e.target.id === 'impQ'){ impQ = e.target.value; const p = e.target.selectionStart; render(); const i = $('#impQ'); if(i){ i.focus(); try{ i.setSelectionRange(p, p); }catch(_){} } } });
 
