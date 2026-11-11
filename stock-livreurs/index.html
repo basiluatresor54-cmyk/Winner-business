@@ -10,7 +10,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Stock">
-<title>Stock & Livreurs</title>
+<title>Réseau & Vente</title>
 <style>
 :root{
   --brand:#0F766E;--brand-ink:#fff;--brand-soft:rgba(15,118,110,.12);
@@ -348,7 +348,7 @@ html.glass [data-sw]{background:var(--card)}
 
 <script>
 /* =================================================================
-   Gestion de Stock & Livreurs — application web autonome (1 fichier)
+   Réseau & Vente — application web autonome (1 fichier)
    Produits · Stock (dépôt + livreurs) · Ventes · Livreurs par ville
    Commissions · Versements · Dépenses · Bénéfice final
    Données enregistrées sur l'appareil (localStorage).
@@ -653,7 +653,7 @@ function applyBrand(){
   st.setProperty('--brand-tx', isDark() && lum < 0.55 ? `rgb(${mix(r)},${mix(g)},${mix(b)})` : c);
   document.querySelector('meta[name=theme-color]').content = c;
   try{ localStorage.setItem('stock_splash', JSON.stringify({c, c2:`rgb(${Math.round(r*.62)},${Math.round(g*.62)},${Math.round(b*.62)})`, n:S.settings.shop || '', i:initials(S.settings.shop || ''), logo:(S.settings.logo && S.settings.logo.length < 60000) ? S.settings.logo : ''})); }catch(_){}
-  document.title = (S.settings.shop || 'Ma Boutique') + ' — Stock & Livreurs';
+  document.title = (S.settings.shop || 'Ma Boutique') + ' — Réseau & Vente';
 }
 function render(){
   applyBrand();
@@ -691,7 +691,7 @@ function installSteps(kind){
   const st = (n, t) => `<li><span class="istep">${n}</span><div>${t}</div></li>`;
   const ios = `<ol class="isteps">${st(1, 'Touchez le bouton <b>Partager</b> <span class="ikey">⬆️</span> en bas de Safari (le carré avec une flèche vers le haut). Sur iPad, il est en haut à droite.')}${st(2, 'Faites défiler vers le bas et touchez <b>« Sur l\'écran d\'accueil »</b> <span class="ikey">➕</span>.')}${st(3, 'Touchez <b>« Ajouter »</b> en haut à droite.')}${st(4, 'L\'icône apparaît sur l\'écran d\'accueil : ouvrez toujours l\'application <b>depuis cette icône</b>.')}</ol>`;
   const android = `<ol class="isteps">${st(1, 'Ouvrez le lien dans <b>Google Chrome</b>.')}${st(2, 'Touchez le menu <b>⋮</b> (3 points en haut à droite).')}${st(3, 'Touchez <b>« Installer l\'application »</b> ou <b>« Ajouter à l\'écran d\'accueil »</b>.')}${st(4, 'Confirmez <b>« Installer »</b> : l\'icône apparaît avec vos autres applications.')}</ol>`;
-  const pc = `<ol class="isteps">${st(1, 'Ouvrez le lien dans <b>Google Chrome</b> ou <b>Microsoft Edge</b>.')}${st(2, 'Cliquez sur l\'icône <b>Installer</b> <span class="ikey">⊕</span> à droite de la barre d\'adresse (ou menu ⋮ → <b>« Installer Stock & Livreurs »</b> / « Applications → Installer ce site en tant qu\'application »).')}${st(3, 'L\'application s\'ouvre dans sa propre fenêtre et une icône est ajoutée au bureau.')}</ol>`;
+  const pc = `<ol class="isteps">${st(1, 'Ouvrez le lien dans <b>Google Chrome</b> ou <b>Microsoft Edge</b>.')}${st(2, 'Cliquez sur l\'icône <b>Installer</b> <span class="ikey">⊕</span> à droite de la barre d\'adresse (ou menu ⋮ → <b>« Installer Réseau & Vente »</b> / « Applications → Installer ce site en tant qu\'application »).')}${st(3, 'L\'application s\'ouvre dans sa propre fenêtre et une icône est ajoutée au bureau.')}</ol>`;
   const link = `<div class="ilink"><input readonly value="${esc(appUrl())}" onclick="this.select()"><button type="button" class="btn sm" data-a="instcopy">Copier</button></div>`;
   if(kind === 'inapp') return `<div class="warnbox">⚠️ Vous êtes dans le navigateur de <b>Facebook / Instagram / TikTok</b>. On ne peut pas installer d'ici.</div>
     ${isAndroid ? `<a class="btn primary block" href="intent://${location.host}${location.pathname}#Intent;scheme=https;package=com.android.chrome;end">Ouvrir dans Chrome</a><p class="note" style="margin:8px 0">Si rien ne se passe : touchez ⋮ en haut à droite → <b>« Ouvrir dans le navigateur »</b>.</p>`
@@ -1271,7 +1271,7 @@ function vReglages(){
     <button class="btn ghost-bad block" data-a="reset">Tout effacer</button>
   </div>
   <p class="note" style="text-align:center;margin:18px 0 6px">${S.products.length} produits · ${S.livreurs.length} livreurs · ${S.moves.length} opérations</p>
-  <p class="note" style="text-align:center;margin-bottom:6px">Stock & Livreurs — conçu par <b>BASILUA TECH</b> · <a class="link" href="https://wa.me/243851507510" target="_blank" rel="noopener">WhatsApp +243 851 507 510</a></p>`;
+  <p class="note" style="text-align:center;margin-bottom:6px">Réseau & Vente — conçu par <b>BASILUA TECH</b> · <a class="link" href="https://wa.me/243851507510" target="_blank" rel="noopener">WhatsApp +243 851 507 510</a></p>`;
 }
 
 function countryFields(st){
@@ -1957,7 +1957,7 @@ function donutSVG(parts, total, center){
   if(!standalone) return;
   let c = {}; try{ c = JSON.parse(localStorage.getItem('stock_splash') || '{}'); }catch(_){}
   const d = document.createElement('div'); d.id = 'splash'; d.style.background = `linear-gradient(160deg, ${c.c || '#0F766E'}, ${c.c2 || c.c || '#0F766E'})`;
-  d.innerHTML = `<div class="sp"><div class="sl">${c.logo ? `<img src="${c.logo}" alt="">` : (c.i || '📦')}</div><b>${c.n ? String(c.n).replace(/[<>&]/g,'') : 'Stock & Livreurs'}</b><small>Stock & Livreurs · BASILUA TECH</small></div>`;
+  d.innerHTML = `<div class="sp"><div class="sl">${c.logo ? `<img src="${c.logo}" alt="">` : (c.i || '📦')}</div><b>${c.n ? String(c.n).replace(/[<>&]/g,'') : 'Réseau & Vente'}</b><small>Réseau & Vente · BASILUA TECH</small></div>`;
   document.body.appendChild(d);
   setTimeout(() => { d.classList.add('out'); setTimeout(() => d.remove(), 500); }, 900);
 })();
