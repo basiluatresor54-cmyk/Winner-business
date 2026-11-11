@@ -380,6 +380,7 @@ const ico = (n, cls='i') => `<svg class="${cls}" viewBox="0 0 24 24">${ICON[n]}<
 const STATUS = {attente:'À livrer', encours:'En cours', livre:'Livré', annule:'Annulé'};
 const MOTIFS = ['Cassé / abîmé','Périmé','Perdu / volé','Écart inventaire','Cadeau / échantillon','Usage interne','Autre'];
 const DEPCATS = ['Transport','Expédition colis (vers une ville)','Publicité Facebook','Boutique / loyer','Emballage','Crédit / internet','Salaire / aide','Autre'];
+const countryCities = () => (typeof CITY_BY_COUNTRY !== 'undefined' && CITY_BY_COUNTRY[S.settings.country || 'RDC']) || CITIES;
 const CITIES = ['Kinshasa','Lubumbashi','Bukavu','Kolwezi','Goma','Kisangani','Matadi','Mbuji-Mayi','Kananga'];
 const COLORS = ['#8A3B12','#0F766E','#1D4ED8','#7C3AED','#BE185D','#DC2626','#EA580C','#CA8A04','#15803D','#111827'];
 const COUNTRIES = [['RDC','FC','243',2300],['Congo-Brazzaville','XAF','242',570],['Cameroun','XAF','237',570],['Gabon','XAF','241',570],['Tchad','XAF','235',570],['Centrafrique','XAF','236',570],["Côte d'Ivoire",'XOF','225',570],['Sénégal','XOF','221',570],['Mali','XOF','223',570],['Burkina Faso','XOF','226',570],['Bénin','XOF','229',570],['Togo','XOF','228',570],['Niger','XOF','227',570],['Guinée','GNF','224',8650],['Burundi','BIF','257',2950],['Rwanda','RWF','250',1450],['Madagascar','MGA','261',4500],['Guinée équatoriale','XAF','240',570],['Comores','KMF','269',''],['Djibouti','DJF','253',''],['Maroc','MAD','212',''],['Algérie','DZD','213',''],['Tunisie','TND','216',''],['Mauritanie','MRU','222',''],['Haïti','HTG','509',''],['France','EUR','33',''],['Belgique','EUR','32',''],['Suisse','CHF','41',''],['Canada','CAD','1',''],['Autre pays','','','']];
@@ -856,7 +857,7 @@ function vLivreurs(){
 }
 function livForm(id){
   const l = id ? liv(id) : null;
-  const cs = [...new Set(CITIES.concat(cities()))];
+  const cs = [...new Set(countryCities().concat(cities()))];
   sheet(l ? 'Modifier le livreur' : 'Nouveau livreur', `<form id="lf">
     ${field('Nom *', `<input name="name" required maxlength="40" value="${esc(l?.name)}" placeholder="Ex : Patrick">`)}
     <div class="f"><span>Photo (optionnel)</span><div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><div class="avatar" id="lfPrev">${l && l.photo ? `<img src="${l.photo}" alt="">` : '👤'}</div>
@@ -2069,7 +2070,7 @@ function cityCommRows(p){
   const have = Object.assign({}, p && p.commCity || {});
   const cs = [...new Set(cities().filter(c => c !== 'Sans ville').concat(Object.keys(have)))];
   if(!cs.length) cs.push('');
-  return `<datalist id="ccl">${[...new Set(CITIES.concat(cities()))].map(c => `<option value="${esc(c)}">`).join('')}</datalist>` + cs.map(c => cityRow(c, have[c] ?? '')).join('');
+  return `<datalist id="ccl">${[...new Set(countryCities().concat(cities()))].map(c => `<option value="${esc(c)}">`).join('')}</datalist>` + cs.map(c => cityRow(c, have[c] ?? '')).join('');
 }
 function readCityComm(f){
   const o = {}, cs = [...f.querySelectorAll('[name=ccity]')], vs = [...f.querySelectorAll('[name=cval]')];
@@ -2194,9 +2195,9 @@ function moveForm(type, opt = {}){
     E.shipOn.onchange = upd; E.shipFee.oninput = on; E.shipCur.onchange = upd; E.pre.onchange = upd;
     E.shipCity.oninput = () => { const c = E.shipCity.value.trim().toLowerCase(), L = liv(E.loc.value);
       const t = ships().filter(t => (t.city || '').toLowerCase() === c).sort((a, b) => ((b.from && L && b.from === L.city) ? 1 : 0) - ((a.from && L && a.from === L.city) ? 1 : 0))[0];
-      if(t){ E.shipCo.value = t.co || ''; E.shipFee.value = t.fee; E.shipCur.value = t.cur || 'FC'; }
+      if(t){ setPick(E.shipCo, t.co || ''); E.shipFee.value = t.fee; E.shipCur.value = t.cur || 'FC'; }
       if(c) E.shipOn.checked = true; upd(); };
-    if(E.shipT) E.shipT.onchange = () => { const t = ships().find(x => x.id === E.shipT.value); if(t){ E.shipCity.value = t.city; E.shipCo.value = t.co || ''; E.shipFee.value = t.fee; E.shipCur.value = t.cur || 'FC'; E.shipOn.checked = true; } upd(); };
+    if(E.shipT) E.shipT.onchange = () => { const t = ships().find(x => x.id === E.shipT.value); if(t){ setPick(E.shipCity, t.city); setPick(E.shipCo, t.co || ''); E.shipFee.value = t.fee; E.shipCur.value = t.cur || 'FC'; E.shipOn.checked = true; } upd(); };
   }
   if(!m && pid0) E.pid.onchange(); else upd();
   let extras = [];
@@ -2238,7 +2239,7 @@ function moveForm(type, opt = {}){
     }
     let shipRec = null, preOn = false;
     if(type === 'vente' && E.shipOn){
-      if(E.shipOn.checked){ shipRec = {city:E.shipCity.value.trim(), co:E.shipCo.value.trim(), fee:num(E.shipFee.value), cur:E.shipCur.value}; preOn = E.pre.checked; if(!shipRec.city){ toast('Indiquez la ville de destination de l\'expédition'); return; } }
+      if(E.shipOn.checked){ shipRec = {city:E.shipCity.value.trim(), co:E.shipCo.value.trim(), fee:num(E.shipFee.value), cur:E.shipCur.value}; preOn = E.pre.checked; addShipCo(shipRec.co); if(!shipRec.city){ toast('Indiquez la ville de destination de l\'expédition'); return; } }
       delete rec.ship; if(preOn){ rec.pre = true; if(!rec.pay) rec.pay = 'Mobile Money'; } else delete rec.pre;
     }
     let next = m ? S.moves.map(x => x.id === m.id ? rec : x) : S.moves.concat([rec]);
@@ -2563,6 +2564,8 @@ const A = {
   planform: v => planForm(v || null),
   plandel: async id => { if(!await ask('Supprimer cet achat prévu ?', 'Supprimer')) return; S.moves = S.moves.filter(m => m.id !== id); save(); closeSheet(); render(); },
   shipform: id => shipForm(id),
+  shipcoadd: () => { sheet('➕ Nouvelle agence', `<form id="scf">${field('Nom de l\'agence *', `<input name="co" required placeholder="Ex : Molykap">`)}<button class="btn primary block">Ajouter</button></form>`); $('#scf').onsubmit = e => { e.preventDefault(); e.stopPropagation(); const co = e.target.elements.co.value.trim(); if(!co) return; addShipCo(co); save(); closeSheet(); render(); toast('Agence ajoutée : ' + co); }; },
+  shipcodel: async (_, el) => { const co = el.dataset.co; if(!await ask(`Retirer l'agence « ${esc(co)} » de la liste ? (les tarifs déjà enregistrés restent)`, 'Retirer')) return; S.settings.shipCos = (S.settings.shipCos || []).filter(c => c !== co); S.settings.shipCosOff = [...new Set((S.settings.shipCosOff || []).concat(co))]; save(); render(); toast('Agence retirée'); },
   shipdel: async id => { if(!await ask('Supprimer ce tarif d\'expédition ?', 'Supprimer')) return; S.settings.ships = ships().filter(t => t.id !== id); save(); closeSheet(); render(); toast('Tarif supprimé'); },
   plandone: id => { const pl = S.moves.find(m => m.id === id); if(!pl) return; moveForm('entree', {pid: pl.pid, plan: pl.id}); const f = $('#mf'); if(f){ f.elements.qty.value = pl.qty; if(f.elements.cost && num(pl.cost)) f.elements.cost.value = pl.cost; if(f.elements.note && pl.sup) f.elements.note.value = 'Achat chez ' + pl.sup; f.dispatchEvent(new Event('input')); } },
   freshstart: () => freshStartSheet(),
@@ -2630,30 +2633,66 @@ function recentStockHTML(){
   <div class="list">${L.map(m => { const [ic, lab, col] = shLabel(m); return `<button class="it" data-a="move:${m.id}"><div class="ic c-x">${ic}</div><div class="m"><div class="t">${esc(pname(m.pid))} <span class="num ${col}">${['entree','ajust'].includes(m.type) ? '+' : m.type === 'perte' ? '−' : ''}${m.qty}</span></div><div class="d">📅 ${esc(dAbs(m.date))} · ${esc(lab)}</div></div></button>`; }).join('')}</div>`;
 }
 /* ---------- Expédition par agence (Molykap…) : tarifs par ville ---------- */
-const SHIP_CITIES = ['Likasi','Manono','Fungurume','Kasumbalesa','Kolwezi','Lubumbashi','Kipushi','Kamina','Kalemie','Mbuji-Mayi','Kananga','Kisangani','Goma','Bukavu','Kindu','Kinshasa'];
-const SHIP_COS = ['Molykap'];
+// Villes proposées par pays (on peut toujours en taper une autre)
+const CITY_BY_COUNTRY = {
+  'RDC':['Kinshasa','Lubumbashi','Kolwezi','Likasi','Fungurume','Kasumbalesa','Kipushi','Kambove','Kakanda','Manono','Kamina','Kalemie','Moba','Pweto','Kasenga','Sakania','Mokambo','Lubudi','Bukama','Malemba-Nkulu','Kabongo','Mutshatsha','Kasaji','Dilolo','Mbuji-Mayi','Mwene-Ditu','Kabinda','Kananga','Tshikapa','Lodja','Kisangani','Buta','Isiro','Bunia','Beni','Butembo','Goma','Bukavu','Uvira','Kindu','Matadi','Boma','Muanda','Kikwit','Bandundu','Kenge','Inongo','Mbandaka','Gemena','Gbadolite','Lisala'],
+  'Congo-Brazzaville':['Brazzaville','Pointe-Noire','Dolisie','Nkayi','Owando','Ouesso','Oyo','Madingou','Sibiti','Impfondo'],
+  'Cameroun':['Douala','Yaoundé','Bafoussam','Bamenda','Garoua','Maroua','Ngaoundéré','Bertoua','Kribi','Limbé','Buea','Ebolowa','Kumba','Edéa'],
+  'Gabon':['Libreville','Port-Gentil','Franceville','Oyem','Moanda','Lambaréné','Mouila','Tchibanga','Koulamoutou','Makokou'],
+  'Tchad':["N'Djamena",'Moundou','Abéché','Sarh','Kélo','Mongo'],
+  'Centrafrique':['Bangui','Berbérati','Bambari','Bouar','Carnot','Bossangoa'],
+  "Côte d'Ivoire":['Abidjan','Bouaké','Yamoussoukro','Daloa','San-Pédro','Korhogo','Man','Gagnoa','Divo','Abengourou','Soubré'],
+  'Sénégal':['Dakar','Thiès','Touba','Saint-Louis','Kaolack','Ziguinchor','Mbour','Rufisque','Tambacounda','Kolda'],
+  'Mali':['Bamako','Sikasso','Ségou','Mopti','Kayes','Koutiala','Gao','Tombouctou'],
+  'Burkina Faso':['Ouagadougou','Bobo-Dioulasso','Koudougou','Ouahigouya','Banfora','Kaya'],
+  'Bénin':['Cotonou','Porto-Novo','Parakou','Abomey-Calavi','Bohicon','Natitingou','Djougou'],
+  'Togo':['Lomé','Sokodé','Kara','Kpalimé','Atakpamé','Dapaong','Tsévié'],
+  'Niger':['Niamey','Zinder','Maradi','Agadez','Tahoua','Dosso'],
+  'Guinée':['Conakry','Kankan','Nzérékoré','Kindia','Labé','Boké'],
+  'Burundi':['Bujumbura','Gitega','Ngozi','Rumonge','Muyinga','Kayanza'],
+  'Rwanda':['Kigali','Huye','Musanze','Rubavu','Rusizi','Muhanga'],
+  'Madagascar':['Antananarivo','Toamasina','Antsirabe','Mahajanga','Fianarantsoa','Toliara','Antsiranana'],
+  'Guinée équatoriale':['Malabo','Bata','Ebebiyín','Mongomo']
+};
+const DEF_COS = {'RDC':['Molykap']};
+const byFr = (a, b) => a.localeCompare(b, 'fr', {sensitivity:'base'});
+const shipCityOpts = () => [...new Set((CITY_BY_COUNTRY[S.settings.country || 'RDC'] || []).concat(S.livreurs.map(l => l.city), ships().map(t => t.city), ships().map(t => t.from)).filter(Boolean))].sort(byFr);
+const shipCoOpts = () => [...new Set((DEF_COS[S.settings.country || 'RDC'] || []).concat(S.settings.shipCos || [], ships().map(t => t.co)).filter(Boolean))].filter(c => !(S.settings.shipCosOff || []).includes(c)).sort(byFr);
+const addShipCo = co => { co = (co || '').trim(); if(!co) return; S.settings.shipCosOff = (S.settings.shipCosOff || []).filter(c => c !== co); if(!shipCoOpts().includes(co)) (S.settings.shipCos = S.settings.shipCos || []).push(co); };
+// Liste déroulante + « Autre… » qui ouvre une case à taper ; la valeur est dans l'input « name »
+function pickSel(name, opts, val, ph, newLab, inPh){
+  const known = !val || opts.includes(val);
+  return `<select data-pick="${name}"><option value="">${ph}</option>${opts.map(o => `<option ${o === val ? 'selected' : ''}>${esc(o)}</option>`).join('')}<option value="__new" ${known ? '' : 'selected'}>${newLab}</option></select><input name="${name}" value="${esc(val || '')}" placeholder="${inPh}" style="margin-top:8px;${known ? 'display:none' : ''}">`;
+}
+document.addEventListener('change', e => { const sel = e.target.closest && e.target.closest('select[data-pick]'); if(!sel) return;
+  const inp = sel.form && sel.form.elements[sel.dataset.pick]; if(!inp) return;
+  if(sel.value === '__new'){ inp.style.display = ''; inp.value = ''; inp.focus(); } else { inp.style.display = 'none'; inp.value = sel.value; }
+  inp.dispatchEvent(new Event('input', {bubbles:true})); });
+const shipLists = () => '';
+function setPick(inp, v){ if(!inp) return; inp.value = v || ''; const sel = inp.form && inp.form.querySelector(`select[data-pick="${inp.name}"]`); if(!sel) return;
+  const known = !v || [...sel.options].some(o => o.value === v); sel.value = !v ? '' : known ? v : '__new'; inp.style.display = known ? 'none' : ''; }
 const ships = () => S.settings.ships || (S.settings.ships = []);
-const shipLists = () => `<datalist id="shipCities">${[...new Set(SHIP_CITIES.concat(ships().map(t => t.city)).filter(Boolean))].map(c => `<option value="${esc(c)}">`).join('')}</datalist><datalist id="shipCos">${[...new Set(SHIP_COS.concat(ships().map(t => t.co)).filter(Boolean))].map(c => `<option value="${esc(c)}">`).join('')}</datalist>`;
 function shipSection(){
   const T = ships();
   if(!T.length && !has('liv')) return '';
   return `<div class="sec"><h2>🚚 Tarifs d'expédition</h2><button class="link" data-a="shipform">+ Ajouter</button></div>
   <div class="card" style="margin-bottom:12px"><p class="note" style="margin-bottom:8px">Prix de l'agence (ex. Molykap) pour chaque ville. Dans une vente, choisissez le tarif : les frais s'ajoutent au total du client (ils ne comptent pas dans votre bénéfice).</p>
+  <div style="display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-bottom:10px"><span class="note"><b>Agences :</b></span>${shipCoOpts().map(c => `<span class="chip on" style="cursor:default">${esc(c)} <button type="button" class="link" style="margin-left:4px" data-a="shipcodel" data-co="${esc(c)}" title="Retirer">✕</button></span>`).join('')}<button type="button" class="chip" data-a="shipcoadd">+ Ajouter une agence</button></div>
   ${T.length ? `<div class="list">${T.slice().sort((a, b) => (a.city || '').localeCompare(b.city || '')).map(t => `<button type="button" class="it" data-a="shipform:${t.id}"><div class="ic c-send">🚚</div><div class="m"><div class="t">${esc(t.city)} · ${amt(num(t.fee), t.cur)}</div><div class="d">${esc(t.co || 'Agence')}${t.from ? ' · depuis ' + esc(t.from) : ''}</div></div>${ico('chev')}</button>`).join('')}</div>` : `<button type="button" class="btn block" data-a="shipform">+ Ajouter un tarif (ex. Likasi · Molykap · 8 000)</button>`}</div>`;
 }
 function shipForm(id){
   const t = id ? ships().find(x => x.id === id) : null;
   const froms = [...new Set(S.livreurs.map(l => l.city).filter(Boolean))];
   sheet(t ? 'Modifier le tarif' : '🚚 Nouveau tarif d\'expédition', `<form id="shf">
-    <div class="row2">${field('Ville de destination *', `<input name="city" list="shipCities" required value="${esc(t?.city)}" placeholder="Ex : Likasi">`)}${field('Agence', `<input name="co" list="shipCos" value="${esc(t ? t.co : 'Molykap')}" placeholder="Ex : Molykap">`)}</div>
+    <div class="row2">${field('Ville de destination *', pickSel('city', shipCityOpts(), t?.city, 'Choisir la ville…', '✏️ Autre ville…', 'Tapez la ville'))}${field('Agence', pickSel('co', shipCoOpts(), t ? t.co : shipCoOpts()[0], 'Choisir l\'agence…', '➕ Nouvelle agence…', 'Nom de l\'agence'))}</div>
     <div class="row2">${field('Prix de l\'expédition *', `<input name="fee" type="number" step="any" min="0" required value="${t ? t.fee : ''}" placeholder="Ex : 8000">`)}${field('Monnaie', `<select name="cur"><option value="FC" ${!t || t.cur === 'FC' ? 'selected' : ''}>${esc(LC())}</option><option value="$" ${t && t.cur === '$' ? 'selected' : ''}>$</option></select>`)}</div>
-    ${field('Expédié depuis (ville du livreur)', `<select name="from"><option value="">Toutes les villes</option>${froms.map(c => `<option ${t && t.from === c ? 'selected' : ''}>${esc(c)}</option>`).join('')}</select>`, 'Ex : depuis Lubumbashi ou depuis Kolwezi, si le prix change')}
+    ${field('Expédié depuis (ville du livreur)', `<select name="from"><option value="">Toutes les villes</option>${[...new Set(froms.concat(t && t.from ? [t.from] : []))].map(c => `<option ${t && t.from === c ? 'selected' : ''}>${esc(c)}</option>`).join('')}</select>`, 'Ex : depuis Lubumbashi ou depuis Kolwezi, si le prix change')}
     <button class="btn primary block">${t ? 'Enregistrer' : 'Ajouter'}</button>
     ${t ? `<button type="button" class="btn ghost-bad block" style="margin-top:8px" data-a="shipdel:${t.id}">Supprimer ce tarif</button>` : ''}</form>${shipLists()}`);
   $('#shf').onsubmit = e => { e.preventDefault(); e.stopPropagation(); const E = e.target.elements;
     const d = {city:E.city.value.trim(), co:E.co.value.trim(), fee:num(E.fee.value), cur:E.cur.value, from:E.from.value};
     if(!d.city){ toast('Indiquez la ville'); return; }
-    if(t) Object.assign(t, d); else ships().push(Object.assign({id:uid()}, d));
+    addShipCo(d.co); if(t) Object.assign(t, d); else ships().push(Object.assign({id:uid()}, d));
     save(); closeSheet(); render(); toast('Tarif enregistré : ' + d.city + ' · ' + amt(d.fee, d.cur)); };
 }
 function shipFieldHTML(m){
@@ -2662,7 +2701,7 @@ function shipFieldHTML(m){
     <div style="margin-top:10px">
     <label class="f" style="display:flex;gap:10px;align-items:center"><input type="checkbox" name="shipOn" ${sh ? 'checked' : ''} style="width:22px;height:22px;min-height:0"><span style="margin:0">Ce colis part par une agence d'expédition</span></label>
     ${T.length ? field('Tarif enregistré', `<select name="shipT"><option value="">— Choisir la ville —</option>${T.slice().sort((a, b) => (a.city || '').localeCompare(b.city || '')).map(t => `<option value="${t.id}">${esc(t.city)} · ${esc(t.co || 'agence')} · ${amt(num(t.fee), t.cur)}${t.from ? ' (depuis ' + esc(t.from) + ')' : ''}</option>`).join('')}</select>`) : `<p class="note" style="margin-bottom:8px">💡 Enregistrez vos prix une fois pour toutes : Réglages → 🚚 Tarifs d'expédition.</p>`}
-    <div class="row2">${field('Ville de destination', `<input name="shipCity" list="shipCities" value="${esc(sh?.city)}" placeholder="Ex : Likasi">`)}${field('Agence', `<input name="shipCo" list="shipCos" value="${esc(sh ? sh.co : 'Molykap')}" placeholder="Ex : Molykap">`)}</div>
+    <div class="row2">${field('Ville de destination', pickSel('shipCity', shipCityOpts(), sh?.city, 'Choisir la ville…', '✏️ Autre ville…', 'Tapez la ville'))}${field('Agence', pickSel('shipCo', shipCoOpts(), sh ? sh.co : shipCoOpts()[0], 'Choisir l\'agence…', '➕ Nouvelle agence…', 'Nom de l\'agence'))}</div>
     <div class="row2">${field('Frais d\'expédition', `<input name="shipFee" type="number" step="any" min="0" value="${sh ? sh.fee : ''}" placeholder="Ex : 8000">`, 'Payés par le client')}${field('Monnaie', `<select name="shipCur"><option value="FC" ${!sh || sh.cur === 'FC' ? 'selected' : ''}>${esc(LC())}</option><option value="$" ${sh && sh.cur === '$' ? 'selected' : ''}>$</option></select>`)}</div>
     <label class="f" style="display:flex;gap:10px;align-items:center"><input type="checkbox" name="pre" ${!m || m.pre ? 'checked' : ''} style="width:22px;height:22px;min-height:0"><span style="margin:0">Le client a déjà payé par Mobile Money (le livreur n'encaisse rien)</span></label>
     </div></details>${shipLists()}`;
