@@ -10,7 +10,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Stock">
-<title>Stock & Livreurs · Réseau & Vente</title>
+<title>BASILUA TECH · Réseau & Vente</title>
 <style>
 :root{
   --brand:#0F766E;--brand-ink:#fff;--brand-soft:rgba(15,118,110,.12);
@@ -369,7 +369,7 @@ html.glass [data-sw]{background:var(--card)}
 
 <script>
 /* =================================================================
-   Stock & Livreurs · Réseau & Vente — application web autonome (1 fichier)
+   BASILUA TECH · Réseau & Vente — application web autonome (1 fichier)
    Produits · Stock (dépôt + livreurs) · Ventes · Livreurs par ville
    Commissions · Versements · Dépenses · Bénéfice final
    Données enregistrées sur l'appareil (localStorage).
@@ -674,7 +674,7 @@ function applyBrand(){
   st.setProperty('--brand-tx', isDark() && lum < 0.55 ? `rgb(${mix(r)},${mix(g)},${mix(b)})` : c);
   document.querySelector('meta[name=theme-color]').content = c;
   try{ localStorage.setItem('stock_splash', JSON.stringify({c, c2:`rgb(${Math.round(r*.62)},${Math.round(g*.62)},${Math.round(b*.62)})`, n:S.settings.shop || '', i:initials(S.settings.shop || ''), logo:(S.settings.logo && S.settings.logo.length < 60000) ? S.settings.logo : ''})); }catch(_){}
-  document.title = (S.settings.shop || 'Ma Boutique') + ' — Stock & Livreurs · Réseau & Vente';
+  document.title = (S.settings.shop || 'Ma Boutique') + ' — BASILUA TECH · Réseau & Vente';
 }
 function render(){
   applyBrand();
@@ -712,7 +712,7 @@ function installSteps(kind){
   const st = (n, t) => `<li><span class="istep">${n}</span><div>${t}</div></li>`;
   const ios = `<ol class="isteps">${st(1, 'Touchez le bouton <b>Partager</b> <span class="ikey">⬆️</span> en bas de Safari (le carré avec une flèche vers le haut). Sur iPad, il est en haut à droite.')}${st(2, 'Faites défiler vers le bas et touchez <b>« Sur l\'écran d\'accueil »</b> <span class="ikey">➕</span>.')}${st(3, 'Touchez <b>« Ajouter »</b> en haut à droite.')}${st(4, 'L\'icône apparaît sur l\'écran d\'accueil : ouvrez toujours l\'application <b>depuis cette icône</b>.')}</ol>`;
   const android = `<ol class="isteps">${st(1, 'Ouvrez le lien dans <b>Google Chrome</b>.')}${st(2, 'Touchez le menu <b>⋮</b> (3 points en haut à droite).')}${st(3, 'Touchez <b>« Installer l\'application »</b> ou <b>« Ajouter à l\'écran d\'accueil »</b>.')}${st(4, 'Confirmez <b>« Installer »</b> : l\'icône apparaît avec vos autres applications.')}</ol>`;
-  const pc = `<ol class="isteps">${st(1, 'Ouvrez le lien dans <b>Google Chrome</b> ou <b>Microsoft Edge</b>.')}${st(2, 'Cliquez sur l\'icône <b>Installer</b> <span class="ikey">⊕</span> à droite de la barre d\'adresse (ou menu ⋮ → <b>« Installer Stock & Livreurs · Réseau & Vente »</b> / « Applications → Installer ce site en tant qu\'application »).')}${st(3, 'L\'application s\'ouvre dans sa propre fenêtre et une icône est ajoutée au bureau.')}</ol>`;
+  const pc = `<ol class="isteps">${st(1, 'Ouvrez le lien dans <b>Google Chrome</b> ou <b>Microsoft Edge</b>.')}${st(2, 'Cliquez sur l\'icône <b>Installer</b> <span class="ikey">⊕</span> à droite de la barre d\'adresse (ou menu ⋮ → <b>« Installer BASILUA TECH · Réseau & Vente »</b> / « Applications → Installer ce site en tant qu\'application »).')}${st(3, 'L\'application s\'ouvre dans sa propre fenêtre et une icône est ajoutée au bureau.')}</ol>`;
   const link = `<div class="ilink"><input readonly value="${esc(appUrl())}" onclick="this.select()"><button type="button" class="btn sm" data-a="instcopy">Copier</button></div>`;
   if(kind === 'inapp') return `<div class="warnbox">⚠️ Vous êtes dans le navigateur de <b>Facebook / Instagram / TikTok</b>. On ne peut pas installer d'ici.</div>
     ${isAndroid ? `<a class="btn primary block" href="intent://${location.host}${location.pathname}#Intent;scheme=https;package=com.android.chrome;end">Ouvrir dans Chrome</a><p class="note" style="margin:8px 0">Si rien ne se passe : touchez ⋮ en haut à droite → <b>« Ouvrir dans le navigateur »</b>.</p>`
@@ -1292,7 +1292,7 @@ function vReglages(){
     <button class="btn ghost-bad block" data-a="reset">Tout effacer</button>
   </div>
   <p class="note" style="text-align:center;margin:18px 0 6px">${S.products.length} produits · ${S.livreurs.length} livreurs · ${S.moves.length} opérations</p>
-  <p class="note" style="text-align:center;margin-bottom:6px">Stock & Livreurs · Réseau & Vente — conçu par <b>BASILUA TECH</b> · <a class="link" href="https://wa.me/243851507510" target="_blank" rel="noopener">WhatsApp +243 851 507 510</a></p>`;
+  <p class="note" style="text-align:center;margin-bottom:6px"><b>BASILUA TECH</b> · Réseau & Vente · <a class="link" href="https://wa.me/243851507510" target="_blank" rel="noopener">WhatsApp +243 851 507 510</a></p>`;
 }
 
 function countryFields(st){
@@ -1978,7 +1978,7 @@ function donutSVG(parts, total, center){
   if(!standalone) return;
   let c = {}; try{ c = JSON.parse(localStorage.getItem('stock_splash') || '{}'); }catch(_){}
   const d = document.createElement('div'); d.id = 'splash'; d.style.background = `linear-gradient(160deg, ${c.c || '#0F766E'}, ${c.c2 || c.c || '#0F766E'})`;
-  d.innerHTML = `<div class="sp"><div class="sl">${c.logo ? `<img src="${c.logo}" alt="">` : (c.i || '📦')}</div><b>${c.n ? String(c.n).replace(/[<>&]/g,'') : 'Stock & Livreurs · Réseau & Vente'}</b><small>Stock & Livreurs · Réseau & Vente · BASILUA TECH</small></div>`;
+  d.innerHTML = `<div class="sp"><div class="sl">${c.logo ? `<img src="${c.logo}" alt="">` : (c.i || '📦')}</div><b>${c.n ? String(c.n).replace(/[<>&]/g,'') : 'BASILUA TECH · Réseau & Vente'}</b><small>BASILUA TECH · Réseau & Vente</small></div>`;
   document.body.appendChild(d);
   setTimeout(() => { d.classList.add('out'); setTimeout(() => d.remove(), 500); }, 900);
 })();
@@ -3750,9 +3750,9 @@ async function loadPayInfo(){ try{ const r = await sb.rpc('get_pay_info'); if(Ar
 const OPS = ['M-Pesa (Vodacom)', 'Airtel Money', 'Orange Money', 'Afrimoney', 'Autre'];
 function paySheet(){
   const shop = ONLINE.shop || {}, si = subInfo(shop) || {}, renew = si.cls === 'bad' || shop.status !== 'essai';
-  const msg = `Bonjour BASILUA TECH 👋\nJe viens de payer mon abonnement Stock & Livreurs · Réseau & Vente (${subPrice()}) pour la boutique « ${shop.name || ''} ».\nVoici la capture du paiement 👇`;
+  const msg = `Bonjour BASILUA TECH 👋\nJe viens de payer mon abonnement Réseau & Vente (${subPrice()}) pour la boutique « ${shop.name || ''} ».\nVoici la capture du paiement 👇`;
   sheet('💳 ' + (renew ? 'Renouveler' : 'Activer') + ' mon abonnement', `
-    <div class="card" style="margin-bottom:12px;text-align:center"><div class="note">Abonnement Stock &amp; Livreurs · Réseau &amp; Vente</div><div style="font-size:28px;font-weight:800" class="num">${subPrice()}</div><div class="note">Toutes les fonctions · téléphone et ordinateur · vos livreurs inclus</div></div>
+    <div class="card" style="margin-bottom:12px;text-align:center"><div class="note">Abonnement BASILUA TECH · Réseau &amp; Vente</div><div style="font-size:28px;font-weight:800" class="num">${subPrice()}</div><div class="note">Toutes les fonctions · téléphone et ordinateur · vos livreurs inclus</div></div>
     <div class="sec"><h2>1. Envoyez le paiement</h2></div>
     ${PAYINFO.length ? `<div class="list" style="margin-bottom:12px">${PAYINFO.map(p => `<div class="it" style="cursor:default"><div class="ic c-in">📱</div><div class="m" style="min-width:0"><div class="t" style="white-space:normal">${esc(p.op)}</div><div class="num" style="font-size:18px;font-weight:800">${esc(p.num)}</div><div class="d">${p.name ? 'Au nom de ' + esc(p.name) : ''}</div></div><button class="btn sm" data-a="copypay" data-v="${esc(p.num)}">Copier</button></div>`).join('')}</div>` : `<p class="note" style="margin-bottom:12px">Demandez le numéro Mobile Money à BASILUA TECH sur WhatsApp (bouton ci-dessous).</p>`}
     <div class="sec"><h2>2. Envoyez la capture sur WhatsApp</h2></div>
@@ -3770,7 +3770,7 @@ function subBanner(compact){
   const d = subDays(shop), owner = ONLINE.role === 'proprietaire', essai = shop.status === 'essai' && si.cls !== 'bad';
   if(si.cls === 'ok') return '';
   const renew = si.cls === 'bad' || (!essai && d != null && d <= 5);
-  const msg = `Bonjour BASILUA TECH, je veux ${renew ? 'renouveler' : 'activer'} mon abonnement Stock & Livreurs · Réseau & Vente (${subPrice()}) pour la boutique « ${shop.name} ».`;
+  const msg = `Bonjour BASILUA TECH, je veux ${renew ? 'renouveler' : 'activer'} mon abonnement Réseau & Vente (${subPrice()}) pour la boutique « ${shop.name} ».`;
   const btn = owner ? `<button class="btn sm primary" style="margin-top:8px" data-a="paysub">💳 ${renew ? 'Renouveler' : 'Activer'} mon abonnement · ${subPrice()}</button>` : '';
   let txt;
   if(si.cls === 'bad') txt = `⛔ ${esc(si.txt)}<br><b>Abonnement : ${subPrice()}</b>`;
@@ -3798,7 +3798,7 @@ function authShell(inner){
   let el = $('#auth');
   if(!el){ el = document.createElement('div'); el.id = 'auth'; document.body.appendChild(el); }
   el.hidden = false; document.body.classList.add('authon');
-  el.innerHTML = `<div class="auth-box"><div class="auth-logo">${ico('box')}</div><h1>Stock &amp; Livreurs</h1><div style="font-weight:800;color:var(--brand);font-size:17px;margin:-2px 0 4px">Réseau &amp; Vente</div><p class="note" style="margin-bottom:18px">Le réseau qui relie vendeurs, livreurs et clients</p>${inner}${!isStandalone() ? `<button type="button" class="btn block" style="margin-top:16px" data-a="install">📲 Installer l'application sur ce téléphone</button>` : ''}<p class="note" style="margin-top:22px"><a class="link" href="guide.html" target="_blank" rel="noopener">Guide d'utilisation</a> · Conçu par <b>BASILUA TECH</b></p></div>`;
+  el.innerHTML = `<div class="auth-box"><div class="auth-logo">${ico('box')}</div><h1>BASILUA TECH</h1><div style="font-weight:800;color:var(--brand);font-size:17px;margin:-2px 0 4px">Réseau &amp; Vente</div><p class="note" style="margin-bottom:18px">Le réseau qui relie vendeurs, livreurs et clients</p>${inner}${!isStandalone() ? `<button type="button" class="btn block" style="margin-top:16px" data-a="install">📲 Installer l'application sur ce téléphone</button>` : ''}<p class="note" style="margin-top:22px"><a class="link" href="guide.html" target="_blank" rel="noopener">Guide d'utilisation</a> · Conçu par <b>BASILUA TECH</b></p></div>`;
   return el;
 }
 function hideAuth(){ const el = $('#auth'); if(el){ el.hidden = true; el.innerHTML = ''; } document.body.classList.remove('authon'); }
@@ -3836,7 +3836,7 @@ function showAuth(mode = 'login', msg = ''){
     </form>
     ${join ? `<p class="note" style="margin-top:12px">Vous voulez plutôt créer <b>votre propre boutique</b> ? <a href="#" class="link" id="joinOff">Cliquez ici</a></p>` : ''}
     <p class="note" style="margin-top:10px">${login ? '' : 'En créant un compte, vous acceptez les <a href="conditions.html" target="_blank" rel="noopener" class="link">conditions d\'utilisation</a>.'}</p>
-    <p class="note" style="margin-top:14px">${login ? `Mot de passe oublié ? <a class="link" href="${supportLink('Bonjour BASILUA TECH, j\'ai oublié mon mot de passe Stock & Livreurs · Réseau & Vente. Mon numéro de compte : ')}" target="_blank" rel="noopener">Contactez BASILUA TECH sur WhatsApp</a>` : 'Votre numéro sert d\'identifiant. Aucun SMS n\'est envoyé.'}</p>`);
+    <p class="note" style="margin-top:14px">${login ? `Mot de passe oublié ? <a class="link" href="${supportLink('Bonjour BASILUA TECH, j\'ai oublié mon mot de passe Réseau & Vente. Mon numéro de compte : ')}" target="_blank" rel="noopener">Contactez BASILUA TECH sur WhatsApp</a>` : 'Votre numéro sert d\'identifiant. Aucun SMS n\'est envoyé.'}</p>`);
   el.querySelectorAll('[data-auth]').forEach(b => b.onclick = () => showAuth(b.dataset.auth));
   if(!login) telPreview($('#authf'));
   if($('#pwShow')) $('#pwShow').onchange = e => { $('#authf').elements.pw.type = e.target.checked ? 'text' : 'password'; };
@@ -3908,7 +3908,7 @@ function showShopChooser(){
 }
 function showNoShop(){
   const meta = (ONLINE.user && ONLINE.user.user_metadata) || {}, d = meta.phone || String(ONLINE.user && ONLINE.user.email || '').split('@')[0];
-  const txt = `Bonjour, j'ai créé mon compte sur Stock & Livreurs · Réseau & Vente avec le numéro ${telPretty(d)}. Invitez-moi dans l'équipe s'il vous plaît (Plus → Équipe → Inviter).`;
+  const txt = `Bonjour, j'ai créé mon compte sur BASILUA TECH · Réseau & Vente avec le numéro ${telPretty(d)}. Invitez-moi dans l'équipe s'il vous plaît (Plus → Équipe → Inviter).`;
   authShell(`<h2 style="font-size:17px;margin-bottom:6px">🛵 Compte livreur / équipe</h2>
     <p class="note" style="margin-bottom:12px">Votre compte est créé avec le numéro <b>${esc(telPretty(d))}</b>, mais le patron ne vous a pas encore ajouté à sa boutique.</p>
     <div style="text-align:left;background:var(--soft,#eef6f4);border-radius:12px;padding:10px 12px;margin-bottom:14px;font-size:14px;line-height:1.5">
@@ -4043,7 +4043,7 @@ render = function(){
         <div class="dl"><span>Abonnement</span><span>${si ? esc(si.short) : '—'}</span></div>
         ${si && si.cls !== 'ok' ? `<div class="dl"><span>Tarif</span><span><b>${subPrice()}</b></span></div>` : ''}
         <p class="note" style="margin:8px 0 12px">${si ? esc(si.txt) : ''}</p>
-        <a class="btn wa block" style="margin-bottom:8px" href="${supportLink('Bonjour BASILUA TECH, j\'ai besoin d\'aide avec Stock & Livreurs · Réseau & Vente (boutique « ' + ONLINE.shop.name + ' »).')}" target="_blank" rel="noopener">${ico('wa')} Contacter BASILUA TECH (aide, abonnement)</a>
+        <a class="btn wa block" style="margin-bottom:8px" href="${supportLink('Bonjour BASILUA TECH, j\'ai besoin d\'aide avec Réseau & Vente (boutique « ' + ONLINE.shop.name + ' »).')}" target="_blank" rel="noopener">${ico('wa')} Contacter BASILUA TECH (aide, abonnement)</a>
         <div class="btns">${ONLINE.shops.length > 1 ? '<button class="btn" data-a="switchshop">Changer de boutique</button>' : '<button class="btn" data-a="newshop">+ Autre boutique</button>'}<button class="btn ghost-bad" data-a="logout">Se déconnecter</button></div>
       </div>` + notifCard());
   }
@@ -4256,7 +4256,7 @@ CUSTOM.equipe = () => {
 CUSTOM_AFTER.equipe = () => { if(TEAM.members === null && !TEAM.loading) loadTeam(); };
 function inviteMsg(i){
   const role = i.role === 'livreur' ? 'livreur' : 'gérant(e)';
-  return `Bonjour ${i.display_name || ''} 👋\n\nVous êtes invité(e) comme *${role}* de *${S.settings.shop}* sur l'application Stock & Livreurs · Réseau & Vente.\n\n1️⃣ Ouvrez ce lien : ${APP_LINK}?rejoindre=${i.phone}\n2️⃣ Votre numéro est déjà rempli (+${i.phone}) : choisissez juste un *mot de passe* et touchez « Créer mon compte »\n3️⃣ C'est tout ✅ (déjà un compte ? touchez « Se connecter »)\n\n${i.role === 'livreur' ? 'Vous verrez vos livraisons, votre stock et votre commission de la semaine.\n\n📘 Guide du livreur (à lire avant de commencer) : ' + new URL('guide-livreur.html', APP_LINK).href : 'Vous aurez accès aux ventes, au stock et aux livreurs de la boutique.\n\n📘 Guide : ' + new URL('guide.html', APP_LINK).href}`;
+  return `Bonjour ${i.display_name || ''} 👋\n\nVous êtes invité(e) comme *${role}* de *${S.settings.shop}* sur l'application BASILUA TECH · Réseau & Vente.\n\n1️⃣ Ouvrez ce lien : ${APP_LINK}?rejoindre=${i.phone}\n2️⃣ Votre numéro est déjà rempli (+${i.phone}) : choisissez juste un *mot de passe* et touchez « Créer mon compte »\n3️⃣ C'est tout ✅ (déjà un compte ? touchez « Se connecter »)\n\n${i.role === 'livreur' ? 'Vous verrez vos livraisons, votre stock et votre commission de la semaine.\n\n📘 Guide du livreur (à lire avant de commencer) : ' + new URL('guide-livreur.html', APP_LINK).href : 'Vous aurez accès aux ventes, au stock et aux livreurs de la boutique.\n\n📘 Guide : ' + new URL('guide.html', APP_LINK).href}`;
 }
 function inviteSheet(pre = {}){
   const cc = String(S.settings.cc || '243');
@@ -4505,7 +4505,7 @@ A.admshop = async (id) => {
     ${s.status === 'bloque' ? `<button class="btn ghost-bad block" style="margin-bottom:12px" data-a="admdel:${id}">🗑️ Supprimer définitivement cette boutique et son compte</button>` : `<p class="note" style="margin-bottom:12px">Pour supprimer une boutique (ex. compte mal créé), bloquez-la d'abord : le bouton « Supprimer » apparaîtra.</p>`}
     <form id="admf" class="card" style="margin-bottom:12px"><div class="row2">${field('Statut', `<select name="st"><option value="actif" ${s.status==='actif'?'selected':''}>Actif</option><option value="essai" ${s.status==='essai'?'selected':''}>Essai</option><option value="bloque" ${s.status==='bloque'?'selected':''}>Bloqué</option></select>`)}${field('Jusqu\'au (vide = illimité)', `<input name="d" type="date" value="${esc(s.paid_until || '')}">`)}</div><button class="btn block">Enregistrer cette date</button></form>
     <div class="stack">
-      <a class="btn wa block" href="${waLink('+' + (s.owner_phone || ''), `Bonjour ${s.owner_name || ''} 👋\nVotre abonnement Stock & Livreurs · Réseau & Vente pour « ${s.name} » ${i.cls === 'bad' ? 'est expiré' : 'se termine le ' + (s.paid_until ? fmtDate(s.paid_until, true) : '—')}.\nPour continuer à enregistrer vos ventes, renouvelez votre abonnement (${subPrice()}) par Mobile Money. Merci 🙏\nBASILUA TECH`)}" target="_blank" rel="noopener">${ico('wa')} Rappel de paiement</a>
+      <a class="btn wa block" href="${waLink('+' + (s.owner_phone || ''), `Bonjour ${s.owner_name || ''} 👋\nVotre abonnement Réseau & Vente pour « ${s.name} » ${i.cls === 'bad' ? 'est expiré' : 'se termine le ' + (s.paid_until ? fmtDate(s.paid_until, true) : '—')}.\nPour continuer à enregistrer vos ventes, renouvelez votre abonnement (${subPrice()}) par Mobile Money. Merci 🙏\nBASILUA TECH`)}" target="_blank" rel="noopener">${ico('wa')} Rappel de paiement</a>
     </div>
     <div class="sec"><h2>Comptes de cette boutique</h2></div>
     <div class="list" id="admmem"><div class="empty">Chargement…</div></div>`);
@@ -4541,7 +4541,7 @@ A.admpw = async (_, el) => {
   if(!await ask(`Donner un nouveau mot de passe à ${esc(el.dataset.name || 'ce compte')} ? L'ancien ne marchera plus.`, 'Réinitialiser')) return;
   const {error} = await sb.rpc('admin_reset_password', {p_user:el.dataset.uid, p_password:pw});
   if(error) return toast(rpcErr(error));
-  const msg = `Bonjour ${el.dataset.name || ''} 👋\nVotre nouveau mot de passe Stock & Livreurs · Réseau & Vente est : *${pw}*\nConnectez-vous ici : ${APP_LINK}\nNuméro : +${el.dataset.phone}\nBASILUA TECH`;
+  const msg = `Bonjour ${el.dataset.name || ''} 👋\nVotre nouveau mot de passe Réseau & Vente est : *${pw}*\nConnectez-vous ici : ${APP_LINK}\nNuméro : +${el.dataset.phone}\nBASILUA TECH`;
   sheet('Nouveau mot de passe', `<p class="note" style="margin-bottom:10px">Communiquez ce mot de passe à la personne :</p>
     <div class="card" style="text-align:center;font-size:26px;font-weight:800;letter-spacing:.08em;margin-bottom:12px">${pw}</div>
     <a class="btn wa block" href="${waLink('+' + el.dataset.phone, msg)}" target="_blank" rel="noopener">${ico('wa')} Envoyer par WhatsApp</a>`);

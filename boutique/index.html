@@ -106,7 +106,7 @@ function render(){
       <div class="b"><div class="n" data-det="${p.id}">${esc(p.name)}</div>${p.details ? `<div class="d">${esc(p.details)}</div>` : ''}
       <div class="p">${amt(num(p.price), p.cur)}${promoPct(p) ? `<s>${amt(num(p.old), p.cur)}</s>` : ''}${p.cur !== 'FC' && num(SHOP.rate) ? `<br><small>≈ ${fmt(Math.round(num(p.price)*num(SHOP.rate)/100)*100)} ${esc(LC())}</small>` : ''}</div>
       ${q ? `<div class="qty"><button data-dec="${p.id}">−</button><b>${q}</b><button data-inc="${p.id}">+</button></div>` : `<button class="add" data-inc="${p.id}">Ajouter</button>`}</div></div>`; }).join('') || '<div class="empty" style="grid-column:1/-1">Aucun produit pour le moment.</div>'}</div>
-    <div class="foot">Boutique propulsée par <a href="../vente/" target="_blank" rel="noopener">Stock & Livreurs · Réseau & Vente · BASILUA TECH</a></div>`;
+    <div class="foot">Boutique propulsée par <a href="../vente/" target="_blank" rel="noopener">BASILUA TECH · Réseau & Vente</a></div>`;
   paintBar();
 }
 const promoPct = p => num(p.old) > num(p.price) && num(p.price) > 0 ? Math.round((1 - num(p.price) / num(p.old)) * 100) : 0;
