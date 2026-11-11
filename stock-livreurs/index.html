@@ -753,7 +753,7 @@ function vHome(){
   const quick = modeOf() !== 'livraison' ? `<button class="btn primary block quickbtn" data-a="quick">⚡ Vente rapide</button>
   <button class="card daycard" data-a="jourset:${today()}"><span>Aujourd'hui : <b>${td.n}</b> vente(s) · <b class="num">${money(td.ca)}</b></span><span class="note">Rapport du jour ›</span></button>` : '';
   const cv = S.settings.cover ? `<div class="cover" style="background-image:url('${S.settings.cover}')"><div class="cv"><div class="logo">${S.settings.logo ? `<img src="${S.settings.logo}" alt="">` : esc(initials(S.settings.shop))}</div><div><b>${esc(S.settings.shop || '')}</b><span>${greet()} · ${dAbs(today(), 1)}</span></div></div></div>` : '';
-  return `${cv}${onbCard()}${installCard()}${impHomeCard()}${quick}${goalsCard()}${alertsCard(st, low)}${periodChips(period,'per')}
+  return `${cv}${gsBar()}${onbCard()}${installCard()}${impHomeCard()}${quick}${goalsCard()}${alertsCard(st, low)}${periodChips(period,'per')}
   ${noBuy.length ? `<button class="warnbox" style="margin-top:10px" data-a="nav:stock">⚠️ ${noBuy.length} produit${noBuy.length>1?'s':''} sans prix d'achat : le bénéfice affiché est trop élevé. Touchez ici pour les compléter.</button>` : ''}
   <div class="kpis" style="margin-top:10px">
     <div class="kpi hero"><div class="l">Bénéfice net ${per}</div><div class="v num ${r.net<0?'neg':''}">${money(r.net)}</div><div class="s">sur ${money(r.ca)} de ventes livrées (${r.nv})</div></div>
@@ -903,15 +903,23 @@ function vLivreurs(){
     <div class="card tbw"><table class="tb"><tr><th>Livreur</th><th class="rt">Livrées</th><th class="rt">Gagné</th><th class="rt">Si en cours livrées</th></tr>
     ${ranked.map(l => { const s = S2[l.id]; return `<tr data-a="liv:${l.id}" style="cursor:pointer"><td><b>${esc(l.name)}</b><br><span class="note">${esc(l.city||'')}</span></td><td class="rt num">${s.weekN}</td><td class="rt num"><b>${l.pay==='salaire' ? 'Salaire' : money(s.week)}</b></td><td class="rt num">${l.pay==='salaire' ? '—' : money(s.week + s.weekPot)}</td></tr>`; }).join('')}</table>
     <p class="note" style="margin-top:6px">« Gagné » = commissions des ventes livrées depuis lundi. La dernière colonne montre ce qu'il gagnera si ses commandes en cours sont livrées.</p></div>`;
+  h += `<input class="search" type="search" style="margin-top:14px" placeholder="Rechercher un livreur, une ville, un numéro…" value="${esc(livQ)}" oninput="livQ=this.value;refreshList('livreurs')"><div id="lst">${livRows(S2)}</div>`;
+  return h + `<div style="margin-top:14px"><button class="btn block" data-a="newliv">+ Ajouter un livreur</button></div>`;
+}
+let livQ = '';
+function livRows(S2){
+  if(!S2){ S2 = {}; S.livreurs.forEach(l => S2[l.id] = livStats(l.id)); }
+  const q = norm0(livQ); let h = '';
   for(const c of cities()){
-    const ls = S.livreurs.filter(l => (l.city || 'Sans ville') === c).sort(byName);
+    const ls = S.livreurs.filter(l => (l.city || 'Sans ville') === c && (!q || norm0([l.name, l.city, l.phone].join(' ')).includes(q))).sort(byName);
+    if(!ls.length) continue;
     h += `<div class="city">📍 ${esc(c)} · ${ls.length} livreur${ls.length>1?'s':''}</div><div class="list">` + ls.map(l => { const s = S2[l.id];
       return `<button class="it" data-a="liv:${l.id}">${pic(l)}
         <div class="m"><div class="t">${esc(l.name)}</div><div class="d">En main <b>${s.hand}</b> pièce(s) · livrées ${s.nLiv}${s.nPend ? ' · en cours ' + s.nPend : ''}</div>
         <div class="d">À verser <b class="${s.toRemit>0.009?'red':''}">${money(s.toRemit)}</b> · ${l.pay==='salaire' ? 'Salaire ' + money(num(l.salary)) + '/mois' : 'Commission due <b>' + money(s.toPay) + '</b>'}</div></div>
         <div class="r">${ico('chev')}</div></button>`; }).join('') + `</div>`;
   }
-  return h + `<div style="margin-top:14px"><button class="btn block" data-a="newliv">+ Ajouter un livreur</button></div>`;
+  return h || `<div class="list"><div class="empty"><b>Aucun livreur trouvé</b>Essayez un autre nom ou une autre ville.</div></div>`;
 }
 function livForm(id){
   const l = id ? liv(id) : null;
@@ -1017,6 +1025,28 @@ function livReport(l, s, rows){
 }
 
 /* ---------- Plus ---------- */
+/* ---------- Recherche partout : produits, clients, ventes, livreurs, commandes import ---------- */
+const gsBar = () => `<button class="search" data-a="gsearch" style="display:flex;align-items:center;gap:8px;text-align:left;color:var(--muted);margin-bottom:12px;width:100%">🔍 Rechercher partout : produit, client, numéro, livreur…</button>`;
+function gsResults(qq){
+  const q = norm0(qq); if(q.length < 2) return '<p class="note">Tapez au moins 2 lettres ou chiffres.</p>';
+  const has_ = t => norm0(t).includes(q), out = [];
+  const P = S.products.filter(p => has_([p.name, p.cat, p.details].join(' '))).slice(0, 8);
+  if(P.length) out.push(`<div class="sec"><h2>📦 Produits (${P.length})</h2></div><div class="list">${P.map(p => `<button class="it" data-a="prod:${p.id}">${pic(p)}<div class="m"><div class="t">${esc(p.name)}</div><div class="d">${priceTxt(p)}${p.cat ? ' · ' + esc(p.cat) : ''}</div></div>${ico('chev')}</button>`).join('')}</div>`);
+  const C = clientsList().filter(c => has_([c.name, c.phone, c.addr].join(' ')) || (q.replace(/\D/g, '').length >= 4 && phoneNorm(c.phone).includes(q.replace(/\D/g, '')))).slice(0, 8);
+  if(C.length) out.push(`<div class="sec"><h2>👥 Clients (${C.length})</h2></div><div class="list">${C.map(c => `<button class="it" data-a="client:${esc(c.key)}"><div class="ic c-out">${esc(initials(c.name || '?'))}</div><div class="m"><div class="t">${esc(c.name || 'Sans nom')}</div><div class="d">${esc(c.phone || '—')} · ${c.n} achat(s)${c.nAnn ? ' · ' + c.nAnn + ' annulé(s)' : ''}</div></div>${ico('chev')}</button>`).join('')}</div>`);
+  const L = S.livreurs.filter(l => has_([l.name, l.city, l.phone].join(' ')));
+  if(L.length) out.push(`<div class="sec"><h2>🛵 Livreurs (${L.length})</h2></div><div class="list">${L.map(l => `<button class="it" data-a="liv:${l.id}">${pic(l)}<div class="m"><div class="t">${esc(l.name)}</div><div class="d">${esc(l.city || '')} · ${esc(l.phone || '')}</div></div>${ico('chev')}</button>`).join('')}</div>`);
+  const V = sortMoves(S.moves.filter(m => m.type === 'vente' && has_([pname(m.pid), m.client, m.phone, m.addr, m.note, lname(m.liv), invNo(m)].join(' ')))).slice(0, 15);
+  if(V.length) out.push(`<div class="sec"><h2>🧾 Ventes (${V.length >= 15 ? '15 dernières' : V.length})</h2></div><div class="list">${V.map(rowSale).join('')}</div>`);
+  if(typeof cmds === 'function'){ const K = cmds().filter(c => has_([c.client, c.phone, c.title, cmdNo(c), c.lot, c.note].join(' '))).slice(0, 8);
+    if(K.length) out.push(`<div class="sec"><h2>📦 Commandes import (${K.length})</h2></div><div class="list">${K.map(c => `<button class="it" data-a="cmd:${c.id}"><div class="ic c-send">📦</div><div class="m"><div class="t">${esc(c.client || 'Client')} · ${esc(c.title || '')}</div><div class="d">${esc(cmdNo(c))}${c.lot ? ' · lot ' + esc(c.lot) : ''}</div></div>${ico('chev')}</button>`).join('')}</div>`); }
+  return out.length ? out.join('') : `<div class="empty"><b>Rien trouvé pour « ${esc(qq)} »</b>Essayez un autre mot ou une partie du numéro.</div>`;
+}
+let gsLast = '';
+function gsSheet(){
+  sheet('🔍 Rechercher partout', `<input class="search" id="gsIn" type="search" placeholder="Produit, client, numéro, livreur, N° de commande…" value="${esc(gsLast)}" autocomplete="off"><div id="gsOut">${gsLast ? gsResults(gsLast) : '<p class="note">Cherchez dans les produits, les clients (nom ou numéro), les ventes, les livreurs et les commandes import.</p>'}</div>`);
+  const i = $('#gsIn'); i.oninput = () => { gsLast = i.value; $('#gsOut').innerHTML = gsResults(i.value); }; setTimeout(() => i.focus(), 150);
+}
 function vPlus(){
   const r = stats('mois');
   const items = [
@@ -1029,21 +1059,26 @@ function vPlus(){
   ];
   if(impOn()) items.unshift(['import','c-send','box','📦 Commandes import',"Commandes sur demande (Chine…) : acomptes, étapes, reçus, marge"]);
   if(!isStandalone()) items.push(['__install','c-brand','set',"📲 Installer l'application","iPhone, Android ou ordinateur : une icône comme une vraie application"]);
-  return `<div class="list menu">${items.map(([v,c,i,t,d]) => `<button class="it" data-a="${v === '__install' ? 'install' : 'nav:' + v}"><div class="ic ${c}">${ico(i)}</div><div class="m"><div class="t">${t}</div><div class="d" style="white-space:normal">${d}</div></div>${ico('chev')}</button>`).join('')}</div>
+  return `${gsBar()}<div class="list menu">${items.map(([v,c,i,t,d]) => `<button class="it" data-a="${v === '__install' ? 'install' : 'nav:' + v}"><div class="ic ${c}">${ico(i)}</div><div class="m"><div class="t">${t}</div><div class="d" style="white-space:normal">${d}</div></div>${ico('chev')}</button>`).join('')}</div>
   <div class="sec"><h2>Raccourcis</h2></div>
   <div class="btns"><button class="btn" data-a="money:depense">+ Dépense</button><button class="btn" data-a="money:versement">+ Versement livreur</button><button class="btn" data-a="new:perte">− Sortie / perte</button><button class="btn" data-a="backup">Sauvegarde</button><button class="btn" data-a="soir">🌙 Point du soir</button><button class="btn" data-a="style:${glassPref()==='verre'?'simple':'verre'}">${glassPref()==='verre' ? 'Style simple' : '✨ Style verre'}</button><button class="btn" data-a="themetoggle">${isDark() ? '☀️ Mode clair' : '🌗 Mode sombre'}</button></div>
   <div style="margin-top:8px"><button class="btn block" data-a="tpl">📋 Modèle de commande pour WhatsApp</button></div>`;
 }
 
 /* ---------- Dépenses ---------- */
+let depQ = '';
+const depList = () => sortMoves(S.moves.filter(m => m.type === 'depense' && inPer(m.date, depPeriod)));
+function depRows(){ const q = norm0(depQ), l = depList().filter(m => !q || norm0([m.cat, m.note, m.motif, lname(m.liv)].join(' ')).includes(q));
+  return l.length ? l.map(rowMove).join('') : `<div class="empty"><b>Aucune dépense${q ? ' trouvée' : ''}</b>${q ? '' : 'Ajoutez le transport, l\'envoi de colis, la publicité Facebook…'}</div>`; }
 function vDepenses(){
-  const list = sortMoves(S.moves.filter(m => m.type === 'depense' && inPer(m.date, depPeriod)));
+  const list = depList();
   const r = stats(depPeriod), cats = Object.entries(r.depCat).sort((a,b) => b[1]-a[1]), mx = cats[0]?.[1] || 1;
   return `${periodChips(depPeriod,'dper')}
   <div class="kpis" style="margin-top:10px"><div class="kpi hero"><div class="l">Total des dépenses ${PERTXT[depPeriod]}</div><div class="v num">${money(r.dep)}</div><div class="s">${list.length} dépense${list.length>1?'s':''} · ${fcOf(r.dep)}</div></div></div>
   ${cats.length ? `<div class="sec"><h2>Par catégorie</h2></div><div class="card">${cats.map(([c,v]) => `<div class="hb"><div class="n">${esc(c)}</div><div class="tr"><i style="width:${v/mx*100}%;background:${SPLITC.dep}"></i></div><div class="q num">${money(v)}</div></div>`).join('')}</div>` : ''}
   <div class="sec"><h2>Détail</h2></div>
-  <div class="list">${list.length ? list.map(rowMove).join('') : `<div class="empty"><b>Aucune dépense</b>Ajoutez le transport, l'envoi de colis, la publicité Facebook…</div>`}</div>
+  <input class="search" type="search" placeholder="Rechercher une dépense (catégorie, note, livreur…)" value="${esc(depQ)}" oninput="depQ=this.value;refreshList('depenses')">
+  <div class="list" id="lst">${depRows()}</div>
   <div style="margin-top:12px"><button class="btn primary block" data-a="money:depense">+ Ajouter une dépense</button></div>`;
 }
 
@@ -1099,6 +1134,8 @@ function refreshList(v){
   if(v === 'ventes') el.innerHTML = saleRows();
   if(v === 'livre') el.innerHTML = bookRows();
   if(v === 'clients') el.innerHTML = clientRows();
+  if(v === 'livreurs') el.innerHTML = livRows();
+  if(v === 'depenses') el.innerHTML = depRows();
 }
 
 /* ---------- Réglages ---------- */
@@ -1454,13 +1491,18 @@ const annToRelance = c => c.nAnn && c.lastAnn >= (c.last || '') && !(c.n && c.la
 const relDate = key => (S.settings.rel || {})[key] || '';
 window.markRel = key => { S.settings.rel = S.settings.rel || {}; S.settings.rel[key] = today(); save(); setTimeout(() => { if(view === 'clients') refreshList('clients'); }, 300); };
 const daysSince = iso => iso ? Math.round((new Date(today() + 'T12:00:00') - new Date(iso + 'T12:00:00')) / 864e5) : 999;
+const clientTabs = () => [['tous','Tous',() => true],['annules','❌ Ont annulé',annToRelance],['promesses','🤝 Promesses',() => false],['relancer','⏰ Sans achat +30 j',c => c.n && daysSince(c.last) > 30],['fideles','⭐ Fidèles',c => c.n >= 2]];
+function clientFiltered(all){
+  const tabs = clientTabs(), f = (tabs.find(x => x[0] === clientTab) || tabs[0])[2], q = norm0(clientQ);
+  const dayKeys = clientDay ? new Set(S.moves.filter(m => m.type === 'vente' && m.date === clientDay).map(m => phoneNorm(m.phone) || norm0(m.client))) : null;
+  return (all || clientsList()).filter(f).filter(c => !dayKeys || dayKeys.has(c.key)).filter(c => !q || norm0(c.name + ' ' + c.phone + ' ' + c.addr).includes(q)).sort((a,b) => (b.last || b.lastAnn || '').localeCompare(a.last || a.lastAnn || ''));
+}
 function vClients(){
   const all = clientsList(), q = norm0(clientQ);
-  const tabs = [['tous','Tous',() => true],['annules','❌ Ont annulé',annToRelance],['promesses','🤝 Promesses',() => false],['relancer','⏰ Sans achat +30 j',c => c.n && daysSince(c.last) > 30],['fideles','⭐ Fidèles',c => c.n >= 2]];
+  const tabs = clientTabs();
   if(clientTab === 'promesses') return clientsHead(all, tabs) + promisesHTML();
   const dayKeys = clientDay ? new Set(S.moves.filter(m => m.type === 'vente' && m.date === clientDay).map(m => phoneNorm(m.phone) || norm0(m.client))) : null;
-  const f = (tabs.find(x => x[0] === clientTab) || tabs[0])[2];
-  const list = all.filter(f).filter(c => !dayKeys || dayKeys.has(c.key)).filter(c => !q || norm0(c.name + ' ' + c.phone + ' ' + c.addr).includes(q)).sort((a,b) => b.last.localeCompare(a.last));
+  const list = clientFiltered(all);
   const t = today();
   return clientsHead(all, tabs) + `<div style="display:flex;gap:8px;align-items:center;margin-bottom:10px;flex-wrap:wrap"><b style="font-size:14px">📅 Clients qui ont commandé le :</b><label class="f" style="margin:0;flex:1;min-width:140px"><input type="date" id="clientDayIn" max="${t}" value="${esc(clientDay)}"></label>${clientDay ? `<button class="link" data-a="cday">✕ Tous</button>` : `<button class="chip" data-a="cday" data-d="${t}">Aujourd'hui</button>`}</div>
   ${clientDay ? `<p class="note" style="margin:-4px 0 8px">${list.length} client(s) ont commandé le <b>${esc(dAbs(clientDay, 1))}</b>.</p>` : ''}` + `<input class="search" type="search" placeholder="Rechercher un client, un numéro, une commune…" value="${esc(clientQ)}" oninput="clientQ=this.value;refreshList('clients')">
@@ -1475,7 +1517,7 @@ function clientsHead(all, tabs){
   <div style="height:10px"></div>`;
 }
 function clientRows(list){
-  if(!list){ const all = clientsList(), q = norm0(clientQ); list = all.filter(c => !q || norm0(c.name + ' ' + c.phone + ' ' + c.addr).includes(q)).sort((a,b) => b.last.localeCompare(a.last)); }
+  if(!list) list = clientFiltered();
   if(!list.length) return `<div class="empty"><b>Aucun client ici</b>Les clients apparaissent automatiquement avec vos ventes (nom et numéro).</div>`;
   if(clientTab === 'annules') return list.slice(0, 300).map(c => `<button class="it" data-a="client:${esc(c.key)}"><div class="ic c-loss">${esc(initials(c.name || '?'))}</div><div class="m"><div class="t">${esc(c.name || 'Sans nom')}</div><div class="d">${esc(c.phone || '—')} · ❌ ${esc(pname(c.annPid))} annulé ${fmtDate(c.lastAnn)}${relDate(c.key) ? ' · <b>relancé ' + fmtDate(relDate(c.key)) + '</b>' : ''}</div></div>${ico('chev')}</button>`).join('');
   return list.slice(0, 300).map(c => { const d = daysSince(c.last); return `<button class="it" data-a="client:${esc(c.key)}"><div class="ic c-out">${esc(initials(c.name || '?'))}</div><div class="m"><div class="t">${esc(c.name || 'Sans nom')}</div><div class="d">${esc(c.phone || '—')}${c.addr ? ' · ' + esc(c.addr.split('\n')[0]) : ''}</div><div class="d">${c.n} achat(s) · dernier ${d === 0 ? "aujourd'hui" : 'il y a ' + d + ' j'}</div></div><div class="r"><b class="num">${money(c.total)}</b>${d > 30 ? '<div><span class="pill p-attente">À relancer</span></div>' : ''}</div></button>`; }).join('');
@@ -2806,6 +2848,7 @@ const A = {
   shtype: v => { shType = v; render(); },
   shper: v => { shPer = v; shDay = ''; render(); },
   shday: (_, el) => { shDay = el.dataset.d || ''; if(view !== 'stockhist') A.nav('stockhist'); else render(); },
+  gsearch: () => gsSheet(),
   livday: (id, el) => livDaySheet(id, el && el.dataset.d),
   sasof: (_, el) => { stockAsOf = el.dataset.d || ''; render(); },
   planform: v => planForm(v || null),
@@ -2838,7 +2881,7 @@ A.ldate = id => livreDatePick(id, d => { const m = S.moves.find(x => x.id === id
 
 /* ---------- Historique du stock (avec dates) ---------- */
 const STOCK_TYPES = ['entree','envoi','retour','perte','ajust','inventaire'];
-let shType = 'all', shPid = '', shLoc = '*', shPer = 'tout', shDay = '';
+let shType = 'all', shPid = '', shLoc = '*', shPer = 'tout', shDay = '', shQ = '';
 const shLabel = m => ({entree:['📥','Achat / entrée au dépôt','green'], envoi:['🛵','Donné à ' + lname(m.liv),''], retour:['↩️','Rendu au dépôt par ' + lname(m.liv),''], perte:['❌', (m.motif === 'Écart inventaire' ? 'Manquant (contrôle)' : 'Perte' + (m.motif ? ' · ' + m.motif : '')) + ' · ' + (m.loc ? lname(m.loc) : 'Dépôt'),'red'], ajust:['➕','En trop (contrôle) · ' + (m.loc ? lname(m.loc) : 'Dépôt'),'green'], inventaire:['📋','Contrôle de stock · ' + (m.loc ? lname(m.loc) : 'Dépôt'),''], vente:['🛒','Vendu' + (m.liv ? ' par ' + lname(m.liv) : ' (dépôt)') + (m.client ? ' · ' + m.client : ''),'']})[m.type];
 function stockHistMoves(){
   const inPerSh = d => shDay ? d === shDay : (shPer === 'tout' || inPer(d, shPer));
@@ -2850,6 +2893,7 @@ function stockHistMoves(){
     if(shPid && m.type !== 'inventaire' && !lines(m.pid, m.qty).some(([pid]) => pid === shPid)) return false;
     if(shPid && m.type === 'inventaire' && !(m.lines || []).some(l => l.pid === shPid)) return false;
     if(shLoc !== '*'){ const loc = m.type === 'envoi' || m.type === 'retour' || m.type === 'vente' ? (m.liv || '') : (m.loc || ''); if(loc !== shLoc) return false; }
+    if(shQ){ const q = norm0(shQ); if(!norm0([m.pid ? pname(m.pid) : '', (m.lines || []).map(x => pname(x.pid)).join(' '), m.note, m.motif, m.client, m.sup, lname(m.liv || m.loc)].join(' ')).includes(q)) return false; }
     return inPerSh(mday(m));
   }).sort((a, b) => (mday(b) || '').localeCompare(mday(a) || '') || (b.ts || 0) - (a.ts || 0));
 }
@@ -2872,6 +2916,7 @@ function vStockHist(){
     <select id="shPid" style="width:100%;min-width:0">${[['', 'Tous les produits']].concat(S.products.filter(p => !isKit(p)).map(p => [p.id, p.name])).map(([v, l]) => `<option value="${v}" ${shPid === v ? 'selected' : ''}>${esc(l)}</option>`).join('')}</select>
     <select id="shLoc" style="width:100%;min-width:0">${[['*', 'Tous les endroits'], ['', 'Dépôt']].concat(S.livreurs.map(l => [l.id, l.name])).map(([v, l]) => `<option value="${v}" ${shLoc === v ? 'selected' : ''}>${esc(l)}</option>`).join('')}</select></div>
   <div class="chips" style="margin-bottom:6px">${[['tout','Depuis le début'],['mois','Ce mois'],['sem','Cette semaine']].map(([k, l]) => `<button class="chip ${shPer === k && !shDay ? 'on' : ''}" data-a="shper:${k}">${l}</button>`).join('')}</div>
+  <input class="search" type="search" placeholder="Rechercher : produit, livreur, fournisseur, note…" value="${esc(shQ)}" onchange="shQ=this.value;render()" onsearch="shQ=this.value;render()">
   <div style="display:flex;gap:8px;align-items:center;margin-bottom:10px"><b style="font-size:14px">📅 Un jour précis :</b><label class="f" style="margin:0;flex:1"><input type="date" id="shDayIn" max="${today()}" value="${esc(shDay)}"></label>${shDay ? `<button class="link" data-a="shday" data-d="">✕</button>` : ''}</div>
   ${L.length ? Object.entries(groups).map(([d, ms]) => `<div class="sec" style="margin-top:14px"><h2>📅 ${esc(dAbs(d, 1))}</h2></div><div class="list">${ms.map(shRow).join('')}</div>`).join('') : '<div class="card empty"><b>Aucun mouvement</b>Rien pour ce filtre.</div>'}`;
 }
