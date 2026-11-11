@@ -4284,7 +4284,7 @@ livSheet = function(id){
 
 /* ---------- Écran du livreur ---------- */
 let MOI_REL = false, MOI_DAY = '';
-const livMsg = (m, L) => `Bonjour ${m.client || ''}, je suis ${L ? L.name : 'votre livreur'}, livreur de ${S.settings.shop}. Je suis déjà en route avec votre commande : ${pname(m.pid)} × ${m.qty}.` + (m.addr ? `\n📍 Adresse de livraison : ${m.addr}` : '') + `\nÀ bientôt, je serai là pour vous livrer. J'espère que vous êtes là 🙏`;
+const livMsg = (m, L) => `Bonjour ${m.client || ''} 👋\nJe suis ${L ? L.name : 'votre livreur'}, livreur de ${S.settings.shop}. Je suis prêt(e) à venir vous livrer votre commande : ${pname(m.pid)} × ${m.qty}.\nÊtes-vous là ? Je peux passer ?` + (m.addr ? `\n📍 C'est bien votre adresse : ${m.addr} ?` : `\n📍 Envoyez-moi votre adresse de livraison, s'il vous plaît.`) + `\nMerci, à tout de suite 🙏`;
 A.moiday = (v, el) => { MOI_DAY = v === 'pick' ? (el && el.value || '') : v; render(); };
 document.addEventListener('change', e => { if(e.target && e.target.id === 'moiDayIn'){ MOI_DAY = e.target.value || ''; render(); } });
 const moiNow = () => { const d = new Date(); return d.toLocaleDateString('fr-FR', {weekday:'long', day:'numeric', month:'long', year:'numeric'}).replace(/^./, c => c.toUpperCase()) + ' · 🕐 ' + String(d.getHours()).padStart(2,'0') + 'h' + String(d.getMinutes()).padStart(2,'0'); };
