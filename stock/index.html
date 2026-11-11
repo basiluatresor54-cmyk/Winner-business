@@ -775,7 +775,7 @@ function vHome(){
   const quick = modeOf() !== 'livraison' ? `<button class="btn primary block quickbtn" data-a="quick">⚡ Vente rapide</button>
   <button class="card daycard" data-a="jourset:${today()}"><span>Aujourd'hui : <b>${td.n}</b> vente(s) · <b class="num">${money(td.ca)}</b></span><span class="note">Rapport du jour ›</span></button>` : '';
   const cv = S.settings.cover ? `<div class="cover" style="background-image:url('${S.settings.cover}')"><div class="cv"><div class="logo">${S.settings.logo ? `<img src="${S.settings.logo}" alt="">` : esc(initials(S.settings.shop))}</div><div><b>${esc(S.settings.shop || '')}</b><span>${greet()} · ${dAbs(today(), 1)}</span></div></div></div>` : '';
-  return `${cv}${gsBar()}${onbCard()}${installCard()}${impHomeCard()}${quick}${goalsCard()}${alertsCard(st, low)}${periodChips(period,'per')}
+  return `${cv}${gsBar()}${onbCard()}${installCard()}${impHomeCard()}${quick}${goalsCard()}${upcomingCard()}${alertsCard(st, low)}${periodChips(period,'per')}
   ${noBuy.length ? `<button class="warnbox" style="margin-top:10px" data-a="nav:stock">⚠️ ${noBuy.length} produit${noBuy.length>1?'s':''} sans prix d'achat : le bénéfice affiché est trop élevé. Touchez ici pour les compléter.</button>` : ''}
   <div class="kpis" style="margin-top:10px">
     <div class="kpi hero"><div class="l">Bénéfice net ${per}</div><div class="v num ${r.net<0?'neg':''}">${money(r.net)}</div><div class="s">sur ${money(r.ca)} de ventes livrées (${r.nv})</div></div>
@@ -1076,15 +1076,30 @@ function calSheet(month){
     <p class="note" style="margin-top:10px">« cmd » = commandes enregistrées ce jour · <span style="color:var(--pos,#16a34a)">●</span> livré · <span style="color:var(--warn,#d97706)">●</span> à livrer · <span style="color:var(--brand)">●</span> achat prévu / client à relancer</p>
     <button class="btn block" data-a="calmonth" data-d="${t.slice(0, 7)}" style="margin-top:6px">Revenir à aujourd'hui</button>`);
 }
+function byLivHTML(list){
+  const g = {}; list.forEach(m => { const k = m.liv || ''; (g[k] = g[k] || []).push(m); });
+  return Object.keys(g).sort((a, b) => (a ? (liv(a)?.name || '') : 'zzz').localeCompare(b ? (liv(b)?.name || '') : 'zzz', 'fr')).map(k =>
+    `<p style="font-weight:800;margin:10px 2px 6px">${k ? '🛵 ' + esc(liv(k)?.name || 'Livreur') + (liv(k)?.city ? ' · ' + esc(liv(k).city) : '') : '🏪 Sans livreur'} (${g[k].length})</p><div class="list">${sortMoves(g[k]).map(rowSale).join('')}</div>`).join('');
+}
+function upcomingCard(){
+  const t = today(), by = {};
+  S.moves.forEach(m => { if(m.type !== 'vente' || m.status === 'livre' || m.status === 'annule') return; const d0 = m.ddate || m.date; if(!d0) return; const d = d0 < t ? t : d0; (by[d] = by[d] || []).push(m); });
+  const days = Object.keys(by).sort().slice(0, 5); if(!days.length) return '';
+  const rows = days.map(d => { const a = by[d], late = a.filter(m => (m.ddate || m.date) < t).length, g = {};
+    a.forEach(m => { const k = m.liv ? (liv(m.liv)?.name || 'Livreur') : 'Sans livreur'; (g[k] = g[k] || []).push(m.client || pname(m.pid)); });
+    const lab = d === t ? "Aujourd'hui" : d === addDays(t, 1) ? 'Demain · ' + dAbs(d) : dAbs(d, 1).replace(/ \d{4}$/, '');
+    return `<button class="it" data-a="calday" data-d="${d}"><div class="ic ${d === t ? 'c-brand' : 'c-in'}">${a.length}</div><div class="m"><div class="t" style="white-space:normal">${d === t ? '🛵' : '📅'} ${esc(lab.charAt(0).toUpperCase() + lab.slice(1))} : ${a.length} livraison(s)${late ? ` <span class="red">· ${late} en retard</span>` : ''}</div><div class="d" style="white-space:normal">${Object.entries(g).map(([k, v]) => `<b>${esc(k)}</b> : ${v.length} (${esc(v.slice(0, 3).join(', '))}${v.length > 3 ? '…' : ''})`).join(' · ')}</div></div>${ico('chev')}</button>`; }).join('');
+  return `<div class="sec" style="margin-top:4px"><h2>🛵 Livraisons à venir</h2><button class="link" data-a="calendar">📅 Calendrier</button></div><div class="list" style="margin-bottom:12px">${rows}</div>`;
+}
 function calDaySheet(d){
   const t = today(), x = calDayInfo()[d] || {cmd:0, liv:0, todo:0, plan:0, prom:0}, past = d <= t;
-  const todo = S.moves.filter(m => m.type === 'vente' && m.status !== 'livre' && m.status !== 'annule' && (m.ddate || m.date) === d);
+  const todo = S.moves.filter(m => m.type === 'vente' && m.status !== 'livre' && m.status !== 'annule' && ((m.ddate || m.date) === d || (d === t && (m.ddate || m.date) < t)));
   const pl = S.moves.filter(m => m.type === 'plan' && !m.done && m.date === d), pr = S.moves.filter(m => m.type === 'promesse' && !m.done && m.date === d);
   const r = past ? dayReport(d) : null;
   sheet('📅 ' + dAbs(d, 1), `
     <div class="kv"><div><b class="num">${x.cmd}</b><span>Commandes enregistrées</span></div><div><b class="num">${x.liv}</b><span>Livrées</span></div><div><b class="num">${x.todo}</b><span>À livrer</span></div></div>
     ${r ? `<div class="card" style="margin-bottom:12px"><div class="dl"><span>Chiffre d'affaires</span><span class="num">${money(r.ca || 0)}</span></div><div class="dl strong"><span>Bénéfice du jour</span><span class="num">${money(r.profit ?? r.net ?? 0)}</span></div></div>` : ''}
-    ${todo.length ? `<div class="sec"><h2>🛵 À livrer ce jour (${todo.length})</h2></div><div class="list">${sortMoves(todo).map(rowSale).join('')}</div>` : ''}
+    ${todo.length ? `<div class="sec"><h2>🛵 À livrer ce jour (${todo.length}) — par livreur</h2></div>${byLivHTML(todo)}` : ''}
     ${pl.length ? `<div class="sec"><h2>🛒 Achats prévus</h2></div><div class="list">${pl.map(m => `<div class="it" style="cursor:default"><div class="ic c-in">🛒</div><div class="m"><div class="t">${esc(pname(m.pid))} × ${m.qty}</div><div class="d">${esc(m.sup || '')}</div></div></div>`).join('')}</div>` : ''}
     ${pr.length ? `<div class="sec"><h2>🤝 Clients à relancer</h2></div><div class="list">${pr.map(m => `<button class="it" data-a="promrel:${m.id}"><div class="ic c-out">${esc(initials(m.client || '?'))}</div><div class="m"><div class="t">${esc(m.client || m.phone)}</div><div class="d">${m.pid ? esc(pname(m.pid)) : ''}${m.note ? ' · ' + esc(m.note) : ''}</div></div>${ico('chev')}</button>`).join('')}</div>` : ''}
     <div class="stack" style="margin-top:12px">
