@@ -896,7 +896,7 @@ function saleRows(){
 function rowSale(m){
   const L = liv(m.liv);
   return `<button class="it" data-a="sale:${m.id}"${m.status === 'attente' || m.status === 'encours' ? ` data-sw="${m.id}"` : ''}>${prod(m.pid) && prod(m.pid).photo ? pic(prod(m.pid)) : `<div class="ic c-out">${ico('cart')}</div>`}
-    <div class="m"><div class="t">${esc(pname(m.pid))} × ${m.qty}${m.partial ? ` <span class="note">(sur ${m.qtyAsked})</span>` : ''}${m.swapped ? ` <span class="note">(au lieu de ${esc(pname(m.origPid))})</span>` : ''}</div>
+    <div class="m"><div class="t">${esc(pname(m.pid))} × ${m.qty}${m.partial ? ` <span class="note">(sur ${m.qtyAsked})</span>` : ''}${m.swapped ? ` <span class="note">(au lieu de ${esc(pname(m.origPid))})</span>` : ''}</div>${m.status === 'annule' && m.cancelReason ? `<div class="d" style="color:var(--bad,#dc2626)">❌ ${esc(m.cancelReason)}</div>` : m.postponed && m.status !== 'livre' ? `<div class="d">📅 Reportée${m.postponeReason ? ' : ' + esc(m.postponeReason) : ''}</div>` : ''}
     <div class="d">${esc(m.client || 'Client')}${m.addr ? ' · ' + esc(m.addr) : ''}</div>
     <div class="d">🕐 Commandé ${m.date === today() ? "aujourd'hui" : 'le ' + fmtDate(m.date)}${m.ts ? ' à ' + hhmm(m.ts) : ''}</div>
     <div class="d">${m.status === 'livre' ? '✅ Livré ' + fmtDate(mday(m)) : '📅 ' + fmtDate(m.ddate || m.date) + (m.dtime ? ' ' + m.dtime.replace(':','h') : '')} · ${L ? '🛵 ' + esc(L.name) + ' (' + esc(L.city||'') + ')' : 'Vente directe'}</div></div>
@@ -2657,6 +2657,8 @@ function saleSheet(id, fresh){
       <p class="note" style="margin-top:8px"><b>Au client :</b></p><pre class="msg">${esc(rc)}</pre></details>
     <div class="f"><span>Statut</span><div class="seg">${Object.entries(STATUS).map(([k,l]) => `<button type="button" class="${m.status===k?'on':''}" data-a="status:${k}" data-id="${m.id}">${l}</button>`).join('')}</div></div>
     ${(m.status === 'attente' || m.status === 'encours') && isKit(prod(m.pid)) ? `<button class="btn block" style="margin:-4px 0 12px" data-a="ownswap:${m.id}">🔁 Le client a pris seulement une partie du pack</button>` : ''}
+    ${m.status === 'annule' && m.cancelReason ? `<p class="note" style="margin:-4px 0 12px;color:var(--bad,#dc2626)">❌ Annulé${m.cancelBy === 'livreur' ? ' par ' + esc(lname(m.liv)) : ''}${m.cancelAt ? ' le ' + fmtDate(m.cancelAt) : ''} : <b>${esc(m.cancelReason)}</b></p>` : ''}
+    ${m.postponed && m.status !== 'livre' && m.status !== 'annule' ? `<p class="note" style="margin:-4px 0 12px">📅 Reportée ${m.postponed} fois${m.postponeReason ? ' : <b>' + esc(m.postponeReason) + '</b>' : ''}</p>` : ''}
     ${m.swapped ? `<p class="note" style="margin:-4px 0 12px">🔁 Commande initiale : <b>${esc(pname(m.origPid))} × ${m.origQty}</b> (${amt(m.origQty * num(m.origPrice), m.cur)}) → livré : <b>${esc(pname(m.pid))} × ${m.qty}</b></p>` : ''}
     ${(m.status === 'attente' || m.status === 'encours') && m.qty > 1 ? `<button class="btn block" style="margin:-4px 0 12px" data-a="ownpart:${m.id}">🔢 Livré en partie (le client a pris moins)</button>` : ''}
     ${m.partial ? `<p class="note" style="margin:-4px 0 12px">🔢 Livré en partie : <b>${m.qty} sur ${m.qtyAsked}</b> commandé(s)</p>` : ''}
