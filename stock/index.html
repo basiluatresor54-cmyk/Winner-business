@@ -476,7 +476,8 @@ const feeTxt = () => num(S.settings.fee) ? amt(num(S.settings.fee), S.settings.f
 /* ---------- Calculs : stock ---------- */
 // Un pack (kit) se décompose en ses produits ; le stock est tenu sur les produits simples.
 function lines(pid, qty){ const p = prod(pid); return isKit(p) ? p.kit.map(c => [c.pid, c.q*qty]) : [[pid, qty]]; }
-const isOutSale = m => m.type === 'vente' && m.status !== 'annule';
+// Le stock ne sort qu'au moment où la vente est « Livrée » : une commande en attente ne bloque rien
+const isOutSale = m => m.type === 'vente' && m.status === 'livre';
 function stockAt(moves = S.moves){
   const st = {};
   const add = (loc, pid, q) => { const L = st[loc] = st[loc] || {}; L[pid] = (L[pid]||0) + q; };
@@ -719,7 +720,7 @@ function vHome(){
   S.livreurs.forEach(l => { const s = livStats(l.id); remit += s.toRemit; topay += s.toPay; });
   S.products.filter(p => !isKit(p)).forEach(p => { const q = Math.max(0, totalOf(st, p.id)); units += q; valBuy += q * unitCostUSD(p); });
   const noBuy = S.products.filter(p => !isKit(p) && !(num(p.buy) > 0));
-  const low = S.products.filter(p => !isKit(p) && totalOf(st, p.id) <= (p.alert||0));
+  const low = S.products.filter(p => !isKit(p) && totalOf(st, p.id) - pendAll(p.id) <= (p.alert||0));
   // Répartition de l'argent
   const parts = [['cost',"Coût d'achat des produits",r.cost],['comm','Commissions livreurs',r.comm],['dep','Dépenses',r.dep],['loss','Pertes / casse',r.loss],['net','Bénéfice net',Math.max(0,r.net)]];
   const base = Math.max(r.ca, parts.slice(0,4).reduce((s,x) => s + x[2], 0)) || 1;
@@ -901,7 +902,7 @@ function livForm(id){
 function livSheet(id){
   const l = liv(id); if(!l) return;
   const s = livStats(id), st = stockAt();
-  const rows = Object.entries(s.byProd).map(([pid,v]) => [pid, v, qAt(st, id, pid)]).filter(([,v,q]) => v.got || q).sort((a,b) => pname(a[0]).localeCompare(pname(b[0]),'fr'));
+  const rows = Object.entries(s.byProd).map(([pid,v]) => [pid, v, qAt(st, id, pid) - v.pend]).filter(([,v,q]) => v.got || q).sort((a,b) => pname(a[0]).localeCompare(pname(b[0]),'fr'));
   const hist = sortMoves(S.moves.filter(m => m.liv === id || m.loc === id)).slice(0,15);
   const report = livReport(l, s, rows);
   sheet(`${l.name} · ${l.city||''}`, `${l.photo ? `<div style="display:flex;gap:12px;align-items:center;margin-bottom:12px"><div class="avatar" style="width:64px;height:64px"><img src="${l.photo}" alt=""></div><div><b>${esc(l.name)}</b><br><span class="note">${esc(l.city||'')}${l.phone ? ' · ' + esc(l.phone) : ''}</span></div></div>` : ''}
@@ -1674,10 +1675,11 @@ function donutSVG(parts, total, center){
 })();
 
 /* ---------- Contrôle de stock (inventaire) ---------- */
+function pendAll(pid){ let q = 0; for(const m of S.moves) if(m.type === 'vente' && (m.status === 'attente' || m.status === 'encours')) for(const [x, n] of lines(m.pid, m.qty)) if(x === pid) q += n; return q; }
 function pendingAt(loc, pid){ let q = 0; for(const m of S.moves) if(m.type === 'vente' && (m.liv||'') === loc && (m.status === 'attente' || m.status === 'encours')) for(const [x, n] of lines(m.pid, m.qty)) if(x === pid) q += n; return q; }
 function invForm(loc){
   const st = stockAt(), name = loc ? lname(loc) : 'Dépôt (chez vous)', L = liv(loc);
-  const rows = S.products.filter(p => !isKit(p)).map(p => [p, qAt(st, loc, p.id) + pendingAt(loc, p.id)]).filter(([p, e]) => e || S.moves.some(m => m.pid === p.id && (m.liv === loc || m.loc === loc) && loc)).sort((a,b) => byName(a[0], b[0]));
+  const rows = S.products.filter(p => !isKit(p)).map(p => [p, qAt(st, loc, p.id)]).filter(([p, e]) => e || S.moves.some(m => m.pid === p.id && (m.liv === loc || m.loc === loc) && loc)).sort((a,b) => byName(a[0], b[0]));
   if(!rows.length){ toast(loc ? 'Ce livreur n\'a aucun stock à contrôler' : 'Aucun stock au dépôt'); return; }
   sheet('📋 Contrôle de stock · ' + name, `<p class="note" style="margin-bottom:10px">Comptez les pièces réellement en main${loc ? ' (demandez à ' + esc(L ? L.name : 'votre livreur') + ' de compter, y compris les commandes pas encore livrées)' : ''}, puis tapez le nombre compté. Les écarts sont enregistrés automatiquement.</p>
     <form id="invf"><div class="card tbw"><table class="tb"><tr><th>Produit</th><th class="rt">Attendu</th><th class="rt" style="width:90px">Compté</th></tr>
@@ -1764,7 +1766,7 @@ function soirData(lid, d){
   return r;
 }
 function soirText(l, r, d){
-  const st = stockAt(), stock = S.products.filter(p => !isKit(p)).map(p => [p, qAt(st, l.id, p.id) + pendingAt(l.id, p.id)]).filter(x => x[1] > 0);
+  const st = stockAt(), stock = S.products.filter(p => !isKit(p)).map(p => [p, qAt(st, l.id, p.id)]).filter(x => x[1] > 0);
   const fc = r.s.toRemit > 0.009 ? ' (≈ ' + fmt(Math.round(r.s.toRemit * rate() / 50) * 50) + ' ' + LC() + ')' : '';
   return `*${S.settings.shop} — Point du soir* 🌙\n${l.name} · ${dAbs(d, 1)}\n\n*Livré ${d === today() ? "aujourd'hui" : 'ce jour'} :*\n${Object.entries(r.sold).map(([pid,q]) => `• ${pname(pid)} × ${q}`).join('\n') || '• aucune livraison'}\nTotal : ${money(r.ca)}${l.pay === 'salaire' ? '' : '\nVotre commission : ' + money(r.comm)}${r.vers ? '\nDéjà reçu ce jour : ' + money(r.vers) : ''}\n\n*Montant à envoyer par Mobile Money : ${money(Math.max(0, r.s.toRemit))}*${fc}\n${r.pend ? '\nCommandes encore à livrer : ' + r.pend : ''}\n*Stock en main :*\n${stock.map(([p,q]) => `• ${p.name} : ${q}`).join('\n') || '• aucun'}\n\nMerci de vérifier et de répondre « OK » 🙏`;
 }
@@ -2174,6 +2176,11 @@ function moveForm(type, opt = {}){
   const srcLoc = () => type === 'entree' ? null : type === 'envoi' ? '' : (E.loc ? E.loc.value : '');
   const upd = () => {
     const p = prod(E.pid.value), loc = srcLoc();
+    if(p && loc !== null && type === 'vente'){
+      const have = avail(stEx, loc, p.id), pend = S.moves.filter(x => x.type === 'vente' && (!m || x.id !== m.id) && (x.liv || '') === loc && x.pid === p.id && (x.status === 'attente' || x.status === 'encours')).reduce((t, x) => t + x.qty, 0);
+      const free = have - pend, want = Math.round(num(E.qty.value)) || 0;
+      $('#avail').innerHTML = `<p class="note" style="margin:-4px 0 10px">En stock ${locName(loc)} : <b>${have}</b>${isKit(p) ? ' pack(s)' : ' pièce(s)'}${pend ? ` · déjà commandé (pas encore livré) : <b>${pend}</b> · libre : <b>${Math.max(0, free)}</b>` : ''}${want > free ? `<br><span style="color:var(--warn,#b45309)">⚠️ Pas assez de stock pour cette commande : elle sera quand même enregistrée. Le stock ne sort qu'au moment de « Livré » — pensez à réapprovisionner ${locName(loc)} avant.</span>` : ''}</p>`;
+    } else
     $('#avail').innerHTML = p && loc !== null ? `<p class="note" style="margin:-4px 0 10px">Disponible ${locName(loc)} : <b>${avail(stEx, loc, p.id)}</b>${isKit(p) ? ' pack(s)' : ' pièce(s)'}</p>` : '';
     if($('#curl') && p) $('#curl').textContent = p.cur === 'FC' ? 'en ' + LC() : 'en dollars ($)';
     if(type === 'vente' && p){
@@ -2368,9 +2375,10 @@ function setStatus(id, st, quiet, ld){
   const grp = st !== 'annule' && m.ord ? S.moves.filter(x => x.type === 'vente' && x.ord === m.ord && x.status === m.status && (x.liv || '') === (m.liv || '')) : [m];
   const ids = grp.map(x => x.id);
   const err = checkStock(S.moves.map(x => ids.includes(x.id) ? Object.assign({}, x, {status:st}) : x), grp.map(x => x.pid));
-  if(err){ toast(err); return; }
+  if(err){ toast(err + ' — faites d\'abord une entrée de stock ou un envoi au livreur, puis touchez « Livré ».'); return; }
+  const wasLivre = m.status === 'livre';
   grp.forEach(x => { x.status = st; if(st === 'livre') x.ldate = ld || today(); else delete x.ldate; }); save(); render(); if(!quiet) saleSheet(id);
-  if(st === 'livre') cheer('Livrée ✅ — commission comptée', 60); else toast(st === 'annule' ? 'Vente annulée — stock remis' : 'Statut : ' + STATUS[st]);
+  if(st === 'livre') cheer('Livrée ✅ — commission comptée', 60); else toast(st === 'annule' ? (wasLivre ? 'Vente annulée — stock remis' : 'Commande annulée') : 'Statut : ' + STATUS[st]);
 }
 
 /* ---------- Sauvegarde ---------- */
@@ -2755,7 +2763,7 @@ function stockUpdateForm(){
   const st = stockAt(), P = S.products.filter(p => !isKit(p)).sort((a,b) => byName(a, b));
   if(!P.length){ toast('Ajoutez d\'abord vos produits'); return; }
   const locs = [['', '🏠 Dépôt (chez vous)']].concat(S.livreurs.map(l => [l.id, '🛵 ' + l.name + (l.city ? ' (' + l.city + ')' : '')]));
-  const exp = (loc, pid) => qAt(st, loc, pid) + pendingAt(loc, pid);
+  const exp = (loc, pid) => qAt(st, loc, pid);
   const key = (loc, pid) => 'u_' + (loc || 'dep') + '_' + pid;
   sheet('📦 Mettre mon stock à jour', `<p class="note" style="margin-bottom:10px">Tapez ce que vous avez <b>réellement</b> à chaque endroit (les commandes pas encore livrées comprises). Ne changez que ce qui est différent. Les écarts sont corrigés et gardés dans l'historique ; vos ventes et votre argent ne changent pas.</p>
     <form id="suf">${locs.map(([loc, name], i) => {
