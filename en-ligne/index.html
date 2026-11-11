@@ -4283,7 +4283,12 @@ livSheet = function(id){
 };
 
 /* ---------- Écran du livreur ---------- */
-let MOI_REL = false;
+let MOI_REL = false, MOI_DAY = '';
+A.moiday = (v, el) => { MOI_DAY = v === 'pick' ? (el && el.value || '') : v; render(); };
+document.addEventListener('change', e => { if(e.target && e.target.id === 'moiDayIn'){ MOI_DAY = e.target.value || ''; render(); } });
+const moiNow = () => { const d = new Date(); return d.toLocaleDateString('fr-FR', {weekday:'long', day:'numeric', month:'long', year:'numeric'}).replace(/^./, c => c.toUpperCase()) + ' · 🕐 ' + String(d.getHours()).padStart(2,'0') + 'h' + String(d.getMinutes()).padStart(2,'0'); };
+setInterval(() => { const c = document.getElementById('moiClock'); if(c) c.textContent = '📅 ' + moiNow(); }, 20000);
+const moiLab = d => d === addDays(today(), 1) ? 'Demain' : fmtDate(d, true);
 A.moirel = v => { MOI_REL = v === '1'; relWeek = 0; render(); window.scrollTo(0,0); };
 CUSTOM.moi = () => {
   const lid = ONLINE.shop && ONLINE.shop.livreur_id, L = liv(lid);
@@ -4294,18 +4299,36 @@ CUSTOM.moi = () => {
   const todo = mine.filter(m => m.status === 'attente' || m.status === 'encours').sort((a,b) => ((a.ddate||a.date) + (a.dtime||'99')).localeCompare((b.ddate||b.date) + (b.dtime||'99')));
   const done = sortMoves(mine.filter(m => m.status === 'livre')).slice(0, 10);
   const stock = Object.entries(s.byProd).map(([pid,v]) => [pid, qAt(st, lid, pid) - v.pend, v.pend]).filter(x => x[1] || x[2]);
+  const T = today(), dd = m => m.ddate || m.date;
+  const late = todo.filter(m => dd(m) < T), nT = todo.filter(m => dd(m) === T).length, nD = todo.filter(m => dd(m) === addDays(T, 1)).length;
+  if(MOI_DAY === 'late' && !late.length) MOI_DAY = '';
+  const shown = MOI_DAY === 'late' ? late : MOI_DAY ? todo.filter(m => dd(m) === MOI_DAY) : todo;
+  const groups = []; shown.forEach(m => { const k = dd(m) < T ? 'late' : dd(m); let g = groups.find(x => x.k === k); if(!g) groups.push(g = {k, items:[]}); g.items.push(m); });
+  const gHead = g => g.k === 'late' ? `⚠️ En retard (${g.items.length})` : `📅 ${moiLab(g.k)}${g.k === T || g.k === addDays(T, 1) ? ' — ' + dAbs(g.k) : ''} (${g.items.length})`;
+  const chip = (v, lb) => `<button class="chip ${MOI_DAY === v ? 'on' : ''}" data-a="moiday:${v}">${lb}</button>`;
+  let daySum = '';
+  if(MOI_DAY && MOI_DAY !== 'late'){
+    const dl = mine.filter(m => m.status === 'livre' && mday(m) === MOI_DAY), an = mine.filter(m => m.status === 'annule' && dd(m) === MOI_DAY);
+    const pcs = dl.reduce((t, m) => t + m.qty, 0), cash = dl.reduce((t, m) => t + livCash(m), 0), com = dl.reduce((t, m) => t + m.qty*num(m.commU), 0);
+    daySum = `<div class="card" style="margin-bottom:10px"><b>📅 ${esc(dAbs(MOI_DAY, 1))}</b>
+      <div class="kv" style="margin-top:8px"><div><b class="num">${pcs}</b><span>Pièces livrées</span></div><div><b class="num">${money(cash)}</b><span>Encaissé</span></div><div><b class="num">${money(com)}</b><span>Commission</span></div></div>
+      ${dl.length ? `<div class="list" style="margin-top:8px">${sortMoves(dl).map(m => `<div class="it"><div class="ic c-in">${ico('cart')}</div><div class="m"><div class="t">${esc(pname(m.pid))} × ${m.qty}</div><div class="d">${esc(m.client || '')} · ✅ Livré${m.ts ? ' · commandée à ' + hhmm(m.ts) : ''}</div></div><div class="r num">${m.pre ? 'payé' : amt(m.qty*m.price, m.cur)}</div></div>`).join('')}</div>` : '<p class="note" style="margin-top:6px">Aucune livraison faite ce jour-là.</p>'}
+      ${an.length ? `<p class="note" style="margin-top:6px">❌ Annulée(s) ce jour : ${an.map(m => esc(m.client || pname(m.pid))).join(', ')}</p>` : ''}</div>`;
+  }
   const card = m => `<div class="card" style="margin-bottom:10px">
       <div style="display:flex;justify-content:space-between;gap:8px;align-items:center"><div style="display:flex;gap:10px;align-items:center">${prod(m.pid) && prod(m.pid).photo ? pic(prod(m.pid)) : ''}<b>${esc(pname(m.pid))} × ${m.qty}</b></div><span class="pill p-${m.status}">${STATUS[m.status]}</span></div>
       <div class="dl"><span>Client</span><span>${esc(m.client || '—')}</span></div>
       ${m.phone ? `<div class="dl"><span>Téléphone</span><span><a href="tel:${esc(m.phone)}">${esc(m.phone)}</a></span></div>` : ''}
       <div class="dl"><span>Adresse</span><span style="white-space:pre-line">${esc(m.addr || '—')}</span></div>
-      <div class="dl"><span>Livraison</span><span>${whenTxt(m)}</span></div>
+      <div class="dl strong"><span>📅 Livraison</span><span style="${dd(m) < T ? 'color:var(--bad,#dc2626)' : ''}">${moiLab(dd(m))}${m.dtime ? ' à ' + m.dtime.replace(':','h') : ''}${dd(m) < T ? ' (en retard)' : ''}</span></div>
+      ${m.ts ? `<div class="dl"><span>🕐 Commandée</span><span>${fmtDate(m.date || T, true)} à ${hhmm(m.ts)}</span></div>` : ''}
+      ${m.postponed ? `<div class="dl"><span>Reportée</span><span>${m.postponed} fois${m.postponeReason ? ' — ' + esc(m.postponeReason) : ''}</span></div>` : ''}
       ${(() => { const sh = shipOf(m); return sh ? `<div class="dl strong"><span>🚚 À expédier</span><span>${esc(shipLine(sh))}<br>Frais : ${amt(num(sh.fee), sh.cur)} (payés par le client)</span></div>` : ''; })()}
       <div class="dl strong"><span>À encaisser</span><span class="num">${m.pre ? '✅ Rien — déjà payé' : amt(m.qty*m.price, m.cur)}</span></div>
       <div class="dl"><span>Votre commission</span><span class="num">${money(m.qty*num(m.commU))}</span></div>
       ${m.note ? `<p class="note" style="margin-top:6px">📝 ${esc(m.note)}</p>` : ''}
       <div class="btns" style="margin-top:10px">${m.status === 'attente' ? `<button class="btn" data-a="livstat:encours" data-id="${m.id}">🛵 En route</button>` : `<a class="btn wa" href="${waLink(m.phone, 'Bonjour ' + (m.client||'') + ', je suis votre livreur ' + (L ? L.name : '') + ' de ' + S.settings.shop + '. J\'arrive avec votre commande.')}" target="_blank" rel="noopener">${ico('wa')} Client</a>`}<button class="btn primary" data-a="livstat:livre" data-id="${m.id}">✅ Livré</button></div><button class="btn ghost-bad block" style="margin-top:8px" data-a="livnot" data-id="${m.id}">❌ Pas livré : annulé ou reporté</button>${isKit(prod(m.pid)) ? `<button class="btn block" style="margin-top:8px" data-a="livswap" data-id="${m.id}">🔁 Le client a pris seulement une partie du pack</button>` : ''}${m.qty > 1 ? `<button class="btn block" style="margin-top:8px" data-a="livpart" data-id="${m.id}">🔢 Livré en partie (le client a pris moins)</button>` : ''}</div>`;
-  return `<div class="card" style="margin-bottom:12px"><b>${esc(L ? L.name : 'Livreur')}</b> · ${esc(L && L.city || '')}<br><span class="note">${esc(S.settings.shop)}</span></div>
+  return `<div class="card" style="margin-bottom:12px"><b>${esc(L ? L.name : 'Livreur')}</b> · ${esc(L && L.city || '')}<br><span class="note">${esc(S.settings.shop)}</span><div id="moiClock" style="margin-top:6px;font-weight:650;font-size:14px">📅 ${esc(moiNow())}</div></div>
   <div class="kpis">
     <div class="kpi"><div class="l">À livrer</div><div class="v num">${todo.length}</div><div class="s">commande(s)</div></div>
     <div class="kpi"><div class="l">Commission semaine</div><div class="v num">${money(s.week)}</div><div class="s">${s.weekN} livraison(s)</div></div>
@@ -4314,15 +4337,19 @@ CUSTOM.moi = () => {
   </div>
   <button class="btn primary block" style="margin-top:12px" data-a="decl">💸 J'ai envoyé l'argent</button>
   <button class="btn block" style="margin-top:8px" data-a="moirel:1">📄 Mon relevé de la semaine (commissions)</button>
-  <div class="sec"><h2>À livrer</h2></div>
-  ${todo.length ? todo.map(card).join('') : '<div class="card empty">Aucune livraison en attente 👍</div>'}
+  <div class="sec"><h2>📅 Mes livraisons par jour</h2></div>
+  <div class="chips" style="margin-bottom:8px">${chip('', 'Tout (' + todo.length + ')')}${late.length ? chip('late', '⚠️ En retard (' + late.length + ')') : ''}${chip(T, "Aujourd'hui (" + nT + ')')}${chip(addDays(T, 1), 'Demain (' + nD + ')')}</div>
+  <label class="f" style="margin-bottom:10px"><span>Choisir une date (calendrier)</span><input type="date" id="moiDayIn" value="${MOI_DAY && MOI_DAY !== 'late' ? MOI_DAY : ''}"></label>
+  ${daySum}
+  <div class="sec"><h2>À livrer${MOI_DAY === 'late' ? ' — en retard' : MOI_DAY ? ' — ' + esc(moiLab(MOI_DAY)) : ''}</h2></div>
+  ${shown.length ? groups.map(g => `<p style="font-weight:800;margin:10px 2px 6px;${g.k === 'late' ? 'color:var(--bad,#dc2626)' : ''}">${gHead(g)}</p>` + g.items.map(card).join('')).join('') : `<div class="card empty">${MOI_DAY ? 'Aucune livraison à faire ce jour-là 👍' : 'Aucune livraison en attente 👍'}</div>`}
   ${stock.length ? `<div class="sec"><h2>Mon stock</h2></div><div class="card"><table class="tb"><tr><th>Produit</th><th class="rt">Disponible</th><th class="rt">Réservé</th></tr>${stock.map(([pid,q,p]) => `<tr><td>${esc(pname(pid))}</td><td class="rt num"><b>${q}</b></td><td class="rt num">${p}</td></tr>`).join('')}</table></div>` : ''}
   ${notifCard()}
   ${flowHTML(lid, 15)}
   ${invHistHTML(lid)}
   ${declsOf(lid).length ? `<div class="sec"><h2>Mes versements</h2></div><div class="list">${declsOf(lid).slice(0, 8).map(d => declRow(d, false)).join('')}</div>` : ''}
   <div class="sec"><h2>Livrées récemment</h2></div>
-  <div class="list">${done.length ? done.map(m => `<button class="it" data-a="livldate" data-id="${m.id}"><div class="ic c-in">${ico('cart')}</div><div class="m"><div class="t">${esc(pname(m.pid))} × ${m.qty}</div><div class="d">${esc(m.client || '')} · ✅ Livré ${fmtDate(mday(m))} <span class="note">· changer la date</span></div></div><div class="r num">${amt(m.qty*m.price, m.cur)}</div></button>`).join('') : '<div class="empty">Rien pour le moment</div>'}</div>
+  <div class="list">${done.length ? done.map(m => `<button class="it" data-a="livldate" data-id="${m.id}"><div class="ic c-in">${ico('cart')}</div><div class="m"><div class="t">${esc(pname(m.pid))} × ${m.qty}</div><div class="d">${esc(m.client || '')} · ✅ Livré ${fmtDate(mday(m))}${m.ts ? ' · commandée à ' + hhmm(m.ts) : ''} <span class="note">· changer la date</span></div></div><div class="r num">${amt(m.qty*m.price, m.cur)}</div></button>`).join('') : '<div class="empty">Rien pour le moment</div>'}</div>
   <a class="btn block" style="margin-top:16px;text-decoration:none;text-align:center" href="guide-livreur.html" target="_blank" rel="noopener">📘 Guide du livreur</a>
   <div class="btns" style="margin-top:10px"><button class="btn" data-a="syncnow">↻ Actualiser</button><button class="btn ghost-bad" data-a="logout">Se déconnecter</button></div>`;
 };
