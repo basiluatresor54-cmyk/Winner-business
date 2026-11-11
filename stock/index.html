@@ -474,7 +474,9 @@ function phoneNorm(p){
   else if(d.startsWith('0')) d = (S.settings.cc || '') + d.slice(1);
   return d;
 }
-const waLink = (phone, text) => 'https://wa.me/' + phoneNorm(phone) + '?text=' + encodeURIComponent(text);
+const WIN_PC = /Windows NT/.test(navigator.userAgent) && !/Mobile|Android/.test(navigator.userAgent);
+const waSafe = t => WIN_PC ? String(t).replace(/[\u{10000}-\u{10FFFF}]\uFE0F?/gu, '').replace(/[\uFE0F\u200D]/g, '').replace(/^[ \t]+/gm, '').replace(/[ \t]{2,}/g, ' ').replace(/\*[ \t]+(?=\S)/g, '*').replace(/[ \t]+$/gm, '') : t;
+const waLink = (phone, text) => 'https://wa.me/' + phoneNorm(phone) + '?text=' + encodeURIComponent(waSafe(text));
 const cities = () => [...new Set(S.livreurs.map(l => l.city || 'Sans ville'))].sort((a,b) => a.localeCompare(b,'fr'));
 // Frais de livraison payés par le client au livreur : un prix par ville (sinon le prix « autres villes »)
 function feeFor(x){
@@ -1382,7 +1384,7 @@ function tplSheet(){
   sheet('Modèle de commande', `<p class="note" style="margin-bottom:10px">Envoyez ce message aux clients qui répondent à vos publicités. Quand ils le renvoient rempli, collez-le dans « Nouvelle vente » : tout se remplit seul.</p>
     <textarea class="code" readonly id="tplTx" style="min-height:220px">${esc(t)}</textarea>
     <div class="stack" style="margin-top:10px"><button class="btn primary block" id="tplCp">Copier le modèle</button>
-    <a class="btn wa block" href="https://wa.me/?text=${encodeURIComponent(t)}" target="_blank" rel="noopener">${ico('wa')} Ouvrir dans WhatsApp</a></div>`);
+    <a class="btn wa block" href="https://wa.me/?text=${encodeURIComponent(waSafe(t))}" target="_blank" rel="noopener">${ico('wa')} Ouvrir dans WhatsApp</a></div>`);
   $('#tplCp').onclick = () => { $('#tplTx').select(); copyText(t); };
 }
 function whenTxt(m){ const d = m.ddate || m.date; return fmtDate(d, true) + (m.dtime ? ' à ' + m.dtime.replace(':','h') : ''); }
@@ -1398,7 +1400,7 @@ function receiptLivreur(m){
   const tot = {}; items.forEach(it => tot[it.cur] = (tot[it.cur] || 0) + it.qty*it.price);
   const com = items.reduce((t, it) => t + it.qty*num(it.commU), 0);
   const prodTxt = items.length > 1 ? '📦 Produits :\n' + items.map(it => `• ${pname(it.pid)} × ${it.qty} — ${amt(it.qty*it.price, it.cur)}`).join('\n') : `📦 Produit : ${pname(m.pid)} × ${m.qty}`;
-  return `*BON DE LIVRAISON — ${st.shop}* 🛵\n\n📅 ${whenTxt(m)}\n👤 Client : ${m.client || '-'}\n📞 Téléphone : ${m.phone || '-'}\n📍 Adresse : ${m.addr || '-'}\n\n${prodTxt}${(() => { const sh = shipOf(m); return sh ? `\n\n🚚 *À EXPÉDIER vers ${shipLine(sh)}*\nFrais d'expédition : ${amt(num(sh.fee), sh.cur)} (payés par le client)` : ''; })()}\n${items.every(it => it.pre) ? '*✅ Déjà payé par le client — rien à encaisser*' : `*💵 Montant à encaisser : ${Object.entries(tot).map(([cu, v]) => amt(v, cu)).join(' + ')}*`}${fee && !shipOf(m) ? '\n🛵 Frais de livraison (pour vous) : ' + fee : ''}${com ? '\n💰 Votre commission : ' + money(com) : ''}${m.note ? '\n📝 Note : ' + m.note : ''}\n\n${shipOf(m) ? "Merci de déposer le colis à l'agence, puis d'envoyer la photo du bordereau et de marquer « Livré » 🙏" : items.every(it => it.pre) ? 'Merci de confirmer la livraison 🙏' : 'Merci de confirmer la livraison et de verser la recette ce soir par Mobile Money 🙏'}`;
+  return `*BON DE LIVRAISON — ${st.shop}* 🛵\n\n📅 ${whenTxt(m)}\n👤 Client : ${m.client || '-'}\n📞 Téléphone : ${m.phone || '-'}\n📍 Adresse : ${m.addr || '-'}\n\n${prodTxt}${(() => { const sh = shipOf(m); return sh ? `\n\n🚚 *À EXPÉDIER vers ${shipLine(sh)}*\nFrais d'expédition : ${amt(num(sh.fee), sh.cur)} (payés par le client)` : ''; })()}\n${items.every(it => it.pre) ? '*✅ Déjà payé par le client — rien à encaisser*' : `*💵 Montant à encaisser : ${Object.entries(tot).map(([cu, v]) => amt(v, cu)).join(' + ')}*`}${fee && !shipOf(m) ? '\n🛵 Frais de livraison (pour vous) : ' + fee : ''}${m.note ? '\n📝 Note : ' + m.note : ''}\n\n${shipOf(m) ? "Merci de déposer le colis à l'agence, puis d'envoyer la photo du bordereau et de marquer « Livré » 🙏" : '⏰ Merci de respecter le rendez-vous de livraison avec le client 🙏'}`;
 }
 
 /* ---------- Reçu en image (logo, couleurs, détail) ---------- */
