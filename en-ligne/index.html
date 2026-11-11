@@ -617,8 +617,8 @@ function navItems(){
   n.push(NAV[4]); return n;
 }
 const parentOf = v => v === 'import' && navItems().some(x => x[0] === 'import') ? '' : PARENT[v];
-const SUB = {import:'Commandes import (sur commande)', home:'Tableau de bord', stock:'Stock par produit', ventes:'Ventes & livraisons', livreurs:'Livreurs par ville', plus:'Plus', depenses:'Dépenses', livre:'Le Livre — toutes les opérations', reglages:'Réglages', clients:'Clients', rapport:'Rapport de la semaine', releve:'Relevé du livreur', jour:'Rapport du jour'};
-const PARENT = {import:'plus', depenses:'plus', livre:'plus', reglages:'plus', clients:'plus', rapport:'plus', releve:'livreurs', jour:'plus'};
+const SUB = {stockhist:'Historique du stock', import:'Commandes import (sur commande)', home:'Tableau de bord', stock:'Stock par produit', ventes:'Ventes & livraisons', livreurs:'Livreurs par ville', plus:'Plus', depenses:'Dépenses', livre:'Le Livre — toutes les opérations', reglages:'Réglages', clients:'Clients', rapport:'Rapport de la semaine', releve:'Relevé du livreur', jour:'Rapport du jour'};
+const PARENT = {stockhist:'stock', import:'plus', depenses:'plus', livre:'plus', reglages:'plus', clients:'plus', rapport:'plus', releve:'livreurs', jour:'plus'};
 
 /* ---------- Apparence : clair / sombre / automatique (réglage propre à chaque appareil) ---------- */
 const THEMES = {auto:'Automatique (comme le téléphone)', clair:'☀️ Clair (jour)', sombre:'🌙 Sombre (nuit)'};
@@ -659,7 +659,7 @@ function render(){
     <div class="grow"><h1>${esc(st.shop || 'Ma Boutique')}</h1><p>${SUB[view]}</p></div>`;
   $('#nav').innerHTML = navItems().map(([k,l,i]) => `<button data-a="nav:${k}" class="${nv===k?'on':''}">${ico(i)}<span>${l}</span></button>`).join('');
   $('#fab').style.display = (view === 'reglages' || view === 'plus') ? 'none' : '';
-  const V = {home:vHome, stock:vStock, ventes:vVentes, livreurs:vLivreurs, plus:vPlus, depenses:vDepenses, livre:vLivre, reglages:vReglages, import:vImport, clients:vClients, rapport:vRapport, releve:vReleve, jour:vJour};
+  const V = {home:vHome, stock:vStock, ventes:vVentes, livreurs:vLivreurs, plus:vPlus, depenses:vDepenses, livre:vLivre, reglages:vReglages, import:vImport, stockhist:vStockHist, clients:vClients, rapport:vRapport, releve:vReleve, jour:vJour};
   $('#main').innerHTML = (parentOf(view) ? `<button class="back noprint" data-a="nav:${parentOf(view)}">‹ Retour</button>` : '') + V[view]();
   const M = $('#main');
   if(view !== render.last){ M.classList.remove('enter'); void M.offsetWidth; M.classList.add('enter'); countUp(M); if(view === 'home') homeCheers(); }
@@ -768,7 +768,9 @@ function vHome(){
 /* ---------- Stock ---------- */
 function vStock(){
   return `<input class="search" type="search" placeholder="Rechercher un produit…" value="${esc(stockQ)}" oninput="stockQ=this.value;refreshList('stock')">
+  ${plansCard()}
   <div id="lst">${stockRows()}</div>
+  ${recentStockHTML()}
   <div class="btns" style="margin-top:12px"><button class="btn" data-a="new:entree">+ Entrée de stock</button><button class="btn" data-a="new:envoi">Envoyer à un livreur</button></div>
   <div style="margin-top:8px"><button class="btn block" data-a="new:produit">+ Nouveau produit</button></div>
   <div class="btns" style="margin-top:8px"><button class="btn primary" data-a="stockupd">📦 Mettre mon stock à jour</button><button class="btn" data-a="invform:">📋 Contrôle du dépôt</button></div>
@@ -1024,7 +1026,7 @@ function rowMove(m){
     case 'inventaire': { const L = m.lines || [], miss = L.reduce((t,x) => t + Math.max(0, x.exp - x.real), 0), plus = L.reduce((t,x) => t + Math.max(0, x.real - x.exp), 0);
       return R('inv', 'c-x', 'box', 'Contrôle de stock · ' + (m.loc ? esc(lname(m.loc)) : 'dépôt'), miss || plus ? `${miss ? miss + ' manquante(s)' : ''}${miss && plus ? ' · ' : ''}${plus ? plus + ' en trop' : ''}` : 'Tout est juste ✅', miss ? '−' + miss : '✓', miss ? 'var(--bad)' : 'var(--ok)', ''); }
     case 'cmd': return R('cmd', 'c-send', 'box', esc(m.title || 'Commande import'), `Commande import · ${esc(m.client||'Client')} · ${esc(stepOf(m.step)[1])}`, amtX(cmdCalc(m).total, m.cur), 'var(--brand-tx)', cmdNo(m));
-    case 'fourn': case 'trans': return '';
+    case 'fourn': case 'trans': case 'plan': return '';
     case 'ajust': return R('inv', 'c-in', 'in', esc(pname(m.pid)), 'Écart inventaire (en trop) · ' + (m.loc ? esc(lname(m.loc)) : 'dépôt'), '+' + m.qty, 'var(--ok)', '');
     case 'depense': return R('money', 'c-loss', 'receipt', esc(m.cat||'Dépense'), (m.liv ? esc(lname(m.liv)) + ' · ' : '') + (m.note ? esc(m.note) : 'Dépense'), '−'+amt(m.amount, m.cur), 'var(--warn)', m.cur==='FC' ? money(moneyUSD(m)) : '');
   }
@@ -1352,6 +1354,8 @@ function alertsCard(st, low){
     if(oldSale) out.push([`liv:${l.id}`, `💰 ${esc(l.name)} n'a pas versé ${money(s.toRemit)} (ventes d'avant aujourd'hui)`]);
   });
   if(low.length) out.push(['nav:stock', `📦 ${low.length} produit(s) en stock bas ou en rupture`]);
+  const due = plans().filter(p => p.date <= addDays(t, 2));
+  if(due.length) out.push(['nav:stock', `🛒 ${due.length} achat(s) prévu(s) ${due.some(p => p.date < t) ? 'en retard' : 'à faire bientôt'} : ${due.slice(0,3).map(p => esc(pname(p.pid))).join(', ')}`]);
   if(!out.length) return '';
   return `<div class="card" style="margin-bottom:12px;border-left:4px solid var(--warn)"><b>⚠️ À surveiller</b>${out.map(([a,txt]) => `<button class="link" style="display:block;text-align:left;margin-top:7px;font-weight:600;color:var(--ink)" data-a="${a}">${txt} ›</button>`).join('')}</div>`;
 }
@@ -2088,7 +2092,7 @@ function prodSheet(id){
   const p = prod(id); if(!p) return;
   const st = stockAt(), kit = isKit(p);
   const cu = unitCostUSD(p), su = toUSD(num(p.sell), p.cur), cm = commUFor(p, {pay:'produit'}, su), marge = su - cu - cm;
-  const hist = sortMoves(S.moves.filter(m => m.pid === id || (!kit && m.pid && isKit(prod(m.pid)) && prod(m.pid).kit.some(c => c.pid === id)))).slice(0,15);
+  const hist = sortMoves(S.moves.filter(m => m.type !== 'plan' && (m.pid === id || (!kit && m.pid && isKit(prod(m.pid)) && prod(m.pid).kit.some(c => c.pid === id))))).slice(0,15);
   const locs = S.livreurs.map(l => [l, kit ? avail(st, l.id, id) : qAt(st, l.id, id)]).filter(x => x[1]);
   sheet(p.name, `${p.photo ? `<img src="${p.photo}" alt="" style="width:100%;max-height:240px;object-fit:cover;border-radius:14px;margin-bottom:12px">` : ''}
     ${kit ? `<div class="warnbox" style="background:var(--vio-soft);color:var(--vio)">Pack : ${p.kit.map(c => c.q + ' × ' + esc(pname(c.pid))).join(' + ')}. Les quantités ci-dessous = nombre de packs possibles.</div>` : ''}
@@ -2216,6 +2220,7 @@ function moveForm(type, opt = {}){
     if(err){ toast(err); return; }
     S.moves = next;
     if(type === 'entree' && !m && rec.cost > 0) p.buy = rec.cost;
+    if(type === 'entree' && !m && opt.plan){ const pl = S.moves.find(x => x.id === opt.plan); if(pl) pl.done = rec.date; }
     S.settings.setup = true; save();
     toast(m ? 'Modification enregistrée' : more.length ? `${more.length + 1} ventes enregistrées (une par produit)` : {entree:'Entrée ajoutée au dépôt', envoi:'Stock envoyé au livreur', retour:'Retour enregistré', vente:'Vente enregistrée', perte:'Sortie enregistrée'}[type]);
     if(type === 'vente' && !m){ if(window.onSaleCreated) try{ onSaleCreated(rec); }catch(_){} saleTab = status; render(); saleSheet(rec.id, true); }
@@ -2459,6 +2464,7 @@ const A = {
   sale: id => saleSheet(id),
   editsale: id => moveForm(null, {id}),
   move: id => moveForm(null, {id}),
+  invsheet: id => invSheet(id),
   money2: id => moneyForm(null, {id}),
   status: (v, el) => { const id = el.dataset.id; if(v === 'livre') livreDatePick(id, d => setStatus(id, 'livre', false, d)); else setStatus(id, v); },
   delmove: async id => {
@@ -2508,6 +2514,11 @@ const A = {
   tpl: () => tplSheet(),
   startempty: () => setupSheet(),
   stockupd: () => stockUpdateForm(),
+  shtype: v => { shType = v; render(); },
+  shper: v => { shPer = v; render(); },
+  planform: v => planForm(v || null),
+  plandel: async id => { if(!await ask('Supprimer cet achat prévu ?', 'Supprimer')) return; S.moves = S.moves.filter(m => m.id !== id); save(); closeSheet(); render(); },
+  plandone: id => { const pl = S.moves.find(m => m.id === id); if(!pl) return; moveForm('entree', {pid: pl.pid, plan: pl.id}); const f = $('#mf'); if(f){ f.elements.qty.value = pl.qty; if(f.elements.cost && num(pl.cost)) f.elements.cost.value = pl.cost; if(f.elements.note && pl.sup) f.elements.note.value = 'Achat chez ' + pl.sup; f.dispatchEvent(new Event('input')); } },
   freshstart: () => freshStartSheet(),
   reset: async () => {
     if(!await ask('Effacer TOUTES les données (produits, livreurs, ventes, livre) ? Pensez à exporter une sauvegarde avant.', 'Tout effacer')) return;
@@ -2526,6 +2537,78 @@ function livreDatePick(id, cb, extra){
   $('#ldOk').onclick = () => { const v = $('#ldIn').value; if(!v) return; if(v > t){ toast('La date ne peut pas être dans le futur'); return; } cb(v); };
 }
 A.ldate = id => livreDatePick(id, d => { const m = S.moves.find(x => x.id === id); if(!m) return; m.ldate = d; save(); render(); saleSheet(id); toast('Date de livraison : ' + dAbs(d, 1)); });
+
+
+/* ---------- Historique du stock (avec dates) ---------- */
+const STOCK_TYPES = ['entree','envoi','retour','perte','ajust','inventaire'];
+let shType = 'all', shPid = '', shLoc = '*', shPer = 'tout';
+const shLabel = m => ({entree:['📥','Achat / entrée au dépôt','green'], envoi:['🛵','Donné à ' + lname(m.liv),''], retour:['↩️','Rendu au dépôt par ' + lname(m.liv),''], perte:['❌', (m.motif === 'Écart inventaire' ? 'Manquant (contrôle)' : 'Perte' + (m.motif ? ' · ' + m.motif : '')) + ' · ' + (m.loc ? lname(m.loc) : 'Dépôt'),'red'], ajust:['➕','En trop (contrôle) · ' + (m.loc ? lname(m.loc) : 'Dépôt'),'green'], inventaire:['📋','Contrôle de stock · ' + (m.loc ? lname(m.loc) : 'Dépôt'),''], vente:['🛒','Vendu' + (m.liv ? ' par ' + lname(m.liv) : ' (dépôt)') + (m.client ? ' · ' + m.client : ''),'']})[m.type];
+function stockHistMoves(){
+  const inPerSh = d => shPer === 'tout' || inPer(d, shPer);
+  return S.moves.filter(m => {
+    const isSale = m.type === 'vente' && m.status === 'livre';
+    if(!(STOCK_TYPES.includes(m.type) || isSale)) return false;
+    if(shType === 'all' && isSale) return false;
+    if(shType !== 'all' && shType !== 'tout+v' && !(shType === 'ecart' ? (m.type === 'ajust' || (m.type === 'perte' && m.motif === 'Écart inventaire') || m.type === 'inventaire') : shType === 'vente' ? isSale : m.type === shType)) return false;
+    if(shPid && m.type !== 'inventaire' && !lines(m.pid, m.qty).some(([pid]) => pid === shPid)) return false;
+    if(shPid && m.type === 'inventaire' && !(m.lines || []).some(l => l.pid === shPid)) return false;
+    if(shLoc !== '*'){ const loc = m.type === 'envoi' || m.type === 'retour' || m.type === 'vente' ? (m.liv || '') : (m.loc || ''); if(loc !== shLoc) return false; }
+    return inPerSh(mday(m));
+  }).sort((a, b) => (mday(b) || '').localeCompare(mday(a) || '') || (b.ts || 0) - (a.ts || 0));
+}
+function shRow(m){
+  const [ic, lab, col] = shLabel(m); const P = prod(m.pid);
+  if(m.type === 'inventaire'){ const d = (m.lines || []).filter(l => l.real !== l.exp);
+    return `<button class="it" data-a="invsheet:${m.id}"><div class="ic c-x">${ic}</div><div class="m"><div class="t">${esc(lab)}</div><div class="d">${(m.lines || []).length} produit(s) comptés · ${d.length ? '<b class="red">' + d.length + ' écart(s)</b>' : '✅ aucun écart'}${m.note ? ' · ' + esc(m.note) : ''}</div></div></button>`; }
+  const sign = ['entree','ajust'].includes(m.type) ? '+' : m.type === 'envoi' || m.type === 'retour' ? '' : '−';
+  const cost = m.type === 'entree' && num(m.cost) ? ' · achat ' + amt(m.cost, P ? P.cur : '$') + '/pièce' : '';
+  return `<button class="it" data-a="${m.type === 'vente' ? 'sale' : 'move'}:${m.id}"><div class="ic c-x">${ic}</div><div class="m"><div class="t">${esc(pname(m.pid))}</div><div class="d">${esc(lab)}${cost}${m.note && m.type !== 'perte' && m.type !== 'ajust' ? ' · ' + esc(m.note) : ''}</div></div><div class="r"><b class="num ${col}">${sign}${m.qty}</b></div></button>`;
+}
+function vStockHist(){
+  const L = stockHistMoves(), groups = {};
+  L.forEach(m => (groups[mday(m)] = groups[mday(m)] || []).push(m));
+  const T = [['all','Tout le stock'],['entree','📥 Achats'],['envoi','🛵 Donnés aux livreurs'],['retour','↩️ Retours'],['perte','❌ Pertes'],['ecart','📋 Contrôles'],['vente','🛒 Ventes livrées']];
+  const first = S.moves.filter(m => STOCK_TYPES.includes(m.type)).map(m => m.date).sort()[0];
+  return `<p class="note" style="margin-bottom:10px">Chaque mouvement de stock avec sa date${first ? ', depuis le <b>' + dAbs(first, 1) + '</b>' : ''}.</p>
+  <div class="chips">${T.map(([k, l]) => `<button class="chip ${shType === k ? 'on' : ''}" data-a="shtype:${k}">${l}</button>`).join('')}</div>
+  <div style="display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:8px;margin:10px 0">
+    <select id="shPid" style="width:100%;min-width:0">${[['', 'Tous les produits']].concat(S.products.filter(p => !isKit(p)).map(p => [p.id, p.name])).map(([v, l]) => `<option value="${v}" ${shPid === v ? 'selected' : ''}>${esc(l)}</option>`).join('')}</select>
+    <select id="shLoc" style="width:100%;min-width:0">${[['*', 'Tous les endroits'], ['', 'Dépôt']].concat(S.livreurs.map(l => [l.id, l.name])).map(([v, l]) => `<option value="${v}" ${shLoc === v ? 'selected' : ''}>${esc(l)}</option>`).join('')}</select></div>
+  <div class="chips" style="margin-bottom:10px">${[['tout','Depuis le début'],['mois','Ce mois'],['sem','Cette semaine']].map(([k, l]) => `<button class="chip ${shPer === k ? 'on' : ''}" data-a="shper:${k}">${l}</button>`).join('')}</div>
+  ${L.length ? Object.entries(groups).map(([d, ms]) => `<div class="sec" style="margin-top:14px"><h2>📅 ${esc(dAbs(d, 1))}</h2></div><div class="list">${ms.map(shRow).join('')}</div>`).join('') : '<div class="card empty"><b>Aucun mouvement</b>Rien pour ce filtre.</div>'}`;
+}
+function recentStockHTML(){
+  const L = S.moves.filter(m => STOCK_TYPES.includes(m.type) && m.type !== 'inventaire').sort((a, b) => (b.date || '').localeCompare(a.date || '') || (b.ts || 0) - (a.ts || 0)).slice(0, 4);
+  if(!L.length) return '';
+  return `<div class="sec" style="margin-top:16px"><h2>🕘 Derniers mouvements</h2><button class="link" data-a="nav:stockhist">Tout l'historique ›</button></div>
+  <div class="list">${L.map(m => { const [ic, lab, col] = shLabel(m); return `<button class="it" data-a="move:${m.id}"><div class="ic c-x">${ic}</div><div class="m"><div class="t">${esc(pname(m.pid))} <span class="num ${col}">${['entree','ajust'].includes(m.type) ? '+' : m.type === 'perte' ? '−' : ''}${m.qty}</span></div><div class="d">📅 ${esc(dAbs(m.date))} · ${esc(lab)}</div></div></button>`; }).join('')}</div>`;
+}
+/* ---------- Achats prévus ---------- */
+const plans = () => S.moves.filter(m => m.type === 'plan' && !m.done).sort((a, b) => (a.date || '').localeCompare(b.date || ''));
+function plansCard(){
+  const L = plans(), t = today();
+  return `<div class="card" style="margin-bottom:12px"><div style="display:flex;justify-content:space-between;align-items:center;gap:8px"><b>🛒 Achats prévus</b><button class="btn sm" data-a="planform">+ Prévoir un achat</button></div>
+  ${L.length ? `<div class="list" style="margin-top:10px">${L.map(m => { const late = m.date < t, soon = !late && m.date <= addDays(t, 3);
+    return `<div class="it" style="cursor:default;flex-wrap:wrap"><div class="ic c-in">${ico('in')}</div><div class="m" style="min-width:0;flex:1"><div class="t" style="white-space:normal">${esc(pname(m.pid))} × ${m.qty}</div><div class="d"><b class="${late ? 'red' : soon ? '' : ''}" style="${soon ? 'color:var(--warn,#b45309)' : ''}">📅 ${late ? 'En retard · ' : ''}${esc(dAbs(m.date, 1))}</b>${m.sup ? ' · ' + esc(m.sup) : ''}${num(m.cost) ? ' · ' + amt(m.cost, (prod(m.pid) || {}).cur || '$') + '/pièce' : ''}${m.note ? ' · ' + esc(m.note) : ''}</div></div>
+      <div style="display:flex;gap:6px;width:100%;margin-top:8px"><button class="btn sm primary" style="flex:1" data-a="plandone:${m.id}">✅ Acheté (entrer au stock)</button><button class="btn sm" data-a="planform:${m.id}">✎ Modifier</button></div></div>`; }).join('')}</div>` : '<p class="note" style="margin-top:6px">Notez ici ce que vous devez racheter et quand : vous recevrez un rappel.</p>'}</div>`;
+}
+function planForm(id){
+  const m = id ? S.moves.find(x => x.id === id) : null, P = S.products.filter(p => !isKit(p));
+  if(!P.length){ toast('Ajoutez d\'abord vos produits'); return; }
+  sheet(m ? 'Modifier l\'achat prévu' : '🛒 Prévoir un achat', `<form id="plf">
+    ${field('Produit *', `<select name="pid">${P.map(p => `<option value="${p.id}" ${m && m.pid === p.id ? 'selected' : ''}>${esc(p.name)}</option>`).join('')}</select>`)}
+    <div class="row2">${field('Quantité *', `<input name="qty" type="number" min="1" step="1" required value="${m ? m.qty : 10}">`)}${field('Date prévue de l\'achat *', `<input name="date" type="date" required value="${m ? m.date : addDays(today(), 7)}">`)}</div>
+    <div class="row2">${field('Prix d\'achat prévu (pièce)', `<input name="cost" type="number" step="any" min="0" value="${m ? (m.cost || '') : ''}">`)}${field('Fournisseur', `<input name="sup" value="${esc(m?.sup)}" placeholder="Optionnel">`)}</div>
+    ${field('Note', `<input name="note" value="${esc(m?.note)}" placeholder="Ex : commander chez …">`)}
+    <button class="btn primary block">${m ? 'Enregistrer' : 'Ajouter'}</button>
+    ${m ? `<button type="button" class="btn ghost-bad block" style="margin-top:8px" data-a="plandel:${m.id}">Supprimer</button>` : ''}</form>`);
+  const f = $('#plf'), E = f.elements;
+  if(!m){ const P0 = prod(E.pid.value); if(P0 && P0.buy) E.cost.value = P0.buy; E.pid.onchange = () => { const q = prod(E.pid.value); if(q && q.buy) E.cost.value = q.buy; }; }
+  f.onsubmit = e => { e.preventDefault(); e.stopPropagation();
+    const d = {pid:E.pid.value, qty:Math.max(1, Math.round(num(E.qty.value))), date:E.date.value, cost:num(E.cost.value), sup:E.sup.value.trim(), note:E.note.value.trim()};
+    if(m) Object.assign(m, d); else S.moves.push(Object.assign({id:uid(), type:'plan', ts:Date.now()}, d));
+    save(); closeSheet(); render(); toast(m ? 'Achat prévu modifié' : 'Achat prévu ajouté — rappel le ' + dAbs(d.date, 1)); };
+}
 
 /* ---------- Mettre tout le stock à jour (un seul écran) & Nouveau départ ---------- */
 function stockUpdateForm(){
@@ -2931,6 +3014,7 @@ Object.assign(A, {
     if(!await ask(`Marquer les ${cs.length} commande(s) du lot « ${n} » comme arrivées ?`, 'Oui, arrivé', false)) return;
     cs.forEach(c => { c.step = 'arrive'; c.steps = Object.assign({}, c.steps, {arrive: today()}); }); save(); render(); lotNotify(cs, '📦 Lot « ' + n + ' » arrivé'); }
 });
+document.addEventListener('change', e => { if(e.target.id === 'shPid'){ shPid = e.target.value; render(); } else if(e.target.id === 'shLoc'){ shLoc = e.target.value; render(); } });
 document.addEventListener('input', e => { if(e.target.id === 'impQ'){ impQ = e.target.value; const p = e.target.selectionStart; render(); const i = $('#impQ'); if(i){ i.focus(); try{ i.setSelectionRange(p, p); }catch(_){} } } });
 
 // les lignes « argent » du livre ouvrent le formulaire d'argent
@@ -3408,7 +3492,7 @@ document.addEventListener('visibilitychange', () => { if(document.visibilityStat
 setInterval(() => { if(document.visibilityState !== 'hidden') syncNow(); }, 45000);
 
 // Lecture seule quand l'abonnement est inactif (ou pour un rôle sans droit d'écriture)
-const WRITE_ACTIONS = ['stockupd','freshstart','new','quick','invform','invdel','money','status','delmove','delprod','editprod','editsale','editliv','newliv','delliv','color','rmlogo','demo','reset','restore','importwb','preset','cmdnew','cmdedit','cmdpay','cmdstep','cmdcancel','cmddel','paydel','lotarrive','fourndel','transdel','transedit'];
+const WRITE_ACTIONS = ['stockupd','freshstart','planform','plandel','plandone','new','quick','invform','invdel','money','status','delmove','delprod','editprod','editsale','editliv','newliv','delliv','color','rmlogo','demo','reset','restore','importwb','preset','cmdnew','cmdedit','cmdpay','cmdstep','cmdcancel','cmddel','paydel','lotarrive','fourndel','transdel','transedit'];
 document.addEventListener('click', e => {
   if(!ONLINE.shop || shopWritable() || e.target.closest('#auth') || e.target.closest('#declf') || view === 'admin' || view === 'equipe') return;
   const t = e.target.closest('[data-a], #fab, form button:not([type=button])'); if(!t) return;
