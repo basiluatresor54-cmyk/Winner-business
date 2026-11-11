@@ -725,9 +725,29 @@ function installCard(){
     <div class="btns" style="margin-top:8px"><button class="btn primary sm" data-a="install">${installEvt ? 'Installer' : 'Comment faire ?'}</button><button class="btn sm" data-a="insthide">Plus tard</button></div></div></div>`;
 }
 
+// Vos premiers pas : guide de démarrage pour les nouveaux comptes (disparaît une fois fini)
+function onbSteps(){
+  const st = S.settings, sales = S.moves.some(m => m.type === 'vente');
+  const steps = [['📦', 'Ajouter votre premier produit (prix d\'achat et de vente)', S.products.length > 0, 'new:produit']];
+  if(has('liv')) steps.push(['🛵', 'Ajouter votre premier livreur', S.livreurs.length > 0, 'newliv']);
+  steps.push(['📥', 'Enregistrer votre stock (entrée de stock)', S.moves.some(m => m.type === 'entree' || m.type === 'inventaire'), 'new:entree']);
+  steps.push(has('shop') && !has('liv') ? ['⚡', 'Faire votre première vente', sales, 'quick'] : ['🧾', 'Enregistrer votre première vente', sales, 'new:vente']);
+  steps.push(['🏷️', 'Ajouter votre logo (il apparaît sur vos factures)', !!st.logo, 'nav:reglages']);
+  return steps;
+}
+function onbCard(){
+  if(S.settings.onbOff) return '';
+  const steps = onbSteps(), done = steps.filter(x => x[2]).length;
+  if(done === steps.length) return '';
+  const next = steps.find(x => !x[2]);
+  return `<div class="card" style="margin-bottom:12px;border:2px solid var(--brand)"><div style="display:flex;justify-content:space-between;align-items:center;gap:8px"><b>🚀 Vos premiers pas (${done}/${steps.length})</b><button class="link" data-a="onboff" style="font-size:12px">Masquer</button></div>
+    <div style="height:6px;border-radius:6px;background:var(--line,#e5e7eb);margin:10px 0 8px;overflow:hidden"><div style="height:100%;width:${Math.round(done / steps.length * 100)}%;background:var(--brand)"></div></div>
+    <div class="list">${steps.map(([ic, t, ok, a]) => `<button class="it" ${ok ? 'style="opacity:.6;cursor:default"' : `data-a="${a}"`}><div class="ic ${ok ? 'c-in' : 'c-brand'}">${ok ? '✅' : ic}</div><div class="m"><div class="t" style="white-space:normal;${ok ? 'text-decoration:line-through' : ''}">${t}</div>${!ok && next && next[1] === t ? '<div class="d"><b>👉 À faire maintenant</b></div>' : ''}</div>${ok ? '' : ico('chev')}</button>`).join('')}</div>
+    <p class="note" style="margin-top:8px">5 minutes suffisent. Besoin d'aide ? <a href="guide.html" target="_blank" rel="noopener">Guide</a> ou WhatsApp BASILUA TECH.</p></div>`;
+}
 function vHome(){
   if(!sells() && has('imp')){ const cvi = S.settings.cover ? `<div class="cover" style="background-image:url('${S.settings.cover}')"></div>` : ''; return `${cvi}${installCard()}${vImport()}`; }
-  if(!S.products.length) return `${installCard()}${impHomeCard()}<div class="card empty" style="margin-top:8px"><b>Bienvenue 👋</b>Ajoutez vos produits pour commencer.
+  if(!S.products.length) return `${onbCard()}${installCard()}${impHomeCard()}<div class="card empty" style="margin-top:8px"><b>Bienvenue 👋</b>Ajoutez vos produits pour commencer.
     <div class="stack" style="margin-top:16px">${PRESET ? `<button class="btn primary block" data-a="preset">Charger le catalogue ${esc(PRESET.label)}</button>` : ''}
     <button class="btn ${PRESET?'':'primary'} block" data-a="new:produit">Ajouter un produit</button><button class="btn block" data-a="demo">Essayer avec des exemples</button></div></div>`;
   const r = stats(period), st = stockAt();
@@ -749,7 +769,7 @@ function vHome(){
   const quick = modeOf() !== 'livraison' ? `<button class="btn primary block quickbtn" data-a="quick">⚡ Vente rapide</button>
   <button class="card daycard" data-a="jourset:${today()}"><span>Aujourd'hui : <b>${td.n}</b> vente(s) · <b class="num">${money(td.ca)}</b></span><span class="note">Rapport du jour ›</span></button>` : '';
   const cv = S.settings.cover ? `<div class="cover" style="background-image:url('${S.settings.cover}')"><div class="cv"><div class="logo">${S.settings.logo ? `<img src="${S.settings.logo}" alt="">` : esc(initials(S.settings.shop))}</div><div><b>${esc(S.settings.shop || '')}</b><span>${greet()} · ${dAbs(today(), 1)}</span></div></div></div>` : '';
-  return `${cv}${installCard()}${impHomeCard()}${quick}${goalsCard()}${alertsCard(st, low)}${periodChips(period,'per')}
+  return `${cv}${onbCard()}${installCard()}${impHomeCard()}${quick}${goalsCard()}${alertsCard(st, low)}${periodChips(period,'per')}
   ${noBuy.length ? `<button class="warnbox" style="margin-top:10px" data-a="nav:stock">⚠️ ${noBuy.length} produit${noBuy.length>1?'s':''} sans prix d'achat : le bénéfice affiché est trop élevé. Touchez ici pour les compléter.</button>` : ''}
   <div class="kpis" style="margin-top:10px">
     <div class="kpi hero"><div class="l">Bénéfice net ${per}</div><div class="v num ${r.net<0?'neg':''}">${money(r.net)}</div><div class="s">sur ${money(r.ca)} de ventes livrées (${r.nv})</div></div>
@@ -2472,6 +2492,7 @@ function saleSheet(id, fresh){
       ${L ? `<p class="note" style="margin-top:8px"><b>Au livreur :</b></p><pre class="msg">${esc(rl)}</pre>` : ''}
       <p class="note" style="margin-top:8px"><b>Au client :</b></p><pre class="msg">${esc(rc)}</pre></details>
     <div class="f"><span>Statut</span><div class="seg">${Object.entries(STATUS).map(([k,l]) => `<button type="button" class="${m.status===k?'on':''}" data-a="status:${k}" data-id="${m.id}">${l}</button>`).join('')}</div></div>
+    ${(() => { const ol = orderLines(m).filter(x => x.status !== 'annule' && x.status !== 'livre'); return ol.length > 1 ? `<button class="btn ghost-bad block" style="margin:-4px 0 12px" data-a="cancelorder:${m.id}">❌ Annuler toute la commande (${ol.length} produits)</button>` : ''; })()}
     ${m.status === 'annule' && (m.phone || m.client) ? `<button class="btn block" style="margin:-4px 0 12px" data-a="promsale:${m.id}">🤝 Relancer ce client plus tard (noter une promesse)</button>` : ''}
     ${m.status === 'livre' ? `<button class="btn block" style="margin:-4px 0 12px" data-a="ldate:${m.id}">✅ Livrée ${fmtDate(mday(m), true)} · changer la date</button>` : ''}
     <div class="card" style="margin-bottom:12px">
@@ -2630,6 +2651,10 @@ const A = {
   scity: v => { saleCity = v; render(); },
   close: () => closeSheet(),
   fab: () => fabSheet(),
+  cancelorder: async id => { const m = S.moves.find(x => x.id === id); if(!m) return; const ol = orderLines(m).filter(x => x.status !== 'annule' && x.status !== 'livre');
+    if(!await ask(`Annuler toute la commande de ${esc(m.client || 'ce client')} ? (${ol.map(x => esc(pname(x.pid)) + ' × ' + x.qty).join(', ')})`, 'Annuler la commande', true)) return;
+    ol.forEach(x => { x.status = 'annule'; delete x.ldate; }); save(); render(); saleSheet(id); toast('Commande annulée (' + ol.length + ' produits)'); },
+  onboff: () => { S.settings.onbOff = true; save(); render(); toast('Guide masqué (toujours dans Plus → Guide)'); },
   new: (t, el) => t === 'produit' ? productForm() : moveForm(t, {pid: el.dataset.pid, liv: el.dataset.liv}),
   money: (t, el) => moneyForm(t, {liv: el.dataset.liv}),
   prod: id => prodSheet(id),
