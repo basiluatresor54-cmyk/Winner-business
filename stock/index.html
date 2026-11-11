@@ -1372,6 +1372,11 @@ function alertsCard(st, low){
     if(oldSale) out.push([`liv:${l.id}`, `💰 ${esc(l.name)} n'a pas versé ${money(s.toRemit)} (ventes d'avant aujourd'hui)`]);
   });
   if(low.length) out.push(['nav:stock', `📦 ${low.length} produit(s) en stock bas ou en rupture`]);
+  const hh = String(new Date().getHours()).padStart(2, '0');
+  const rems = S.moves.filter(m => m.type === 'vente' && (m.status === 'attente' || m.status === 'encours') && m.rem && m.rem.slice(0, 10) === t && m.rem.slice(11, 13) <= hh);
+  rems.forEach(m => out.push([`sale:${m.id}`, `🔔 Rappel : ${esc(pname(m.pid))} × ${m.qty} pour ${esc(m.client || 'un client')} — livraison ${esc(whenTxt(m))}`]));
+  const tom = S.moves.filter(m => m.type === 'vente' && (m.status === 'attente' || m.status === 'encours') && (m.ddate || m.date) === addDays(t, 1));
+  if(tom.length) out.push(['nav:ventes', `📅 ${tom.length} commande(s) réservée(s) à livrer demain : ${tom.slice(0, 3).map(m => esc(m.client || pname(m.pid))).join(', ')}`]);
   const pr = promises().filter(p => p.date <= t);
   if(pr.length) out.push(['clientsprom', `🤝 ${pr.length} client(s) à relancer (promesse) : ${pr.slice(0,3).map(p => esc(p.client || p.phone)).join(', ')}`]);
   const due = plans().filter(p => p.date <= addDays(t, 2));
@@ -1424,11 +1429,44 @@ function clientRows(list){
   if(clientTab === 'annules') return list.slice(0, 300).map(c => `<button class="it" data-a="client:${esc(c.key)}"><div class="ic c-loss">${esc(initials(c.name || '?'))}</div><div class="m"><div class="t">${esc(c.name || 'Sans nom')}</div><div class="d">${esc(c.phone || '—')} · ❌ ${esc(pname(c.annPid))} annulé ${fmtDate(c.lastAnn)}${relDate(c.key) ? ' · <b>relancé ' + fmtDate(relDate(c.key)) + '</b>' : ''}</div></div>${ico('chev')}</button>`).join('');
   return list.slice(0, 300).map(c => { const d = daysSince(c.last); return `<button class="it" data-a="client:${esc(c.key)}"><div class="ic c-out">${esc(initials(c.name || '?'))}</div><div class="m"><div class="t">${esc(c.name || 'Sans nom')}</div><div class="d">${esc(c.phone || '—')}${c.addr ? ' · ' + esc(c.addr.split('\n')[0]) : ''}</div><div class="d">${c.n} achat(s) · dernier ${d === 0 ? "aujourd'hui" : 'il y a ' + d + ' j'}</div></div><div class="r"><b class="num">${money(c.total)}</b>${d > 30 ? '<div><span class="pill p-attente">À relancer</span></div>' : ''}</div></button>`; }).join('');
 }
-function relanceText(c){
-  if(annToRelance(c)){ const pa = pname(c.annPid);
-    return `Bonjour ${c.name || ''} 👋\nC'est ${S.settings.shop}. Votre commande${pa && pa !== 'Produit supprimé' ? ' de ' + pa : ''} n'a pas pu être livrée l'autre jour.\nElle est toujours disponible pour vous 😊 On peut vous livrer aujourd'hui ou demain : à quelle heure cela vous arrange ?`; }
-  const p = pname(c.lastPid);
-  return `Bonjour ${c.name || ''} 👋\nC'est ${S.settings.shop}. Merci encore pour votre achat${p && p !== 'Produit supprimé' ? ' (' + p + ')' : ''} !\nNous avons du nouveau stock et nous livrons rapidement. Voulez-vous passer une nouvelle commande ? 😊`;
+// ---------- Messages de relance (marketing) ----------
+function mkCtx(name, pid){
+  const st = S.settings, p = pid ? pname(pid) : '', prod_ = p && p !== 'Produit supprimé' ? p : '';
+  const villes = cities().filter(c => c && c !== 'Sans ville');
+  return {n:(name || '').trim(), shop:st.shop || 'notre boutique', p:prod_, wa:st.wa || '',
+    liv:villes.length ? 'Livraison rapide à ' + (villes.length > 3 ? villes.slice(0, 3).join(', ') + '…' : villes.join(', ')) : 'Livraison rapide à domicile'};
+}
+const sig = k => `\n\n*${k.shop}*${k.wa ? ' · ' + k.wa : ''}`;
+const trust = k => `✅ ${k.liv}\n✅ Vous vérifiez le produit *avant* de payer\n✅ Paiement à la livraison (cash ou Mobile Money)`;
+const offerLn = o => o ? `\n\n🎁 *Spécialement pour vous : ${o}*` : '';
+function relanceTpls(kind, k, offre){
+  const P = k.p ? `*${k.p}*` : 'votre commande', hi = `Bonjour ${k.n || ''} 👋`.replace('  ', ' ');
+  if(kind === 'annule') return [
+    ['🤝 Service', `${hi}\n\nIci *${k.shop}*. Votre commande de ${P} n'a pas pu être livrée l'autre jour… alors nous l'avons *gardée de côté pour vous* 😊${offerLn(offre)}\n\n${trust(k)}\n\n👉 Répondez simplement *OUI* avec l'heure qui vous arrange : notre livreur passe aujourd'hui ou demain.${sig(k)}`],
+    ['🎁 Offre', `${hi}\n\nBonne nouvelle de *${k.shop}* ! 🎉 ${k.p ? `Votre ${P}` : 'Le produit que vous aviez choisi'} vous attend toujours.${offerLn(offre || 'la livraison offerte si vous confirmez aujourd\'hui')}\n\n${trust(k)}\n\n⏳ Offre valable *aujourd'hui seulement*.\n👉 Répondez *JE CONFIRME* et on s'occupe de tout.${sig(k)}`],
+    ['⏰ Dernier rappel', `${hi}\n\nPetit rappel de *${k.shop}* 🔔\nNous gardons encore votre commande${k.p ? ' de ' + P : ''} *jusqu'à demain*. Passé ce délai, elle sera libérée.${offerLn(offre)}\n\nSouhaitez-vous toujours la recevoir ? 😊\n👉 Un simple *OUI* suffit, nous vous livrons à l'heure de votre choix.${sig(k)}`]];
+  if(kind === 'promesse') return [
+    ['🤝 Comme convenu', `${hi}\n\nIci *${k.shop}* 😊 Comme convenu, nous revenons vers vous pour ${k.p ? 'votre ' + P : 'votre commande'}.${offerLn(offre)}\n\n${trust(k)}\n\n👉 On vous le livre aujourd'hui ou demain ? Répondez *OUI* avec l'heure qui vous arrange.${sig(k)}`],
+    ['🎁 Offre', `${hi}\n\n*${k.shop}* a pensé à vous ! 🎉 ${k.p ? P + ' est disponible' : 'Votre produit est disponible'} et prêt à être livré.${offerLn(offre || 'la livraison offerte si vous commandez aujourd\'hui')}\n\n${trust(k)}\n\n⏳ Valable *aujourd'hui seulement*.\n👉 Répondez *JE COMMANDE*.${sig(k)}`],
+    ['⏰ Rappel', `${hi}\n\nPetit rappel de *${k.shop}* 🔔 Vous nous aviez dit que vous passeriez commande${k.p ? ' pour ' + P : ''}.\nNous vous l'avons réservé 😊${offerLn(offre)}\n\n👉 Toujours partant(e) ? Répondez *OUI* et nous livrons à l'heure de votre choix.${sig(k)}`]];
+  return [
+    ['💛 Fidélité', `${hi}\n\nIci *${k.shop}* 😊 Merci encore pour votre confiance${k.p ? ` et votre achat de ${P}` : ''} !\nComment le trouvez-vous ? Votre avis compte beaucoup pour nous 🙏${offerLn(offre)}\n\nVotre produit arrive bientôt à sa fin ? Recommandez en *1 message* :\n${trust(k)}\n\n👉 Répondez *OUI* et on vous livre aujourd'hui ou demain.${sig(k)}`],
+    ['🎁 Offre client fidèle', `${hi}\n\nVous faites partie de nos *meilleurs clients* chez *${k.shop}* ⭐ Alors on vous gâte :${offerLn(offre || 'une remise spéciale sur votre prochaine commande')}\n\n${trust(k)}\n\n⏳ Offre valable *cette semaine seulement*.\n👉 Répondez *JE PROFITE* pour en bénéficier.${sig(k)}`],
+    ['🆕 Nouveautés', `${hi}\n\nDu nouveau chez *${k.shop}* ! 🎉 Nous venons de recevoir du stock${k.p ? ` (dont ${P} que vous aimez)` : ''}.${offerLn(offre)}\n\n${trust(k)}\n\n👉 Envoyez *CATALOGUE* et nous vous montrons tout en photos 📸${sig(k)}`]];
+}
+const relKind = c => annToRelance(c) ? 'annule' : 'client';
+function relanceText(c){ return relanceTpls(relKind(c), mkCtx(c.name, annToRelance(c) ? c.annPid : c.lastPid))[0][1]; }
+function relanceBox(kind, ctx, phone, onSentJs){
+  const T = relanceTpls(kind, ctx);
+  return `<div class="f"><span>Message de relance</span><div class="chips" id="relChips" style="margin-bottom:8px">${T.map(([l], i) => `<button type="button" class="chip ${i ? '' : 'on'}" data-rt="${i}">${l}</button>`).join('')}</div>
+    <input id="relOffre" placeholder="🎁 Offre spéciale (facultatif) — ex. livraison offerte, -10 %, 1 savon offert" style="margin-bottom:8px">
+    <textarea id="relTx" style="min-height:200px">${esc(T[0][1])}</textarea></div>
+    <a class="btn wa block" id="relGo" href="${waLink(phone, T[0][1])}" target="_blank" rel="noopener" onclick="${onSentJs}">${ico('wa')} Relancer par WhatsApp</a>`;
+}
+function wireRelance(kind, ctx, phone){
+  let ti = 0; const go = () => { const t = relanceTpls(kind, ctx, $('#relOffre').value.trim())[ti][1]; $('#relTx').value = t; $('#relGo').href = waLink(phone, t); };
+  $('#relChips').onclick = e => { const b = e.target.closest('[data-rt]'); if(!b) return; ti = +b.dataset.rt; [...$('#relChips').children].forEach(x => x.classList.toggle('on', x === b)); go(); };
+  $('#relOffre').oninput = go; $('#relTx').oninput = e => $('#relGo').href = waLink(phone, e.target.value);
 }
 function clientSheet(key){
   const c = clientsList().find(x => x.key === key); if(!c) return;
@@ -1443,19 +1481,21 @@ function clientSheet(key){
       ${relDate(c.key) ? `<div class="dl"><span>Dernière relance</span><span>${fmtDate(relDate(c.key), true)}</span></div>` : ''}
       <div class="dl"><span>Produits achetés</span><span>${Object.entries(c.prods).map(([pid,q]) => esc(pname(pid)) + ' × ' + q).join('<br>')}</span></div>
     </div>
-    ${field('Message de relance', `<textarea id="relTx" style="min-height:120px">${esc(relanceText(c))}</textarea>`)}
-    <div class="stack"><a class="btn wa block" id="relGo" href="${waLink(c.phone, relanceText(c))}" target="_blank" rel="noopener" onclick="markRel('${esc(c.key)}')">${ico('wa')} Relancer par WhatsApp</a>
+    ${relanceBox(relKind(c), mkCtx(c.name, annToRelance(c) ? c.annPid : c.lastPid), c.phone, `markRel('${esc(c.key)}')`)}
+    <div class="stack" style="margin-top:8px">
     <button class="btn primary block" data-a="clientsale:${esc(c.key)}">+ Nouvelle vente pour ce client</button>
     <button class="btn block" data-a="promform" data-key="${esc(c.key)}">🤝 Noter une promesse (relancer plus tard)</button></div>
     <div class="sec"><h2>Historique</h2></div><div class="list">${sortMoves(S.moves.filter(m => c.moves.includes(m.id) || c.annIds.includes(m.id))).map(rowMove).join('')}</div>`);
-  $('#relTx').oninput = e => $('#relGo').href = waLink(c.phone, e.target.value);
+  wireRelance(relKind(c), mkCtx(c.name, annToRelance(c) ? c.annPid : c.lastPid), c.phone);
 }
 
 /* ---------- Promesses : clients qui disent « je commanderai plus tard » ---------- */
 const promises = () => S.moves.filter(m => m.type === 'promesse' && !m.done).sort((a, b) => (a.date || '').localeCompare(b.date || ''));
-function promText(m){
-  const p = m.pid ? pname(m.pid) : '';
-  return `Bonjour ${m.client || ''} 👋\nC'est ${S.settings.shop}. Vous nous aviez dit que vous passeriez commande${p && p !== 'Produit supprimé' ? ' pour ' + p : ''}.\nIl est toujours disponible 😊 Voulez-vous qu'on vous le livre aujourd'hui ou demain ?`;
+function promText(m){ return relanceTpls('promesse', mkCtx(m.client, m.pid))[0][1]; }
+function promRelSheet(id){
+  const m = S.moves.find(x => x.id === id); if(!m) return;
+  sheet('🤝 Relancer ' + (m.client || m.phone), `<p class="note" style="margin-bottom:10px">${esc(m.phone || '')}${m.note ? ' · « ' + esc(m.note) + ' »' : ''}</p>${relanceBox('promesse', mkCtx(m.client, m.pid), m.phone, `markPromRel('${m.id}')`)}`);
+  wireRelance('promesse', mkCtx(m.client, m.pid), m.phone);
 }
 function promisesHTML(){
   const L = promises(), t = today();
@@ -1463,7 +1503,7 @@ function promisesHTML(){
   ${L.length ? `<div class="list">${L.map(m => { const late = m.date < t, due = m.date === t;
     return `<div class="it" style="cursor:default;flex-wrap:wrap"><div class="ic c-out">${esc(initials(m.client || '?'))}</div><div class="m" style="min-width:0;flex:1"><div class="t" style="white-space:normal">${esc(m.client || 'Sans nom')}${m.pid ? ' · ' + esc(pname(m.pid)) + (m.qty > 1 ? ' × ' + m.qty : '') : ''}</div>
       <div class="d" style="white-space:normal"><b class="${late ? 'red' : ''}" style="${due ? 'color:var(--warn,#b45309)' : ''}">📅 ${late ? 'En retard · ' : due ? "Aujourd'hui · " : ''}${esc(dAbs(m.date, 1))}</b> · ${esc(m.phone || '—')}${m.note ? ' · ' + esc(m.note) : ''}${m.rel ? ' · relancé ' + fmtDate(m.rel) : ''}</div></div>
-      <div style="display:flex;gap:6px;width:100%;margin-top:8px"><a class="btn sm wa" style="flex:1" href="${waLink(m.phone, promText(m))}" target="_blank" rel="noopener" onclick="markPromRel('${m.id}')">${ico('wa')} Relancer</a><button class="btn sm primary" data-a="promok:${m.id}">✅ A commandé</button><button class="btn sm" data-a="promform:${m.id}">✎</button></div></div>`; }).join('')}</div>`
+      <div style="display:flex;gap:6px;width:100%;margin-top:8px"><button class="btn sm wa" style="flex:1" data-a="promrel:${m.id}">${ico('wa')} Relancer</button><button class="btn sm primary" data-a="promok:${m.id}">✅ A commandé</button><button class="btn sm" data-a="promform:${m.id}">✎</button></div></div>`; }).join('')}</div>`
     : `<div class="card empty"><b>Aucune promesse</b>Un client vous dit « je commanderai à la fin du mois » ? Notez-le ici avec la date : l'application vous le rappellera.</div>`}`;
 }
 window.markPromRel = id => { const m = S.moves.find(x => x.id === id); if(m){ m.rel = today(); save(); setTimeout(() => render(), 300); } };
@@ -2221,6 +2261,8 @@ function moveForm(type, opt = {}){
       ${field('Adresse complète de livraison', `<textarea name="addr" placeholder="Commune, quartier, avenue, n°, point de repère…">${esc(m?.addr)}</textarea>`)}
       ${shipFieldHTML(m)}
       <div class="row2">${field('Jour de livraison', `<input name="ddate" type="date" value="${m ? (m.ddate || m.date) : today()}">`)}${field('Heure de livraison', `<input name="dtime" type="time" value="${esc(m?.dtime || '')}">`)}</div>
+      <div class="f" id="remBox"><span>🔔 Me rappeler cette commande</span><div class="chips" id="remChips" style="margin-bottom:6px">${[['', 'Pas de rappel spécial'], ['veille', 'La veille à 18 h'], ['matin', 'Le jour même à 8 h'], ['1h', '1 h avant'], ['autre', 'Autre date / heure']].map(([k, l]) => `<button type="button" class="chip" data-rem="${k}">${l}</button>`).join('')}</div>
+        <input name="rem" type="datetime-local" step="3600" value="${esc(m?.rem || '')}" style="${m && m.rem ? '' : 'display:none'}"><small class="note" id="remTxt"></small></div>
       ${field('Payé en', `<select name="pay">${PAYS.map(x => `<option value="${x}" ${(m?.pay||'')===x?'selected':''}>${x || '— (non précisé)'}</option>`).join('')}</select>`, 'Pour une vente directe : cash, Mobile Money…')}
       <div class="f"><span>Statut</span><div class="seg" id="segS">${Object.entries(STATUS).map(([k,l]) => `<button type="button" data-s="${k}">${l}</button>`).join('')}</div></div>`;
   else h += `<div></div></div>`;
@@ -2276,6 +2318,20 @@ function moveForm(type, opt = {}){
   E.pid.onchange = () => { const p = prod(E.pid.value); if(p){ if(E.price) E.price.value = p.sell || ''; if(E.cost) E.cost.value = num(p.buy) || ''; } upd(); };
   if(E.loc) E.loc.onchange = () => { if(type === 'vente' && !m){ status = E.loc.value ? 'attente' : 'livre'; paintSeg(); } upd(); };
   E.qty.oninput = upd; if(E.price) E.price.oninput = upd;
+  if(E.rem){
+    const remCalc = k => { const d = E.ddate.value || today(), t = E.dtime.value;
+      if(k === 'veille') return addDays(d, -1) + 'T18:00';
+      if(k === 'matin') return d + 'T08:00';
+      if(k === '1h'){ if(!t){ toast('Indiquez d\'abord l\'heure de livraison'); return null; } const h = Math.max(0, +t.slice(0, 2) - 1); return d + 'T' + String(h).padStart(2, '0') + ':00'; }
+      return E.rem.value || d + 'T08:00'; };
+    const paintRem = () => { const v = E.rem.value; $('#remTxt').innerHTML = v ? `🔔 Notification le <b>${esc(dAbs(v.slice(0, 10), 1))} à ${v.slice(11, 13)} h</b>` : ''; };
+    $('#remChips').onclick = e => { const b = e.target.closest('[data-rem]'); if(!b) return; const k = b.dataset.rem;
+      [...$('#remChips').children].forEach(x => x.classList.toggle('on', x === b));
+      if(!k){ E.rem.value = ''; E.rem.style.display = 'none'; paintRem(); return; }
+      const v = remCalc(k); if(v == null) return; E.rem.value = v; E.rem.style.display = k === 'autre' ? '' : 'none'; paintRem(); };
+    E.rem.oninput = paintRem; paintRem();
+    if(m && m.rem) [...$('#remChips').children].forEach(x => x.classList.toggle('on', x.dataset.rem === 'autre')); else [...$('#remChips').children][0].classList.add('on');
+  }
   if(E.shipOn){
     const on = () => { E.shipOn.checked = true; upd(); };
     E.shipOn.onchange = upd; E.shipFee.oninput = on; E.shipCur.onchange = upd; E.pre.onchange = upd;
@@ -2320,7 +2376,7 @@ function moveForm(type, opt = {}){
       if(!m || m.pid !== p.id || m.liv !== rec.liv || m.price !== rec.price) rec.commU = commUFor(p, liv(rec.liv), toUSD(rec.price, p.cur, m && m.cur === p.cur ? m.rate : rate()));
       if(!m || m.pid !== p.id || m.cur !== p.cur) rec.rate = rate();
       rec.client = E.client.value.trim(); rec.phone = E.phone.value.trim(); rec.addr = E.addr.value.trim(); rec.status = status;
-      rec.ddate = E.ddate.value || rec.date; rec.dtime = E.dtime.value; rec.pay = E.pay ? E.pay.value : (rec.pay || '');
+      rec.ddate = E.ddate.value || rec.date; rec.dtime = E.dtime.value; if(E.rem && E.rem.value) rec.rem = E.rem.value.slice(0, 13) + ':00'; else delete rec.rem; rec.pay = E.pay ? E.pay.value : (rec.pay || '');
       if(rec.status === 'livre'){ if(!m) rec.ldate = rec.ddate; else if(m.status !== 'livre') rec.ldate = today(); else if(m.ddate !== rec.ddate) rec.ldate = rec.ddate; } else delete rec.ldate;
     }
     let shipRec = null, preOn = false;
@@ -2332,7 +2388,7 @@ function moveForm(type, opt = {}){
     const oid = m ? (m.ord || m.id) : rec.id;
     const more = type === 'vente' ? xl.filter(x => prod(x.pid) && x.qty > 0).map((x, i) => { const P = prod(x.pid);
       rec.ord = oid; return Object.assign({}, rec, {id:uid(), ord:oid, ts:Date.now() + i + 1, pid:P.id, qty:x.qty, price:x.price, cur:P.cur, rate:rate(), costU:unitCostUSD(P), commU:commUFor(P, liv(rec.liv), toUSD(x.price, P.cur))}); }) : [];
-    more.forEach(x => delete x.ship);
+    more.forEach(x => { delete x.ship; delete x.rem; });
     next = next.concat(more);
     if(type === 'vente' && E.shipOn){
       // une seule ligne de la commande porte l'expédition ; « payé d'avance » vaut pour toute la commande
@@ -2428,6 +2484,7 @@ function saleSheet(id, fresh){
       ${(() => { const sh = shipOf(m); return sh ? `<div class="dl"><span>🚚 Expédition</span><span>${esc(shipLine(sh))}<br>${amt(num(sh.fee), sh.cur)} (payés par le client)</span></div>` : ''; })()}
       ${m.pre ? `<div class="dl"><span>Paiement</span><span>✅ Déjà payé par le client (Mobile Money) — le livreur n'encaisse rien</span></div>` : ''}
       <div class="dl"><span>Livraison</span><span>${whenTxt(m)}</span></div>
+      ${m.rem && m.status !== 'livre' && m.status !== 'annule' ? `<div class="dl"><span>🔔 Rappel</span><span>${esc(dAbs(m.rem.slice(0, 10), 1))} à ${m.rem.slice(11, 13)} h</span></div>` : ''}
       <div class="dl"><span>Commande du</span><span>${fmtDate(m.date, true)}</span></div>
       ${m.note ? `<div class="dl"><span>Note</span><span>${esc(m.note)}</span></div>` : ''}
     </div>
@@ -2620,6 +2677,7 @@ const A = {
   promsale: id => { const m = S.moves.find(x => x.id === id); if(!m) return; promForm(null, null); const E = $('#prf').elements; E.client.value = m.client || ''; E.phone.value = m.phone || ''; E.pid.value = m.pid || ''; E.qty.value = m.qty || 1; E.note.value = 'Commande annulée le ' + dAbs(m.date); },
   clientsprom: () => { clientTab = 'promesses'; A.nav('clients'); },
   promform: (id, el) => promForm(id || null, el && el.dataset.key),
+  promrel: id => promRelSheet(id),
   promdel: async id => { if(!await ask('Supprimer cette promesse ?', 'Supprimer')) return; S.moves = S.moves.filter(m => m.id !== id); save(); closeSheet(); render(); },
   promok: id => { const m = S.moves.find(x => x.id === id); if(!m) return; m.done = today(); save(); moveForm('vente', {pid:m.pid || '', client:{name:m.client, phone:m.phone, addr:''}}); const f = $('#mf'); if(f && m.qty) { f.elements.qty.value = m.qty; f.elements.qty.dispatchEvent(new Event('input')); } toast('Bravo 🎉 Complétez la vente'); },
   clientcsv: () => { const rows = [['Nom','Téléphone','Adresse','Achats','Total livré ($)','Dernier achat','Annulations','Dernière relance']].concat(clientsList().sort((a, b) => (b.last || b.lastAnn).localeCompare(a.last || a.lastAnn)).map(c => [c.name, c.phone, (c.addr || '').replace(/\n/g, ' '), c.n, Math.round(c.total * 100) / 100, c.last, c.nAnn, relDate(c.key)]));
