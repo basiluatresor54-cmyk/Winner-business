@@ -2127,6 +2127,7 @@ function fabSheet(){
 }
 
 /* ----- Produit ----- */
+const DEF_CATS = ['Cosmétique','Beauté & soins','Cheveux & perruques','Parfums','Santé & médical','Vêtements','Chaussures','Sacs & accessoires','Bijoux','Montres','Téléphones & accessoires','Électronique','Électroménager','Maison & déco','Cuisine','Plantes','Alimentation','Boissons','Bébé & enfants','Sport','Énergie solaire','Livres & formations','Divers'];
 function productForm(id, opt = {}){
   const p = id ? prod(id) : null, packMode = p ? isKit(p) : !!opt.kit;
   const cats = [...new Set(S.products.map(x => x.cat).filter(Boolean))];
@@ -2145,7 +2146,7 @@ function productForm(id, opt = {}){
       <label class="btn sm" style="cursor:pointer">Choisir une photo<input type="file" accept="image/*" id="pfPhoto" hidden></label>
       <button type="button" class="btn sm" id="pfNoPhoto" ${p && p.photo ? '' : 'hidden'}>Retirer</button></div></div>
     ${field('Détails', `<textarea name="details" placeholder="Description, taille, couleur, contenance…">${esc(p?.details)}</textarea>`)}
-    <div class="row2">${field('Catégorie', `<input name="cat" list="catl" value="${esc(p?.cat)}" placeholder="Ex : Beauté"><datalist id="catl">${cats.map(c => `<option value="${esc(c)}">`).join('')}</datalist>`)}
+    <div class="row2">${field('Catégorie', pickSel('cat', [...new Set(DEF_CATS.concat(cats))].sort(byFr), p?.cat || '', 'Choisir la catégorie…', '✏️ Autre catégorie…', 'Tapez la catégorie'))}
       ${field('Devise du prix', `<select name="cur"><option value="$" ${p?.cur!=='FC'?'selected':''}>Dollar ($)</option><option value="FC" ${p?.cur==='FC'?'selected':''}>Monnaie locale (${esc(LC())})</option></select>`)}</div>
     <div class="row2">${field('Prix de vente *', `<input name="sell" type="number" step="any" min="0" required value="${p ? p.sell : ''}" placeholder="0">`)}${field('Prix normal avant promo', `<input name="old" type="number" step="any" min="0" value="${p && num(p.old) ? p.old : ''}" placeholder="Optionnel">`, 'Si rempli et plus haut : promo affichée (prix barré)')}</div>
     <div class="row2">${field("Prix d'achat *", `<input name="buy" type="number" step="any" min="0" value="${p && num(p.buy) ? p.buy : ''}" placeholder="0">`, 'Coût par pièce (même devise)')}</div>
