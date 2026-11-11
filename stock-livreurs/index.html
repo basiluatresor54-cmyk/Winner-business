@@ -287,6 +287,11 @@ html.glass .fab{border-radius:22px;box-shadow:0 10px 26px rgba(var(--brand-rgb),
 .ring text{font-weight:800;font-size:19px;fill:var(--ink)}
 .goals .gl{font-size:12.5px;color:var(--muted);font-weight:650}
 .goals .gv{font-size:13px;font-weight:700}
+.goalsx .goals .ring{width:80px;height:80px}
+.goalsx .gh{font-size:13px;font-weight:800;margin:2px 0 6px}
+.goalsx .gh + .goals{margin-bottom:12px}
+.goalsx .gsum{border-top:1px solid var(--line);padding-top:10px;font-size:13.5px;line-height:1.5}
+.goalsx .gadd{width:100%;text-align:left;background:var(--soft);border:0;border-radius:10px;padding:9px 12px;font:inherit;font-weight:650;color:var(--ink);cursor:pointer;margin-bottom:12px}
 /* Glisser (ventes) et tirer pour actualiser */
 .swwrap{position:relative;overflow:hidden}
 [data-sw]{position:relative;z-index:1;background:var(--card);touch-action:pan-y}
@@ -1809,26 +1814,55 @@ const onceKey = k => { const key = 'stock_cheer_' + (S.settings.shop||'') + '_' 
 function caOf(from, to){ let t = 0; for(const m of S.moves) if(m.type === 'vente' && m.status === 'livre' && mday(m) >= from && mday(m) <= to) t += saleUSD(m); return t; }
 function ringSVG(pct, col){ const r = 40, C = 2*Math.PI*r, p = Math.max(0, Math.min(1, pct)), off = C*(1-p);
   return `<svg class="ring" viewBox="0 0 100 100"><circle class="bgc" cx="50" cy="50" r="${r}"/><circle class="fg" cx="50" cy="50" r="${r}" stroke="${col}" style="--c:${C.toFixed(1)}" stroke-dasharray="${C.toFixed(1)}" stroke-dashoffset="${off.toFixed(1)}"/><text x="50" y="57" text-anchor="middle">${Math.round(pct*100)}%</text></svg>`; }
+function netOf(from, to){ let t = 0; const IN = d => d >= from && d <= to;
+  for(const m of S.moves){
+    if(m.type === 'vente'){ if(m.status === 'livre' && IN(mday(m))) t += saleUSD(m) - m.qty*num(m.costU) - (m.liv ? m.qty*num(m.commU) : 0); }
+    else if(m.type === 'perte' && IN(m.date)) t -= m.qty*num(m.costU);
+    else if(m.type === 'depense' && IN(m.date)) t -= moneyUSD(m);
+  } return t; }
+function netRatio(){ const t = today(), a = addDays(t, -29), ca = caOf(a, t); return ca > 0 ? netOf(a, t) / ca : 0; }
+function goalVals(){ const g = S.settings, t = today(), m0 = t.slice(0,8) + '01';
+  return {gd:num(g.goalDay), gm:num(g.goalMonth), pd:num(g.goalPDay), pm:num(g.goalPMonth), d:caOf(t, t), m:caOf(m0, t), nd:netOf(t, t), nm:netOf(m0, t)}; }
 function goalsCard(){
-  const g = S.settings, gd = num(g.goalDay), gm = num(g.goalMonth);
-  if(!gd && !gm) return `<button class="card" data-a="goals" style="width:100%;text-align:left;margin-bottom:12px;display:flex;gap:12px;align-items:center"><span style="font-size:28px">🎯</span><span><b>Fixez vos objectifs de ventes</b><br><span class="note">Un anneau se remplit au fil des ventes, comme sur l'Apple Watch.</span></span></button>`;
-  const d = caOf(today(), today()), m = caOf(today().slice(0,8) + '01', today());
-  const R = (lab, v, goal, col) => goal ? `<div class="rg">${ringSVG(v/goal, col)}<div class="gl">${lab}</div><div class="gv num">${money(v)} / ${money(goal)}</div></div>` : '';
+  const v = goalVals();
+  if(!v.gd && !v.gm && !v.pd && !v.pm) return `<button class="card" data-a="goals" style="width:100%;text-align:left;margin-bottom:12px;display:flex;gap:12px;align-items:center"><span style="font-size:28px">🎯</span><span><b>Fixez vos objectifs de ventes et de bénéfice</b><br><span class="note">Un anneau se remplit au fil des ventes, comme sur l'Apple Watch.</span></span></button>`;
+  const R = (lab, x, goal, col) => goal ? `<div class="rg">${ringSVG(Math.max(0, x)/goal, col)}<div class="gl">${lab}</div><div class="gv num ${x < 0 ? 'neg' : ''}">${money(x)} / ${money(goal)}</div></div>` : '';
+  const hasV = v.gd || v.gm, hasP = v.pd || v.pm;
+  const pc = (x, g) => Math.min(1, Math.max(0, x / g));
+  const ens = (pairs) => { const z = pairs.filter(([, g]) => g > 0); return z.length ? Math.round(z.reduce((t, [x, g]) => t + pc(x, g), 0) / z.length * 100) : null; };
+  const eD = ens([[v.d, v.gd], [v.nd, v.pd]]), eM = ens([[v.m, v.gm], [v.nm, v.pm]]);
+  const rest = [v.gd > v.d ? money(v.gd - v.d) + ' de ventes' : '', v.pd > v.nd ? money(v.pd - v.nd) + ' de bénéfice' : ''].filter(Boolean);
+  const dayOk = (v.gd || v.pd) && !rest.length;
   return `<div class="sec" style="margin-top:4px"><h2>🎯 Mes objectifs</h2><button class="link" data-a="goals">Modifier</button></div>
-  <div class="card goals" style="margin-bottom:12px">${R("Aujourd'hui", d, gd, 'var(--brand)')}${R('Ce mois', m, gm, 'var(--ok)')}</div>`;
+  <div class="card goalsx" style="margin-bottom:12px">
+    ${hasV ? `<div class="gh">💰 Ventes livrées</div><div class="goals">${R("Aujourd'hui", v.d, v.gd, 'var(--brand)')}${R('Ce mois', v.m, v.gm, 'var(--ok)')}</div>` : `<button class="gadd" data-a="goals">＋ Ajouter un objectif de ventes</button>`}
+    ${hasP ? `<div class="gh">📈 Bénéfice net</div><div class="goals">${R("Aujourd'hui", v.nd, v.pd, '#f59e0b')}${R('Ce mois', v.nm, v.pm, '#8b5cf6')}</div>` : `<button class="gadd" data-a="goals">＋ Ajouter un objectif de bénéfice net</button>`}
+    ${hasV && hasP ? `<div class="gsum">🏁 <b>Ensemble des objectifs</b> : ${eD !== null ? `aujourd'hui <b class="num">${eD} %</b>` : ''}${eD !== null && eM !== null ? ' · ' : ''}${eM !== null ? `ce mois <b class="num">${eM} %</b>` : ''}<br>
+      ${dayOk ? '✅ Tous les objectifs du jour sont atteints. Bravo !' : rest.length ? `Reste à faire aujourd'hui : <b>${rest.join(' et ')}</b>` : ''}</div>` : ''}
+  </div>`;
 }
 function goalsForm(){
-  const g = S.settings;
-  sheet('🎯 Mes objectifs', `<form id="gf"><p class="note" style="margin-bottom:12px">Ventes livrées à atteindre, en dollars. L'anneau se remplit tout seul et une petite fête 🎉 vous attend à 100 %.</p>
+  const g = S.settings, ratio = netRatio();
+  const rTxt = ratio > 0 ? `Sur les 30 derniers jours, votre bénéfice net = <b>${Math.round(ratio*100)} %</b> de vos ventes livrées.` : `Le bénéfice net = ventes livrées − coût d'achat − commissions − dépenses − pertes.`;
+  sheet('🎯 Mes objectifs', `<form id="gf"><p class="note" style="margin-bottom:12px">L'anneau se remplit tout seul et une petite fête 🎉 vous attend à 100 %. Laissez vide ce que vous ne voulez pas suivre.</p>
+    <div class="gh" style="font-weight:800;margin-bottom:6px">💰 Ventes livrées à atteindre</div>
     <div class="row2">${field("Objectif par jour ($)", `<input name="d" type="number" min="0" step="any" value="${esc(g.goalDay || '')}" placeholder="Ex : 100">`)}${field('Objectif par mois ($)', `<input name="m" type="number" min="0" step="any" value="${esc(g.goalMonth || '')}" placeholder="Ex : 2000">`)}</div>
+    <div class="gh" style="font-weight:800;margin:4px 0 6px">📈 Bénéfice net à atteindre</div>
+    <div class="row2">${field("Bénéfice par jour ($)", `<input name="pd" type="number" min="0" step="any" value="${esc(g.goalPDay || '')}" placeholder="Ex : 30">`)}${field('Bénéfice par mois ($)', `<input name="pm" type="number" min="0" step="any" value="${esc(g.goalPMonth || '')}" placeholder="Ex : 600">`)}</div>
+    <p class="note" style="margin:-4px 0 10px">${rTxt}</p>
+    ${ratio > 0 ? `<button type="button" class="btn block" id="gfSug" style="margin-bottom:10px">✨ Calculer le bénéfice à partir de mes objectifs de ventes</button>` : ''}
     <button class="btn primary block">Enregistrer</button></form>`);
-  $('#gf').onsubmit = e => { e.preventDefault(); const E = e.target.elements; S.settings.goalDay = num(E.d.value); S.settings.goalMonth = num(E.m.value); save(); closeSheet(); render(); toast('Objectifs enregistrés 🎯'); };
+  const E = $('#gf').elements;
+  if($('#gfSug')) $('#gfSug').onclick = () => { if(num(E.d.value)) E.pd.value = Math.round(num(E.d.value) * ratio); if(num(E.m.value)) E.pm.value = Math.round(num(E.m.value) * ratio); if(!num(E.d.value) && !num(E.m.value)) toast("Mettez d'abord un objectif de ventes"); };
+  $('#gf').onsubmit = e => { e.preventDefault(); S.settings.goalDay = num(E.d.value); S.settings.goalMonth = num(E.m.value); S.settings.goalPDay = num(E.pd.value); S.settings.goalPMonth = num(E.pm.value); save(); closeSheet(); render(); toast('Objectifs enregistrés 🎯'); };
 }
 function homeCheers(){
   const g = S.settings, t = today(), d = caOf(t, t);
   if(num(g.goalDay) > 0 && d >= num(g.goalDay) && onceKey('day_' + t)) return setTimeout(() => cheer("🎯 Objectif du jour atteint ! Bravo 👏", 140), 500);
   const m = caOf(t.slice(0,8) + '01', t);
   if(num(g.goalMonth) > 0 && m >= num(g.goalMonth) && onceKey('month_' + t.slice(0,7))) return setTimeout(() => cheer('🏆 Objectif du mois atteint ! Félicitations 🎉', 180), 500);
+  if(num(g.goalPDay) > 0 && netOf(t, t) >= num(g.goalPDay) && onceKey('pday_' + t)) return setTimeout(() => cheer("💰 Objectif de bénéfice du jour atteint ! Bravo 👏", 140), 500);
+  if(num(g.goalPMonth) > 0 && netOf(t.slice(0,8) + '01', t) >= num(g.goalPMonth) && onceKey('pmonth_' + t.slice(0,7))) return setTimeout(() => cheer('🏆 Objectif de bénéfice du mois atteint ! Félicitations 🎉', 180), 500);
   if(d > 0){ let best = 0, days = 0; for(let k = 1; k <= 30; k++){ const x = addDays(t, -k), v = caOf(x, x); if(v > 0) days++; if(v > best) best = v; }
     if(days >= 3 && d > best && onceKey('record_' + t)) setTimeout(() => cheer('🏆 Meilleure journée du mois : ' + money(d) + ' !', 120), 500); }
 }
