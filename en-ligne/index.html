@@ -810,7 +810,7 @@ function vStock(){
   <div id="lst">${stockRows()}</div>
   ${recentStockHTML()}
   <div class="btns" style="margin-top:12px"><button class="btn" data-a="new:entree">+ Entrée de stock</button><button class="btn" data-a="new:envoi">Envoyer à un livreur</button></div>
-  <div style="margin-top:8px"><button class="btn block" data-a="new:produit">+ Nouveau produit</button></div>
+  <div class="btns" style="margin-top:8px"><button class="btn" data-a="new:produit">+ Nouveau produit</button><button class="btn" data-a="newpack">🎁 Nouveau pack / promo</button></div>
   <div class="btns" style="margin-top:8px"><button class="btn primary" data-a="stockupd">📦 Mettre mon stock à jour</button><button class="btn" data-a="invform:">📋 Contrôle du dépôt</button></div>
   ${invHistHTML('')}`;
 }
@@ -2140,20 +2140,27 @@ function fabSheet(){
     ['money:depense','c-loss','receipt','Dépense','Transport, expédition, Facebook, boutique…'],
     ['new:retour','c-in','back','Retour de stock','Un livreur rend des produits au dépôt'],
     ['new:perte','c-loss','out','Sortie / perte','Casse, perte, cadeau, usage interne'],
-    ['new:produit','c-brand','tag','Nouveau produit','Ajouter un article ou un pack']
+    ['new:produit','c-brand','tag','Nouveau produit','Ajouter un article'],
+    ['newpack','c-brand','tag','🎁 Pack / Promo','Ex : Huile + Pommade à 15 $ (plusieurs produits ensemble)']
   ];
-  const keep = a => { const L = has('liv') || S.livreurs.length; if(['new:envoi','new:retour','money:versement'].includes(a)) return L; if(a === 'quick') return has('shop') || !S.settings.acts; if(['new:vente','new:entree','new:perte','new:produit'].includes(a)) return sells(); return true; };
+  const keep = a => { const L = has('liv') || S.livreurs.length; if(['new:envoi','new:retour','money:versement'].includes(a)) return L; if(a === 'quick') return has('shop') || !S.settings.acts; if(['new:vente','new:entree','new:perte','new:produit','newpack'].includes(a)) return sells(); return true; };
   sheet('Nouvelle opération', A2.filter(x => keep(x[0])).map(([a,c,i,t,d]) => `<button class="act" data-a="${a}"><div class="ic ${c}">${ico(i)}</div><div><b>${t}</b><small>${d}</small></div></button>`).join(''));
 }
 
 /* ----- Produit ----- */
-function productForm(id){
-  const p = id ? prod(id) : null;
+function productForm(id, opt = {}){
+  const p = id ? prod(id) : null, packMode = p ? isKit(p) : !!opt.kit;
   const cats = [...new Set(S.products.map(x => x.cat).filter(Boolean))];
   const others = S.products.filter(x => !isKit(x) && x.id !== id).sort(byName);
-  const kit = (p?.kit || []).concat([{},{},{}]).slice(0,3);
-  sheet(p ? 'Modifier le produit' : 'Nouveau produit', `<form id="pf">
-    ${field('Nom du produit *', `<input name="name" required maxlength="70" value="${esc(p?.name)}" placeholder="Ex : Sac de poitrine">`)}
+  const kit = (p?.kit || []).concat(p && isKit(p) ? [] : [{},{}]).slice(0, Math.max(2, (p?.kit || []).length));
+  const kitRow = c => `<div class="kitrow" style="grid-template-columns:1fr 70px 34px"><select name="kp"><option value="">— choisir le produit —</option>${others.map(o => `<option value="${o.id}" ${o.id===c.pid?'selected':''}>${esc(o.name)} · ${amt(num(o.sell), o.cur)}</option>`).join('')}</select><input name="kq" type="number" min="1" step="1" value="${c.q||1}" title="Quantité"><button type="button" class="btn sm" data-kdel title="Retirer">✕</button></div>`;
+  sheet(p ? (isKit(p) ? '🎁 Modifier le pack / promo' : 'Modifier le produit') : (packMode ? '🎁 Nouveau pack / promo' : 'Nouveau produit'), `<form id="pf">
+    ${p ? '' : `<div class="seg" id="pkind" style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:12px"><button type="button" class="chip ${packMode ? '' : 'on'}" data-kind="simple" style="justify-content:center;padding:10px">📦 Produit simple</button><button type="button" class="chip ${packMode ? 'on' : ''}" data-kind="pack" style="justify-content:center;padding:10px">🎁 Pack / Promo / Gamme</button></div>`}
+    <div id="kitw" ${packMode ? '' : 'hidden'} class="card" style="margin-bottom:12px;border:2px solid var(--brand)"><b>🎁 Produits dans ce pack</b><p class="note" style="margin:4px 0 8px">Ex : Huile + Pommade vendus ensemble 15 $. Quand le pack est vendu, chaque produit sort du stock.</p>
+      <div id="kitRows">${kit.map(kitRow).join('')}</div>
+      <button type="button" class="btn sm" id="kitAdd" style="margin:4px 0 8px">+ Ajouter un produit au pack</button>
+      <div id="kitSum" class="note"></div></div>
+    ${field(packMode ? 'Nom du pack *' : 'Nom du produit *', `<input name="name" ${packMode ? '' : 'required'} maxlength="70" value="${esc(p?.name)}" placeholder="${packMode ? 'Ex : Gamme complète Golden Hair' : 'Ex : Sac de poitrine'}">`)}
     <div class="f"><span>Photo du produit (optionnel)</span><div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
       <div class="ic pic" id="pfPrev" style="width:64px;height:64px">${p && p.photo ? `<img src="${p.photo}" alt="">` : '📷'}</div>
       <label class="btn sm" style="cursor:pointer">Choisir une photo<input type="file" accept="image/*" id="pfPhoto" hidden></label>
@@ -2171,22 +2178,39 @@ function productForm(id){
     ${field('Alerte stock bas', `<input name="alert" type="number" min="0" step="1" value="${p ? p.alert : 3}">`, 'Alerte quand il reste ce nombre de pièces ou moins')}
     <label class="f" style="display:flex;gap:10px;align-items:center"><input type="checkbox" name="show" ${p && p.hide ? '' : 'checked'} style="width:22px;height:22px;min-height:0"><span style="margin:0">Visible dans ma boutique en ligne</span></label>
     ${p ? '' : `<div id="initw">${field('Stock de départ au dépôt', `<input name="init" type="number" min="0" step="1" placeholder="0">`)}</div>`}
-    <label class="f" style="display:flex;gap:10px;align-items:center"><input type="checkbox" name="iskit" ${isKit(p)?'checked':''} style="width:22px;height:22px;min-height:0"><span style="margin:0">C'est un pack (composé d'autres produits)</span></label>
-    <div id="kitw" ${isKit(p)?'':'hidden'}><p class="note" style="margin-bottom:8px">Quand ce pack est vendu, ces produits sortent du stock.</p>
-      ${kit.map(c => `<div class="kitrow"><select name="kp"><option value="">— produit —</option>${others.map(o => `<option value="${o.id}" ${o.id===c.pid?'selected':''}>${esc(o.name)}</option>`).join('')}</select><input name="kq" type="number" min="1" step="1" value="${c.q||1}"></div>`).join('')}</div>
+    <input type="checkbox" name="iskit" ${packMode ? 'checked' : ''} hidden>
     <button class="btn primary block" style="margin-top:6px">${p ? 'Enregistrer' : 'Ajouter le produit'}</button>
     ${p ? `<button type="button" class="btn ghost-bad block" style="margin-top:8px" data-a="delprod:${p.id}">Supprimer ce produit</button>` : ''}</form>`);
   const f = $('#pf'), E = f.elements;
   let photo = (p && p.photo) || '';
   $('#pfPhoto').onchange = e => { const file = e.target.files[0]; if(!file) return; smallImage(file, 240, .72).then(u => { photo = u; $('#pfPrev').innerHTML = `<img src="${u}" alt="">`; $('#pfNoPhoto').hidden = false; }).catch(() => toast('Image illisible')); };
   $('#pfNoPhoto').onclick = () => { photo = ''; $('#pfPrev').textContent = '📷'; $('#pfNoPhoto').hidden = true; };
-  E.iskit.onchange = () => { $('#kitw').hidden = !E.iskit.checked; if($('#initw')) $('#initw').hidden = E.iskit.checked; E.buy.required = !E.iskit.checked; };
-  E.buy.required = !E.iskit.checked;
+  // Pack / promo : composition, prix séparé, économie, coût et bénéfice
+  let autoOld = !(p && num(p.old)), autoName = !p;
+  const buyBox = E.buy.closest('.row2');
+  const setKind = pack => { E.iskit.checked = pack; $('#kitw').hidden = !pack; if($('#initw')) $('#initw').hidden = pack; E.buy.required = !pack; E.name.required = !pack; if(buyBox) buyBox.hidden = pack;
+    $('#sht').textContent = p ? $('#sht').textContent : (pack ? '🎁 Nouveau pack / promo' : 'Nouveau produit'); E.name.placeholder = pack ? 'Ex : Gamme complète Golden Hair' : 'Ex : Sac de poitrine'; kitSum(); };
+  const kitSum = () => { if(!E.iskit.checked){ $('#kitSum').innerHTML = ''; return; }
+    const rows = [...f.querySelectorAll('#kitRows .kitrow')].map(r => [prod(r.querySelector('[name=kp]').value), Math.max(1, Math.round(num(r.querySelector('[name=kq]').value)))]).filter(([x]) => x);
+    if(!rows.length){ $('#kitSum').innerHTML = 'Choisissez les produits du pack.'; return; }
+    const sepU = rows.reduce((t, [x, q]) => t + toUSD(num(x.sell), x.cur) * q, 0), costU = rows.reduce((t, [x, q]) => t + unitCostUSD(x) * q, 0);
+    const cur = E.cur.value, fromU = u => cur === 'FC' ? Math.round(u * rate()) : Math.round(u * 100) / 100;
+    const sep = fromU(sepU), price = num(E.sell.value), priceU = toUSD(price, cur), save_ = sepU - priceU;
+    if(autoOld && price > 0 && sep > price) E.old.value = sep;
+    if(autoName && !E.name.value.trim()) E.name.placeholder = 'Ex : Pack ' + rows.map(([x]) => x.name.split(' ')[0]).join(' + ');
+    $('#kitSum').innerHTML = `Prix si acheté séparément : <b>${amt(sep, cur)}</b>${price ? ` · Prix du pack : <b>${amt(price, cur)}</b>${save_ > 0.009 ? ` → <b style="color:var(--pos,#15803d)">le client économise ${money(save_)} (${Math.round(save_ / sepU * 100)} %)</b>` : ''}` : ''}<br>Coût d'achat du pack : <b>${money(costU)}</b>${price ? ` · Votre bénéfice (avant commission) : <b>${money(priceU - costU)}</b>` : ''}`; };
+  if($('#pkind')) $('#pkind').onclick = e => { const b = e.target.closest('[data-kind]'); if(!b) return; [...$('#pkind').children].forEach(x => x.classList.toggle('on', x === b)); setKind(b.dataset.kind === 'pack'); };
+  $('#kitAdd').onclick = () => { if(f.querySelectorAll('#kitRows .kitrow').length >= 8) return toast('8 produits maximum'); $('#kitRows').insertAdjacentHTML('beforeend', kitRow({})); };
+  $('#kitRows').addEventListener('click', e => { const b = e.target.closest('[data-kdel]'); if(!b) return; if(f.querySelectorAll('#kitRows .kitrow').length > 1) b.closest('.kitrow').remove(); else b.closest('.kitrow').querySelector('select').value = ''; kitSum(); });
+  $('#kitRows').addEventListener('change', kitSum); $('#kitRows').addEventListener('input', kitSum);
+  E.sell.addEventListener('input', kitSum); E.cur.addEventListener('change', kitSum); E.old.addEventListener('input', () => { autoOld = false; }); E.name.addEventListener('input', () => { autoName = false; });
+  setKind(packMode);
   const ch = () => { $('#commHint').textContent = E.commMode.value === 'pct' ? '% du prix de vente' : '$ par pièce livrée'; $('#cityUnit').textContent = E.commMode.value === 'pct' ? 'Valeurs en %.' : 'Valeurs en $ par pièce.'; };
   $('#addCity').onclick = () => { $('#cityRows').insertAdjacentHTML('beforeend', cityRow('', '')); $('#cityRows').lastElementChild.querySelector('input').focus(); };
   E.commMode.onchange = ch; ch();
   f.onsubmit = e => {
     e.preventDefault();
+    if(!E.name.value.trim() && E.iskit.checked && /^Ex : Pack /.test(E.name.placeholder)) E.name.value = E.name.placeholder.replace(/^Ex : /, '');
     const name = E.name.value.trim(); if(!name) return;
     let kitv = null;
     if(E.iskit.checked){
@@ -2659,6 +2683,7 @@ const A = {
   cancelorder: async id => { const m = S.moves.find(x => x.id === id); if(!m) return; const ol = orderLines(m).filter(x => x.status !== 'annule' && x.status !== 'livre');
     if(!await ask(`Annuler toute la commande de ${esc(m.client || 'ce client')} ? (${ol.map(x => esc(pname(x.pid)) + ' × ' + x.qty).join(', ')})`, 'Annuler la commande', true)) return;
     ol.forEach(x => { x.status = 'annule'; delete x.ldate; }); save(); render(); saleSheet(id); toast('Commande annulée (' + ol.length + ' produits)'); },
+  newpack: () => { if(S.products.filter(x => !isKit(x)).length < 2) return toast('Ajoutez d\'abord au moins 2 produits simples'); productForm(null, {kit:true}); },
   onboff: () => { S.settings.onbOff = true; save(); render(); toast('Guide masqué (toujours dans Plus → Guide)'); },
   new: (t, el) => t === 'produit' ? productForm() : moveForm(t, {pid: el.dataset.pid, liv: el.dataset.liv}),
   money: (t, el) => moneyForm(t, {liv: el.dataset.liv}),
@@ -3848,7 +3873,7 @@ document.addEventListener('visibilitychange', () => { if(document.visibilityStat
 setInterval(() => { if(document.visibilityState !== 'hidden') syncNow(); }, 45000);
 
 // Lecture seule quand l'abonnement est inactif (ou pour un rôle sans droit d'écriture)
-const WRITE_ACTIONS = ['stockupd','freshstart','planform','plandel','plandone','promform','promdel','promok','promsale','shipform','shipdel','shipcoadd','shipcodel','feeadd','new','quick','invform','invdel','money','status','delmove','delprod','editprod','editsale','editliv','newliv','delliv','color','rmlogo','demo','reset','restore','importwb','preset','cmdnew','cmdedit','cmdpay','cmdstep','cmdcancel','cmddel','paydel','lotarrive','fourndel','transdel','transedit'];
+const WRITE_ACTIONS = ['stockupd','freshstart','planform','plandel','plandone','promform','promdel','promok','promsale','newpack','cancelorder','shipform','shipdel','shipcoadd','shipcodel','feeadd','new','quick','invform','invdel','money','status','delmove','delprod','editprod','editsale','editliv','newliv','delliv','color','rmlogo','demo','reset','restore','importwb','preset','cmdnew','cmdedit','cmdpay','cmdstep','cmdcancel','cmddel','paydel','lotarrive','fourndel','transdel','transedit'];
 document.addEventListener('click', e => {
   if(!ONLINE.shop || shopWritable() || e.target.closest('#auth') || e.target.closest('#declf') || view === 'admin' || view === 'equipe') return;
   const t = e.target.closest('[data-a], #fab, form button:not([type=button])'); if(!t) return;
