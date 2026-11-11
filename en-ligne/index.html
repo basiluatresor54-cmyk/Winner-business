@@ -4126,11 +4126,38 @@ async function loadTeam(){
   TEAM.members = m.data || []; TEAM.invites = i.data || [];
   if(view === 'equipe') render();
 }
+
+// Rôles de l'équipe : qui voit quoi, qui fait quoi
+const ROLE_INFO = {
+  proprietaire:{ic:'👑', t:'Propriétaire (vous)', who:'Le patron de la boutique, celui qui a créé le compte et paie l\'abonnement.',
+    sees:'Tout : ventes, stock, clients, livreurs, dépenses, bénéfice, rapports.',
+    does:['Tout ce que fait le gérant', 'Inviter ou retirer un gérant / un livreur (Équipe)', 'Payer l\'abonnement'], not:[]},
+  gerant:{ic:'🧑‍💼', t:'Gérant', who:'Un(e) employé(e) de confiance : assistant(e), vendeur(se) en boutique, associé(e), personne qui reçoit les commandes WhatsApp.',
+    sees:'Comme vous : ventes, stock, clients, livreurs, dépenses, bénéfice et rapports de la boutique.',
+    does:['Enregistrer les commandes et les ventes', 'Entrées de stock et envois aux livreurs', 'Ajouter / modifier les produits, prix et promos', 'Enregistrer les dépenses', 'Confirmer les versements des livreurs', 'Relancer les clients, voir les rapports'],
+    not:['Inviter ou retirer des membres de l\'équipe', 'Payer ou gérer l\'abonnement']},
+  livreur:{ic:'🛵', t:'Livreur', who:'La personne qui livre les commandes chez les clients, à Kinshasa ou dans une autre ville.',
+    sees:'Seulement SES livraisons (client, téléphone, adresse, argent à encaisser), SON stock en main (disponible / réservé), SA commission de la semaine et l\'argent qu\'il doit verser.',
+    does:['🛵 En route et ✅ Livré (avec la date)', '🔢 Livré en partie, 🔁 partie du pack', '❌ Pas livré : reporter ou annuler avec la raison', '💸 « J\'ai envoyé l\'argent » avec la capture Mobile Money', 'Voir son relevé de commissions'],
+    not:['Voir les prix d\'achat, le bénéfice ou les dépenses', 'Voir les autres livreurs et les autres clients', 'Créer ou modifier des produits, des prix ou des ventes', 'Supprimer quoi que ce soit']}
+};
+function roleInfoHTML(r, compact){
+  const x = ROLE_INFO[r]; if(!x) return '';
+  const li = a => a.map(t => `<li>${esc(t)}</li>`).join('');
+  return `<div class="roleinfo" style="background:var(--bg,#f4f5f7);border-radius:12px;padding:10px 12px;margin:${compact ? '0 0 12px' : '0 0 10px'};font-size:14px;line-height:1.5">
+    <b>${x.ic} ${esc(x.t)}</b><div class="note" style="margin:2px 0 6px">${esc(x.who)}</div>
+    <div><b>👀 Ce qu'il voit :</b> ${esc(x.sees)}</div>
+    <div style="margin-top:6px"><b>✅ Ce qu'il peut faire :</b><ul style="margin:2px 0 0;padding-left:18px">${li(x.does)}</ul></div>
+    ${x.not.length ? `<div style="margin-top:6px"><b>⛔ Ce qu'il ne peut pas faire :</b><ul style="margin:2px 0 0;padding-left:18px">${li(x.not)}</ul></div>` : ''}
+    ${r === 'livreur' ? `<div class="note" style="margin-top:6px">Avant d'inviter un livreur, créez sa fiche dans <b>Livreurs</b> (nom, ville, commission). <a href="guide-livreur.html" target="_blank" rel="noopener">📘 Guide du livreur</a></div>` : ''}
+  </div>`;
+}
 CUSTOM.equipe = () => {
   if(ONLINE.role !== 'proprietaire') return `<div class="card empty">Réservé au propriétaire.</div>`;
   if(TEAM.members === null) return `<div class="card empty">Chargement…</div>`;
   const R2 = {proprietaire:'Propriétaire', gerant:'Gérant', livreur:'Livreur'};
-  return `<div class="card" style="margin-bottom:12px"><p class="note"><b>Gérant</b> : peut tout enregistrer (ventes, stock, dépenses).<br><b>Livreur</b> : voit seulement ses livraisons, son stock et sa commission, et marque « Livré ».</p></div>
+  return `<div class="card" style="margin-bottom:12px"><p class="note"><b>Gérant</b> : peut tout enregistrer (ventes, stock, dépenses).<br><b>Livreur</b> : voit seulement ses livraisons, son stock et sa commission, et marque « Livré ».</p>
+    <details style="margin-top:8px"><summary style="cursor:pointer;font-weight:700;color:var(--brand)">👥 Les rôles en détail : qui voit quoi, qui fait quoi</summary><div style="margin-top:10px">${roleInfoHTML('gerant')}${roleInfoHTML('livreur')}${roleInfoHTML('proprietaire')}</div></details></div>
   ${TEAM.err ? `<div class="subban bad">${esc(TEAM.err)}</div>` : ''}
   <div class="sec"><h2>Membres</h2></div>
   <div class="list">${TEAM.members.map(m => `<div class="it"><div class="ic c-brand">${esc(initials(m.display_name || '?'))}</div><div class="m"><div class="t">${esc(m.display_name || 'Sans nom')}</div><div class="d">${R2[m.role]}${m.livreur_id ? ' · fiche ' + esc(lname(m.livreur_id)) : ''} · ${esc(telPretty(m.phone || ''))}</div></div>${m.role !== 'proprietaire' ? `<button class="btn sm ghost-bad" data-a="rmmember:${m.user_id}">Retirer</button>` : ''}</div>`).join('')}</div>
@@ -4147,14 +4174,14 @@ function inviteSheet(pre = {}){
   const cc = String(S.settings.cc || '243');
   sheet('Inviter une personne', `<form id="invf">
     ${field('Rôle', `<select name="role"><option value="livreur" ${pre.role !== 'gerant' ? 'selected' : ''}>Livreur</option><option value="gerant" ${pre.role === 'gerant' ? 'selected' : ''}>Gérant</option></select>`)}
-    <div id="invLiv">${field('Fiche du livreur *', `<select name="liv"><option value="">Choisir…</option>${S.livreurs.slice().sort(byName).map(l => `<option value="${l.id}" ${l.id === pre.liv ? 'selected' : ''}>${esc(l.name)} (${esc(l.city || '')})</option>`).join('')}</select>`, S.livreurs.length ? 'Ses livraisons et sa commission viennent de cette fiche' : 'Ajoutez d\'abord le livreur dans l\'onglet Livreurs')}</div>
+    <div id="invRole"></div><div id="invLiv">${field('Fiche du livreur *', `<select name="liv"><option value="">Choisir…</option>${S.livreurs.slice().sort(byName).map(l => `<option value="${l.id}" ${l.id === pre.liv ? 'selected' : ''}>${esc(l.name)} (${esc(l.city || '')})</option>`).join('')}</select>`, S.livreurs.length ? 'Ses livraisons et sa commission viennent de cette fiche' : 'Ajoutez d\'abord le livreur dans l\'onglet Livreurs')}</div>
     ${field('Nom', `<input name="name" value="${esc(pre.name || '')}" placeholder="Ex : Marla">`)}
     <div class="row3" style="grid-template-columns:1.1fr 2fr">${field('Pays', `<select name="cc">${ccOptions(cc)}</select>`)}${field('Téléphone (son compte) *', `<input name="phone" type="tel" required value="${esc(pre.phone || '')}" placeholder="0812345678">`)}</div>
     <p class="note" style="margin:-4px 0 12px">La personne devra créer son compte avec ce numéro exact.</p>
     <p class="auth-msg" id="invMsg"></p>
     <button class="btn primary block">Créer l'invitation</button></form>`);
   const f = $('#invf'), E = f.elements;
-  const sw = () => { $('#invLiv').hidden = E.role.value !== 'livreur'; };
+  const sw = () => { $('#invLiv').hidden = E.role.value !== 'livreur'; $('#invRole').innerHTML = roleInfoHTML(E.role.value, true); };
   E.role.onchange = sw; sw();
   E.liv.onchange = () => { const l = liv(E.liv.value); if(l){ if(!E.name.value) E.name.value = l.name; if(!E.phone.value && l.phone) E.phone.value = l.phone; } };
   f.onsubmit = async e => {
