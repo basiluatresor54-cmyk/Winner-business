@@ -2186,9 +2186,11 @@ function productForm(id, opt = {}){
   $('#pfPhoto').onchange = e => { const file = e.target.files[0]; if(!file) return; smallImage(file, 240, .72).then(u => { photo = u; $('#pfPrev').innerHTML = `<img src="${u}" alt="">`; $('#pfNoPhoto').hidden = false; }).catch(() => toast('Image illisible')); };
   $('#pfNoPhoto').onclick = () => { photo = ''; $('#pfPrev').textContent = '📷'; $('#pfNoPhoto').hidden = true; };
   // Pack / promo : composition, prix séparé, économie, coût et bénéfice
-  let autoOld = !(p && num(p.old)), autoName = !p;
-  const buyBox = E.buy.closest('.row2');
+  let autoOld = !(p && num(p.old)), autoName = !p, autoComm = !(p && (num(p.comm) || (p.commCity && Object.keys(p.commCity).length)));
+  const buyBox = E.buy.closest('.row2'), commBox = E.commMode.closest('.row2'), commHome = commBox.nextSibling;
+  $('#kitw').insertAdjacentHTML('beforeend', '<div id="kitComm" style="margin-top:10px"><b style="font-size:14px">🛵 Commission du livreur pour cette promo</b></div>');
   const setKind = pack => { E.iskit.checked = pack; $('#kitw').hidden = !pack; if($('#initw')) $('#initw').hidden = pack; E.buy.required = !pack; E.name.required = !pack; if(buyBox) buyBox.hidden = pack;
+    if(pack) $('#kitComm').appendChild(commBox); else commHome.parentNode.insertBefore(commBox, commHome);
     $('#sht').textContent = p ? $('#sht').textContent : (pack ? '🎁 Nouveau pack / promo' : 'Nouveau produit'); E.name.placeholder = pack ? 'Ex : Gamme complète Golden Hair' : 'Ex : Sac de poitrine'; kitSum(); };
   const kitSum = () => { if(!E.iskit.checked){ $('#kitSum').innerHTML = ''; return; }
     const rows = [...f.querySelectorAll('#kitRows .kitrow')].map(r => [prod(r.querySelector('[name=kp]').value), Math.max(1, Math.round(num(r.querySelector('[name=kq]').value)))]).filter(([x]) => x);
@@ -2196,18 +2198,23 @@ function productForm(id, opt = {}){
     const sepU = rows.reduce((t, [x, q]) => t + toUSD(num(x.sell), x.cur) * q, 0), costU = rows.reduce((t, [x, q]) => t + unitCostUSD(x) * q, 0);
     const cur = E.cur.value, fromU = u => cur === 'FC' ? Math.round(u * rate()) : Math.round(u * 100) / 100;
     const sep = fromU(sepU), price = num(E.sell.value), priceU = toUSD(price, cur), save_ = sepU - priceU;
+    // Commission proposée = commissions des produits du pack (modifiable)
+    const sugg = Math.round(rows.reduce((t, [x, q]) => t + (x.commMode === 'pct' ? toUSD(num(x.sell), x.cur) * num(x.comm) / 100 : num(x.comm)) * q, 0) * 100) / 100;
+    if(autoComm){ E.commMode.value = 'fixe'; E.comm.value = sugg || ''; ch(); }
+    const commU = E.commMode.value === 'pct' ? priceU * num(E.comm.value) / 100 : num(E.comm.value);
     if(autoOld && price > 0 && sep > price) E.old.value = sep;
     if(autoName && !E.name.value.trim()) E.name.placeholder = 'Ex : Pack ' + rows.map(([x]) => x.name.split(' ')[0]).join(' + ');
-    $('#kitSum').innerHTML = `Prix si acheté séparément : <b>${amt(sep, cur)}</b>${price ? ` · Prix du pack : <b>${amt(price, cur)}</b>${save_ > 0.009 ? ` → <b style="color:var(--pos,#15803d)">le client économise ${money(save_)} (${Math.round(save_ / sepU * 100)} %)</b>` : ''}` : ''}<br>Coût d'achat du pack : <b>${money(costU)}</b>${price ? ` · Votre bénéfice (avant commission) : <b>${money(priceU - costU)}</b>` : ''}`; };
+    $('#kitSum').innerHTML = `Prix si acheté séparément : <b>${amt(sep, cur)}</b>${price ? ` · Prix du pack : <b>${amt(price, cur)}</b>${save_ > 0.009 ? ` → <b style="color:var(--pos,#15803d)">le client économise ${money(save_)} (${Math.round(save_ / sepU * 100)} %)</b>` : ''}` : ''}<br>Coût d'achat du pack : <b>${money(costU)}</b>${price ? `<br>Commission du livreur : <b>${money(commU)}</b>${sugg && autoComm ? ' <span class="muted">(somme des commissions des produits — modifiable)</span>' : ''} → <b style="color:var(--pos,#15803d)">votre bénéfice net : ${money(priceU - costU - commU)}</b>` : ''}`; };
   if($('#pkind')) $('#pkind').onclick = e => { const b = e.target.closest('[data-kind]'); if(!b) return; [...$('#pkind').children].forEach(x => x.classList.toggle('on', x === b)); setKind(b.dataset.kind === 'pack'); };
   $('#kitAdd').onclick = () => { if(f.querySelectorAll('#kitRows .kitrow').length >= 8) return toast('8 produits maximum'); $('#kitRows').insertAdjacentHTML('beforeend', kitRow({})); };
   $('#kitRows').addEventListener('click', e => { const b = e.target.closest('[data-kdel]'); if(!b) return; if(f.querySelectorAll('#kitRows .kitrow').length > 1) b.closest('.kitrow').remove(); else b.closest('.kitrow').querySelector('select').value = ''; kitSum(); });
   $('#kitRows').addEventListener('change', kitSum); $('#kitRows').addEventListener('input', kitSum);
-  E.sell.addEventListener('input', kitSum); E.cur.addEventListener('change', kitSum); E.old.addEventListener('input', () => { autoOld = false; }); E.name.addEventListener('input', () => { autoName = false; });
-  setKind(packMode);
+  E.sell.addEventListener('input', kitSum); E.cur.addEventListener('change', kitSum);
+  E.comm.addEventListener('input', () => { autoComm = false; kitSum(); }); E.commMode.addEventListener('change', () => { autoComm = false; kitSum(); }); E.old.addEventListener('input', () => { autoOld = false; }); E.name.addEventListener('input', () => { autoName = false; });
   const ch = () => { $('#commHint').textContent = E.commMode.value === 'pct' ? '% du prix de vente' : '$ par pièce livrée'; $('#cityUnit').textContent = E.commMode.value === 'pct' ? 'Valeurs en %.' : 'Valeurs en $ par pièce.'; };
   $('#addCity').onclick = () => { $('#cityRows').insertAdjacentHTML('beforeend', cityRow('', '')); $('#cityRows').lastElementChild.querySelector('input').focus(); };
   E.commMode.onchange = ch; ch();
+  setKind(packMode);
   f.onsubmit = e => {
     e.preventDefault();
     if(!E.name.value.trim() && E.iskit.checked && /^Ex : Pack /.test(E.name.placeholder)) E.name.value = E.name.placeholder.replace(/^Ex : /, '');
