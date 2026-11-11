@@ -1017,7 +1017,7 @@ function vLivre(){
 }
 function bookRows(){
   const q = bookQ.trim().toLowerCase();
-  const list = sortMoves(S.moves.filter(m => inPer(m.date, bookPeriod) && bookMatch(m) &&
+  const list = sortMoves(S.moves.filter(m => m.type !== 'plan' && m.type !== 'promesse' && inPer(m.date, bookPeriod) && bookMatch(m) &&
     (!q || [m.pid ? pname(m.pid) : '', m.client, m.note, m.motif, m.cat, lname(m.liv||m.loc)].join(' ').toLowerCase().includes(q))));
   if(!list.length) return `<div class="list"><div class="empty"><b>Aucune opération</b>Rien d'enregistré pour cette période.</div></div>`;
   let html = '', cur = null, buf = [];
@@ -1040,7 +1040,7 @@ function rowMove(m){
     case 'inventaire': { const L = m.lines || [], miss = L.reduce((t,x) => t + Math.max(0, x.exp - x.real), 0), plus = L.reduce((t,x) => t + Math.max(0, x.real - x.exp), 0);
       return R('inv', 'c-x', 'box', 'Contrôle de stock · ' + (m.loc ? esc(lname(m.loc)) : 'dépôt'), miss || plus ? `${miss ? miss + ' manquante(s)' : ''}${miss && plus ? ' · ' : ''}${plus ? plus + ' en trop' : ''}` : 'Tout est juste ✅', miss ? '−' + miss : '✓', miss ? 'var(--bad)' : 'var(--ok)', ''); }
     case 'cmd': return R('cmd', 'c-send', 'box', esc(m.title || 'Commande import'), `Commande import · ${esc(m.client||'Client')} · ${esc(stepOf(m.step)[1])}`, amtX(cmdCalc(m).total, m.cur), 'var(--brand-tx)', cmdNo(m));
-    case 'fourn': case 'trans': case 'plan': return '';
+    case 'fourn': case 'trans': case 'plan': case 'promesse': return '';
     case 'ajust': return R('inv', 'c-in', 'in', esc(pname(m.pid)), 'Écart inventaire (en trop) · ' + (m.loc ? esc(lname(m.loc)) : 'dépôt'), '+' + m.qty, 'var(--ok)', '');
     case 'depense': return R('money', 'c-loss', 'receipt', esc(m.cat||'Dépense'), (m.liv ? esc(lname(m.liv)) + ' · ' : '') + (m.note ? esc(m.note) : 'Dépense'), '−'+amt(m.amount, m.cur), 'var(--warn)', m.cur==='FC' ? money(moneyUSD(m)) : '');
   }
@@ -1372,6 +1372,8 @@ function alertsCard(st, low){
     if(oldSale) out.push([`liv:${l.id}`, `💰 ${esc(l.name)} n'a pas versé ${money(s.toRemit)} (ventes d'avant aujourd'hui)`]);
   });
   if(low.length) out.push(['nav:stock', `📦 ${low.length} produit(s) en stock bas ou en rupture`]);
+  const pr = promises().filter(p => p.date <= t);
+  if(pr.length) out.push(['clientsprom', `🤝 ${pr.length} client(s) à relancer (promesse) : ${pr.slice(0,3).map(p => esc(p.client || p.phone)).join(', ')}`]);
   const due = plans().filter(p => p.date <= addDays(t, 2));
   if(due.length) out.push(['nav:stock', `🛒 ${due.length} achat(s) prévu(s) ${due.some(p => p.date < t) ? 'en retard' : 'à faire bientôt'} : ${due.slice(0,3).map(p => esc(pname(p.pid))).join(', ')}`]);
   if(!out.length) return '';
@@ -1383,9 +1385,10 @@ let clientTab = 'tous', clientQ = '';
 function clientsList(){
   const map = new Map();
   for(const m of S.moves){
-    if(m.type !== 'vente' || m.status === 'annule') continue;
+    if(m.type !== 'vente') continue;
     const key = phoneNorm(m.phone) || norm0(m.client); if(!key) continue;
-    const c = map.get(key) || {key, name:'', phone:'', addr:'', n:0, q:0, total:0, last:'', lastPid:'', prods:{}, moves:[]};
+    const c = map.get(key) || {key, name:'', phone:'', addr:'', n:0, q:0, total:0, last:'', lastPid:'', prods:{}, moves:[], nAnn:0, lastAnn:'', annPid:'', annIds:[]};
+    if(m.status === 'annule'){ c.nAnn++; c.annIds.push(m.id); if((m.date || '') >= c.lastAnn){ c.lastAnn = m.date || ''; c.annPid = m.pid; } if(!c.name) c.name = m.client || ''; if(!c.phone) c.phone = m.phone || ''; if(!c.addr) c.addr = m.addr || ''; map.set(key, c); continue; }
     c.n++; c.q += m.qty; if(m.status === 'livre') c.total += saleUSD(m);
     if((m.date || '') >= c.last){ c.last = m.date || ''; c.name = m.client || c.name; c.addr = m.addr || c.addr; c.phone = m.phone || c.phone; c.lastPid = m.pid; }
     c.prods[m.pid] = (c.prods[m.pid] || 0) + m.qty; c.moves.push(m.id);
@@ -1393,25 +1396,37 @@ function clientsList(){
   }
   return [...map.values()];
 }
+// Clients qui ont annulé et n'ont pas racheté depuis
+const annToRelance = c => c.nAnn && c.lastAnn >= (c.last || '') && !(c.n && c.last > c.lastAnn);
+const relDate = key => (S.settings.rel || {})[key] || '';
+window.markRel = key => { S.settings.rel = S.settings.rel || {}; S.settings.rel[key] = today(); save(); setTimeout(() => { if(view === 'clients') refreshList('clients'); }, 300); };
 const daysSince = iso => iso ? Math.round((new Date(today() + 'T12:00:00') - new Date(iso + 'T12:00:00')) / 864e5) : 999;
 function vClients(){
   const all = clientsList(), q = norm0(clientQ);
-  const tabs = [['tous','Tous',() => true],['relancer','À relancer (+30 j)',c => daysSince(c.last) > 30],['fideles','Fidèles (2 achats et +)',c => c.n >= 2]];
+  const tabs = [['tous','Tous',() => true],['annules','❌ Ont annulé',annToRelance],['promesses','🤝 Promesses',() => false],['relancer','⏰ Sans achat +30 j',c => c.n && daysSince(c.last) > 30],['fideles','⭐ Fidèles',c => c.n >= 2]];
+  if(clientTab === 'promesses') return clientsHead(all, tabs) + promisesHTML();
   const f = (tabs.find(x => x[0] === clientTab) || tabs[0])[2];
   const list = all.filter(f).filter(c => !q || norm0(c.name + ' ' + c.phone + ' ' + c.addr).includes(q)).sort((a,b) => b.last.localeCompare(a.last));
-  const tot = all.reduce((s,c) => s + c.total, 0);
+  return clientsHead(all, tabs) + `<input class="search" type="search" placeholder="Rechercher un client, un numéro, une commune…" value="${esc(clientQ)}" oninput="clientQ=this.value;refreshList('clients')">
+  <div class="list" id="lst">${clientRows(list)}</div>
+  <button class="btn block" style="margin-top:12px" data-a="clientcsv">📥 Télécharger la liste des clients (Excel)</button>`;
+}
+function clientsHead(all, tabs){
+  const tot = all.reduce((s,c) => s + c.total, 0), np = promises().length;
   return `<div class="kpis"><div class="kpi"><div class="l">Clients</div><div class="v num">${all.length}</div><div class="s">${all.filter(c => c.n >= 2).length} fidèle(s)</div></div><div class="kpi"><div class="l">Panier moyen</div><div class="v num">${money(all.length ? tot / Math.max(1, all.reduce((s,c) => s + c.n, 0)) : 0)}</div><div class="s">par achat livré</div></div></div>
-  <div class="chips" style="margin-top:12px">${tabs.map(([k,l]) => `<button class="chip ${clientTab===k?'on':''}" data-a="ctab:${k}">${l}<b>${all.filter((tabs.find(x => x[0]===k))[2]).length}</b></button>`).join('')}</div>
-  <div style="height:10px"></div>
-  <input class="search" type="search" placeholder="Rechercher un client, un numéro, une commune…" value="${esc(clientQ)}" oninput="clientQ=this.value;refreshList('clients')">
-  <div class="list" id="lst">${clientRows(list)}</div>`;
+  <div class="chips" style="margin-top:12px">${tabs.map(([k,l]) => `<button class="chip ${clientTab===k?'on':''}" data-a="ctab:${k}">${l}<b>${k === 'promesses' ? np : all.filter((tabs.find(x => x[0]===k))[2]).length}</b></button>`).join('')}</div>
+  ${clientTab === 'annules' ? `<p class="note" style="margin:8px 0 0">Clients qui ont annulé une commande et n'ont pas racheté depuis. Ouvrez-en un → « Relancer par WhatsApp ».</p>` : ''}
+  <div style="height:10px"></div>`;
 }
 function clientRows(list){
   if(!list){ const all = clientsList(), q = norm0(clientQ); list = all.filter(c => !q || norm0(c.name + ' ' + c.phone + ' ' + c.addr).includes(q)).sort((a,b) => b.last.localeCompare(a.last)); }
-  if(!list.length) return `<div class="empty"><b>Aucun client</b>Les clients apparaissent automatiquement avec vos ventes.</div>`;
+  if(!list.length) return `<div class="empty"><b>Aucun client ici</b>Les clients apparaissent automatiquement avec vos ventes (nom et numéro).</div>`;
+  if(clientTab === 'annules') return list.slice(0, 300).map(c => `<button class="it" data-a="client:${esc(c.key)}"><div class="ic c-loss">${esc(initials(c.name || '?'))}</div><div class="m"><div class="t">${esc(c.name || 'Sans nom')}</div><div class="d">${esc(c.phone || '—')} · ❌ ${esc(pname(c.annPid))} annulé ${fmtDate(c.lastAnn)}${relDate(c.key) ? ' · <b>relancé ' + fmtDate(relDate(c.key)) + '</b>' : ''}</div></div>${ico('chev')}</button>`).join('');
   return list.slice(0, 300).map(c => { const d = daysSince(c.last); return `<button class="it" data-a="client:${esc(c.key)}"><div class="ic c-out">${esc(initials(c.name || '?'))}</div><div class="m"><div class="t">${esc(c.name || 'Sans nom')}</div><div class="d">${esc(c.phone || '—')}${c.addr ? ' · ' + esc(c.addr.split('\n')[0]) : ''}</div><div class="d">${c.n} achat(s) · dernier ${d === 0 ? "aujourd'hui" : 'il y a ' + d + ' j'}</div></div><div class="r"><b class="num">${money(c.total)}</b>${d > 30 ? '<div><span class="pill p-attente">À relancer</span></div>' : ''}</div></button>`; }).join('');
 }
 function relanceText(c){
+  if(annToRelance(c)){ const pa = pname(c.annPid);
+    return `Bonjour ${c.name || ''} 👋\nC'est ${S.settings.shop}. Votre commande${pa && pa !== 'Produit supprimé' ? ' de ' + pa : ''} n'a pas pu être livrée l'autre jour.\nElle est toujours disponible pour vous 😊 On peut vous livrer aujourd'hui ou demain : à quelle heure cela vous arrange ?`; }
   const p = pname(c.lastPid);
   return `Bonjour ${c.name || ''} 👋\nC'est ${S.settings.shop}. Merci encore pour votre achat${p && p !== 'Produit supprimé' ? ' (' + p + ')' : ''} !\nNous avons du nouveau stock et nous livrons rapidement. Voulez-vous passer une nouvelle commande ? 😊`;
 }
@@ -1419,18 +1434,54 @@ function clientSheet(key){
   const c = clientsList().find(x => x.key === key); if(!c) return;
   const moves = sortMoves(S.moves.filter(m => c.moves.includes(m.id)));
   sheet(c.name || 'Client', `
-    <div class="kv"><div><b class="num">${c.n}</b><span>Achats</span></div><div><b class="num">${c.q}</b><span>Pièces</span></div><div><b class="num">${money(c.total)}</b><span>Total livré</span></div></div>
+    <div class="kv"><div><b class="num">${c.n}</b><span>Achats</span></div><div><b class="num">${c.nAnn}</b><span>Annulé(s)</span></div><div><b class="num">${money(c.total)}</b><span>Total livré</span></div></div>
     <div class="card" style="margin-bottom:12px">
       <div class="dl"><span>Téléphone</span><span>${esc(c.phone || '—')}</span></div>
       <div class="dl"><span>Adresse</span><span style="white-space:pre-line">${esc(c.addr || '—')}</span></div>
-      <div class="dl"><span>Dernier achat</span><span>${fmtDate(c.last, true)}</span></div>
+      <div class="dl"><span>Dernier achat</span><span>${c.last ? fmtDate(c.last, true) : '—'}</span></div>
+      ${c.nAnn ? `<div class="dl"><span>Dernière annulation</span><span>${esc(pname(c.annPid))} · ${fmtDate(c.lastAnn, true)}</span></div>` : ''}
+      ${relDate(c.key) ? `<div class="dl"><span>Dernière relance</span><span>${fmtDate(relDate(c.key), true)}</span></div>` : ''}
       <div class="dl"><span>Produits achetés</span><span>${Object.entries(c.prods).map(([pid,q]) => esc(pname(pid)) + ' × ' + q).join('<br>')}</span></div>
     </div>
     ${field('Message de relance', `<textarea id="relTx" style="min-height:120px">${esc(relanceText(c))}</textarea>`)}
-    <div class="stack"><a class="btn wa block" id="relGo" href="${waLink(c.phone, relanceText(c))}" target="_blank" rel="noopener">${ico('wa')} Relancer par WhatsApp</a>
-    <button class="btn primary block" data-a="clientsale:${esc(c.key)}">+ Nouvelle vente pour ce client</button></div>
-    <div class="sec"><h2>Historique</h2></div><div class="list">${moves.map(rowMove).join('')}</div>`);
+    <div class="stack"><a class="btn wa block" id="relGo" href="${waLink(c.phone, relanceText(c))}" target="_blank" rel="noopener" onclick="markRel('${esc(c.key)}')">${ico('wa')} Relancer par WhatsApp</a>
+    <button class="btn primary block" data-a="clientsale:${esc(c.key)}">+ Nouvelle vente pour ce client</button>
+    <button class="btn block" data-a="promform" data-key="${esc(c.key)}">🤝 Noter une promesse (relancer plus tard)</button></div>
+    <div class="sec"><h2>Historique</h2></div><div class="list">${sortMoves(S.moves.filter(m => c.moves.includes(m.id) || c.annIds.includes(m.id))).map(rowMove).join('')}</div>`);
   $('#relTx').oninput = e => $('#relGo').href = waLink(c.phone, e.target.value);
+}
+
+/* ---------- Promesses : clients qui disent « je commanderai plus tard » ---------- */
+const promises = () => S.moves.filter(m => m.type === 'promesse' && !m.done).sort((a, b) => (a.date || '').localeCompare(b.date || ''));
+function promText(m){
+  const p = m.pid ? pname(m.pid) : '';
+  return `Bonjour ${m.client || ''} 👋\nC'est ${S.settings.shop}. Vous nous aviez dit que vous passeriez commande${p && p !== 'Produit supprimé' ? ' pour ' + p : ''}.\nIl est toujours disponible 😊 Voulez-vous qu'on vous le livre aujourd'hui ou demain ?`;
+}
+function promisesHTML(){
+  const L = promises(), t = today();
+  return `<button class="btn primary block" data-a="promform" style="margin-bottom:12px">🤝 Noter une promesse</button>
+  ${L.length ? `<div class="list">${L.map(m => { const late = m.date < t, due = m.date === t;
+    return `<div class="it" style="cursor:default;flex-wrap:wrap"><div class="ic c-out">${esc(initials(m.client || '?'))}</div><div class="m" style="min-width:0;flex:1"><div class="t" style="white-space:normal">${esc(m.client || 'Sans nom')}${m.pid ? ' · ' + esc(pname(m.pid)) + (m.qty > 1 ? ' × ' + m.qty : '') : ''}</div>
+      <div class="d" style="white-space:normal"><b class="${late ? 'red' : ''}" style="${due ? 'color:var(--warn,#b45309)' : ''}">📅 ${late ? 'En retard · ' : due ? "Aujourd'hui · " : ''}${esc(dAbs(m.date, 1))}</b> · ${esc(m.phone || '—')}${m.note ? ' · ' + esc(m.note) : ''}${m.rel ? ' · relancé ' + fmtDate(m.rel) : ''}</div></div>
+      <div style="display:flex;gap:6px;width:100%;margin-top:8px"><a class="btn sm wa" style="flex:1" href="${waLink(m.phone, promText(m))}" target="_blank" rel="noopener" onclick="markPromRel('${m.id}')">${ico('wa')} Relancer</a><button class="btn sm primary" data-a="promok:${m.id}">✅ A commandé</button><button class="btn sm" data-a="promform:${m.id}">✎</button></div></div>`; }).join('')}</div>`
+    : `<div class="card empty"><b>Aucune promesse</b>Un client vous dit « je commanderai à la fin du mois » ? Notez-le ici avec la date : l'application vous le rappellera.</div>`}`;
+}
+window.markPromRel = id => { const m = S.moves.find(x => x.id === id); if(m){ m.rel = today(); save(); setTimeout(() => render(), 300); } };
+function promForm(id, key){
+  const m = id ? S.moves.find(x => x.id === id) : null, c = key ? clientsList().find(x => x.key === key) : null;
+  const P = S.products.slice().sort(byName);
+  sheet(m ? 'Modifier la promesse' : '🤝 Noter une promesse', `<form id="prf">
+    <div class="row2">${field('Nom du client', `<input name="client" value="${esc(m ? m.client : c ? c.name : '')}" placeholder="Ex : Mme Nsimba">`)}${field('Téléphone (WhatsApp) *', `<input name="phone" type="tel" required value="${esc(m ? m.phone : c ? c.phone : '')}" placeholder="08…">`)}</div>
+    <div class="row2">${field('Produit qui l\'intéresse', `<select name="pid"><option value="">—</option>${P.map(p => `<option value="${p.id}" ${(m ? m.pid : c ? (c.annPid || c.lastPid) : '') === p.id ? 'selected' : ''}>${esc(p.name)}</option>`).join('')}</select>`)}${field('Quantité', `<input name="qty" type="number" min="1" step="1" value="${m ? m.qty || 1 : 1}">`)}</div>
+    ${field('Relancer le *', `<input name="date" type="date" required value="${m ? m.date : addDays(today(), 3)}">`, 'Le jour où il / elle a promis de commander (ex. fin du mois, jour de paie)')}
+    ${field('Ce qu\'il / elle a dit', `<input name="note" value="${esc(m?.note)}" placeholder="Ex : attend son salaire le 30">`)}
+    <button class="btn primary block">${m ? 'Enregistrer' : 'Ajouter'}</button>
+    ${m ? `<button type="button" class="btn ghost-bad block" style="margin-top:8px" data-a="promdel:${m.id}">Supprimer</button>` : ''}</form>`);
+  $('#prf').onsubmit = e => { e.preventDefault(); e.stopPropagation(); const E = e.target.elements;
+    const d = {client:E.client.value.trim(), phone:E.phone.value.trim(), pid:E.pid.value, qty:Math.max(1, Math.round(num(E.qty.value))), date:E.date.value, note:E.note.value.trim()};
+    if(!d.phone){ toast('Le numéro est nécessaire pour relancer'); return; }
+    if(m) Object.assign(m, d); else S.moves.push(Object.assign({id:uid(), type:'promesse', ts:Date.now()}, d));
+    save(); closeSheet(); clientTab = 'promesses'; if(view !== 'clients'){ view = 'clients'; } render(); toast('Promesse notée — rappel le ' + dAbs(d.date, 1)); };
 }
 
 /* ---------- Rapport de la semaine ---------- */
@@ -2111,7 +2162,7 @@ function prodSheet(id){
   const p = prod(id); if(!p) return;
   const st = stockAt(), kit = isKit(p);
   const cu = unitCostUSD(p), su = toUSD(num(p.sell), p.cur), cm = commUFor(p, {pay:'produit'}, su), marge = su - cu - cm;
-  const hist = sortMoves(S.moves.filter(m => m.type !== 'plan' && (m.pid === id || (!kit && m.pid && isKit(prod(m.pid)) && prod(m.pid).kit.some(c => c.pid === id))))).slice(0,15);
+  const hist = sortMoves(S.moves.filter(m => m.type !== 'plan' && m.type !== 'promesse' && (m.pid === id || (!kit && m.pid && isKit(prod(m.pid)) && prod(m.pid).kit.some(c => c.pid === id))))).slice(0,15);
   const locs = S.livreurs.map(l => [l, kit ? avail(st, l.id, id) : qAt(st, l.id, id)]).filter(x => x[1]);
   sheet(p.name, `${p.photo ? `<img src="${p.photo}" alt="" style="width:100%;max-height:240px;object-fit:cover;border-radius:14px;margin-bottom:12px">` : ''}
     ${kit ? `<div class="warnbox" style="background:var(--vio-soft);color:var(--vio)">Pack : ${p.kit.map(c => c.q + ' × ' + esc(pname(c.pid))).join(' + ')}. Les quantités ci-dessous = nombre de packs possibles.</div>` : ''}
@@ -2365,6 +2416,7 @@ function saleSheet(id, fresh){
       ${L ? `<p class="note" style="margin-top:8px"><b>Au livreur :</b></p><pre class="msg">${esc(rl)}</pre>` : ''}
       <p class="note" style="margin-top:8px"><b>Au client :</b></p><pre class="msg">${esc(rc)}</pre></details>
     <div class="f"><span>Statut</span><div class="seg">${Object.entries(STATUS).map(([k,l]) => `<button type="button" class="${m.status===k?'on':''}" data-a="status:${k}" data-id="${m.id}">${l}</button>`).join('')}</div></div>
+    ${m.status === 'annule' && (m.phone || m.client) ? `<button class="btn block" style="margin:-4px 0 12px" data-a="promsale:${m.id}">🤝 Relancer ce client plus tard (noter une promesse)</button>` : ''}
     ${m.status === 'livre' ? `<button class="btn block" style="margin:-4px 0 12px" data-a="ldate:${m.id}">✅ Livrée ${fmtDate(mday(m), true)} · changer la date</button>` : ''}
     <div class="card" style="margin-bottom:12px">
       <div class="dl"><span>Total client</span><span class="num">${total}${m.cur === 'FC' ? ' ≈ ' + money(u) : ''}</span></div>
@@ -2565,6 +2617,13 @@ const A = {
   demo: async () => { if(S.moves.length && !await ask('Remplacer vos données par des exemples ?', 'Remplacer')) return; seedDemo(); },
   preset: () => loadPreset(),
   ctab: v => { clientTab = v; render(); },
+  promsale: id => { const m = S.moves.find(x => x.id === id); if(!m) return; promForm(null, null); const E = $('#prf').elements; E.client.value = m.client || ''; E.phone.value = m.phone || ''; E.pid.value = m.pid || ''; E.qty.value = m.qty || 1; E.note.value = 'Commande annulée le ' + dAbs(m.date); },
+  clientsprom: () => { clientTab = 'promesses'; A.nav('clients'); },
+  promform: (id, el) => promForm(id || null, el && el.dataset.key),
+  promdel: async id => { if(!await ask('Supprimer cette promesse ?', 'Supprimer')) return; S.moves = S.moves.filter(m => m.id !== id); save(); closeSheet(); render(); },
+  promok: id => { const m = S.moves.find(x => x.id === id); if(!m) return; m.done = today(); save(); moveForm('vente', {pid:m.pid || '', client:{name:m.client, phone:m.phone, addr:''}}); const f = $('#mf'); if(f && m.qty) { f.elements.qty.value = m.qty; f.elements.qty.dispatchEvent(new Event('input')); } toast('Bravo 🎉 Complétez la vente'); },
+  clientcsv: () => { const rows = [['Nom','Téléphone','Adresse','Achats','Total livré ($)','Dernier achat','Annulations','Dernière relance']].concat(clientsList().sort((a, b) => (b.last || b.lastAnn).localeCompare(a.last || a.lastAnn)).map(c => [c.name, c.phone, (c.addr || '').replace(/\n/g, ' '), c.n, Math.round(c.total * 100) / 100, c.last, c.nAnn, relDate(c.key)]));
+    download('clients-' + today() + '.csv', '\ufeff' + rows.map(r => r.map(v => '"' + String(v ?? '').replace(/"/g, '""') + '"').join(';')).join('\n'), 'text/csv;charset=utf-8'); toast('Liste des clients téléchargée'); },
   client: k => clientSheet(k),
   clientsale: k => { const c = clientsList().find(x => x.key === k); moveForm('vente', {client:c}); },
   rweek: v => { rapWeek = +v; render(); },
