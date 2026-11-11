@@ -3103,14 +3103,37 @@ const sb = (window.supabase && window.supabase.createClient)
 const ONLINE = {user:null, shop:null, role:null, shops:[], offline:false};
 
 /* ---------- Outils ---------- */
+// Longueur du numéro après l'indicatif (sans le 0 du début) pour les pays connus
+const NAT_LEN = {'243':9,'242':9,'237':9,'221':9,'250':9,'261':9,'224':9,'33':9,'41':9,'1':10,'225':10,'229':10};
+const KEEP0 = {'225':1,'229':1,'242':1}; // pays où le 0 du début fait partie du numéro
 function telDigits(cc, phone){
-  let d = String(phone||'').replace(/\D/g,'');
+  const c = String(cc||'').replace(/\D/g,''), raw = String(phone||'').trim();
+  let d = raw.replace(/\D/g,'');
   if(!d) return '';
   if(d.startsWith('00')) d = d.slice(2);
-  else if(d.startsWith('0')) d = String(cc||'').replace(/\D/g,'') + d.slice(1);
-  else if(String(phone).trim().startsWith('+')) {/* déjà international */}
-  else if(d.length <= 9) d = String(cc||'').replace(/\D/g,'') + d;
+  else if(raw.startsWith('+')) {/* déjà international */}
+  else if(c && d.startsWith(c) && d.length > (NAT_LEN[c] || 9)) {/* indicatif déjà tapé : 243812345678 */}
+  else { if(d.startsWith('0') && !KEEP0[c]) d = d.slice(1); d = c + d; }
+  // « +243 0812… » : on enlève le 0 tapé après l'indicatif
+  if(c && !KEEP0[c] && d.startsWith(c + '0') && d.length === c.length + 1 + (NAT_LEN[c] || 0)) d = c + d.slice(c.length + 1);
   return d;
+}
+// Vérifie le numéro à l'inscription : renvoie un message d'erreur ou ''
+function telCheck(cc, d){
+  const c = String(cc||'').replace(/\D/g,''), n = NAT_LEN[c];
+  if(!d || d.length < 8) return 'Numéro de téléphone invalide.';
+  if(n && d.startsWith(c)){
+    const nat = d.length - c.length;
+    if(nat !== n) return `Le numéro doit avoir ${n} chiffres après +${c} (vous en avez tapé ${nat}). ${c === '243' ? 'Exemple : 0812345678 ou 812345678. ' : ''}Vérifiez qu'il n'y a pas un chiffre en trop.`;
+  }
+  if(d.length > 15) return 'Numéro trop long : vérifiez-le.';
+  return '';
+}
+function telPreview(form){
+  const E = form.elements, out = form.querySelector('.telprev'); if(!out || !E.phone) return;
+  const upd = () => { const d = telDigits(E.cc.value, E.phone.value), err = E.phone.value.trim() ? telCheck(E.cc.value, d) : '';
+    out.innerHTML = !E.phone.value.trim() ? `Tapez votre numéro <b>sans</b> +${esc(E.cc.value)} — le pays est déjà choisi.` : err ? `<span style="color:var(--bad,#dc2626)">⚠️ ${esc(err)}</span>` : `✅ Votre numéro : <b>${esc(telPretty(d))}</b>`; };
+  E.phone.addEventListener('input', upd); E.cc.addEventListener('change', upd); upd();
 }
 const telEmail = d => d + '@' + AUTH_DOMAIN;
 const telPretty = d => d ? '+' + d.replace(/^(\d{3})(\d{3})(\d{3})(\d+)$/, '$1 $2 $3 $4') : '';
@@ -3185,6 +3208,7 @@ function showAuth(mode = 'login', msg = ''){
     <form id="authf" autocomplete="on">
       ${login ? '' : field('Votre nom *', `<input name="fullname" required maxlength="60" autocomplete="name" placeholder="Ex : Jean Mbuyi">`)}
       <div class="row3" style="grid-template-columns:1.1fr 2fr">${field('Pays', `<select name="cc">${ccOptions(cc)}</select>`)}${field('Numéro de téléphone *', `<input name="phone" type="tel" required autocomplete="tel" placeholder="0812345678">`)}</div>
+      <p class="note telprev" style="margin:-4px 0 10px"></p>
       ${field('Mot de passe *', `<input name="pw" type="password" required minlength="6" autocomplete="${login?'current-password':'new-password'}" placeholder="6 caractères minimum">`)}
       ${login ? '' : field('Confirmer le mot de passe *', `<input name="pw2" type="password" required minlength="6" autocomplete="new-password">`)}
       <p class="auth-msg" id="authMsg">${esc(msg)}</p>
@@ -3193,11 +3217,13 @@ function showAuth(mode = 'login', msg = ''){
     <p class="note" style="margin-top:10px">${login ? '' : 'En créant un compte, vous acceptez les <a href="conditions.html" target="_blank" rel="noopener" class="link">conditions d\'utilisation</a>.'}</p>
     <p class="note" style="margin-top:14px">${login ? `Mot de passe oublié ? <a class="link" href="${supportLink('Bonjour BASILUA TECH, j\'ai oublié mon mot de passe Stock & Livreurs. Mon numéro de compte : ')}" target="_blank" rel="noopener">Contactez BASILUA TECH sur WhatsApp</a>` : 'Votre numéro sert d\'identifiant. Aucun SMS n\'est envoyé.'}</p>`);
   el.querySelectorAll('[data-auth]').forEach(b => b.onclick = () => showAuth(b.dataset.auth));
+  if(!login) telPreview($('#authf'));
   $('#authf').onsubmit = async e => {
     e.preventDefault();
     const E = e.target.elements, m = $('#authMsg'), go = $('#authGo');
     const d = telDigits(E.cc.value, E.phone.value);
-    if(d.length < 9){ m.textContent = 'Numéro de téléphone invalide.'; return; }
+    if(d.length < 8){ m.textContent = 'Numéro de téléphone invalide.'; return; }
+    if(!login){ const te = telCheck(E.cc.value, d); if(te){ m.textContent = te; E.phone.focus(); return; } }
     if(!login && E.pw.value !== E.pw2.value){ m.textContent = 'Les deux mots de passe ne sont pas identiques.'; return; }
     try{ localStorage.setItem('stock_online_cc', E.cc.value); }catch(_){}
     go.disabled = true; go.textContent = 'Patientez…'; m.textContent = '';
@@ -3577,7 +3603,7 @@ function inviteSheet(pre = {}){
   f.onsubmit = async e => {
     e.preventDefault();
     const d = telDigits(E.cc.value, E.phone.value);
-    if(d.length < 9){ $('#invMsg').textContent = 'Numéro invalide.'; return; }
+    { const te = telCheck(E.cc.value, d); if(te){ $('#invMsg').textContent = te; return; } }
     if(E.role.value === 'livreur' && !E.liv.value){ $('#invMsg').textContent = 'Choisissez la fiche du livreur.'; return; }
     const {error} = await sb.rpc('create_invite', {p_shop:ONLINE.shop.id, p_phone:d, p_role:E.role.value, p_livreur_id:E.role.value === 'livreur' ? E.liv.value : null, p_name:E.name.value.trim() || null});
     if(error){ $('#invMsg').textContent = rpcErr(error); return; }
@@ -3719,6 +3745,7 @@ A.admshop = async (id) => {
       <button class="btn" data-a="admset" data-id="${id}" data-st="actif" data-d="">Illimité</button>
       <button class="btn ghost-bad" data-a="admset" data-id="${id}" data-st="bloque" data-d="${s.paid_until || ''}">Bloquer</button>
     </div>
+    ${s.status === 'bloque' ? `<button class="btn ghost-bad block" style="margin-bottom:12px" data-a="admdel:${id}">🗑️ Supprimer définitivement cette boutique et son compte</button>` : `<p class="note" style="margin-bottom:12px">Pour supprimer une boutique (ex. compte mal créé), bloquez-la d'abord : le bouton « Supprimer » apparaîtra.</p>`}
     <form id="admf" class="card" style="margin-bottom:12px"><div class="row2">${field('Statut', `<select name="st"><option value="actif" ${s.status==='actif'?'selected':''}>Actif</option><option value="essai" ${s.status==='essai'?'selected':''}>Essai</option><option value="bloque" ${s.status==='bloque'?'selected':''}>Bloqué</option></select>`)}${field('Jusqu\'au (vide = illimité)', `<input name="d" type="date" value="${esc(s.paid_until || '')}">`)}</div><button class="btn block">Enregistrer cette date</button></form>
     <div class="stack">
       <a class="btn wa block" href="${waLink('+' + (s.owner_phone || ''), `Bonjour ${s.owner_name || ''} 👋\nVotre abonnement Stock & Livreurs pour « ${s.name} » ${i.cls === 'bad' ? 'est expiré' : 'se termine le ' + (s.paid_until ? fmtDate(s.paid_until, true) : '—')}.\nPour continuer à enregistrer vos ventes, renouvelez votre abonnement (${subPrice()}) par Mobile Money. Merci 🙏\nBASILUA TECH`)}" target="_blank" rel="noopener">${ico('wa')} Rappel de paiement</a>
@@ -3743,6 +3770,14 @@ A.admset = async (_, el) => {
   const txt = st === 'bloque' ? `Bloquer « ${esc(s.name)} » ? Le client passera en lecture seule.` : `Passer « ${esc(s.name)} » en ${st === 'essai' ? 'essai' : 'actif'} ${d ? 'jusqu\'au ' + fmtDate(d, true) : 'sans limite'} ?`;
   if(!await ask(txt, 'Confirmer', st === 'bloque')) return;
   admSet(el.dataset.id, st, d);
+};
+A.admdel = async (id) => {
+  const s = (ADM.shops || []).find(x => x.id === id); if(!s) return;
+  if(!await ask(`Supprimer définitivement « ${esc(s.name)} » (${esc(telPretty(s.owner_phone || ''))}) ? Ses produits, ventes et son compte seront effacés. C'est irréversible.`, 'Supprimer', true)) return;
+  const {data, error} = await sb.rpc('admin_delete_shop', {p_shop:id});
+  if(error) return toast(rpcErr(error));
+  ADM.shops = ADM.shops.filter(x => x.id !== id);
+  closeSheet(); render(); toast(`Boutique supprimée ✅${data ? ' · ' + data + ' compte(s) effacé(s)' : ''}`);
 };
 A.admpw = async (_, el) => {
   const pw = randPass();
